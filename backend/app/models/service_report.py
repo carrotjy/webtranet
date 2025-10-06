@@ -8,7 +8,8 @@ class ServiceReport:
                  technician_id=None, machine_model=None, machine_serial=None,
                  service_date=None, problem_description=None, 
                  solution_description=None, parts_used=None, work_hours=None,
-                 status='completed', created_at=None, updated_at=None):
+                 status='completed', invoice_code_id=None, support_technician_ids=None,
+                 created_at=None, updated_at=None):
         self.id = id
         self.report_number = report_number
         self.customer_id = customer_id
@@ -21,6 +22,8 @@ class ServiceReport:
         self.parts_used = parts_used
         self.work_hours = work_hours
         self.status = status
+        self.invoice_code_id = invoice_code_id
+        self.support_technician_ids = support_technician_ids  # JSON 문자열로 저장
         self.created_at = created_at
         self.updated_at = updated_at
     
@@ -31,10 +34,12 @@ class ServiceReport:
         offset = (page - 1) * per_page
         
         reports_data = conn.execute('''
-            SELECT sr.*, c.company_name, u.name as technician_name
+            SELECT sr.*, c.company_name, c.address as customer_address, u.name as technician_name,
+                   ic.code as invoice_code, ic.description as invoice_description
             FROM service_reports sr
             LEFT JOIN customers c ON sr.customer_id = c.id
             LEFT JOIN users u ON sr.technician_id = u.id
+            LEFT JOIN invoice_codes ic ON sr.invoice_code_id = ic.id
             ORDER BY sr.created_at DESC
             LIMIT ? OFFSET ?
         ''', (per_page, offset)).fetchall()
@@ -47,7 +52,10 @@ class ServiceReport:
             report = cls._from_db_row(data)
             # 추가 정보 포함
             report.customer_name = data['company_name']
+            report.customer_address = data['customer_address']
             report.technician_name = data['technician_name']
+            report.invoice_code = data['invoice_code']
+            report.invoice_description = data['invoice_description']
             reports.append(report)
         
         return reports, total
@@ -57,10 +65,12 @@ class ServiceReport:
         """ID로 서비스 리포트 조회"""
         conn = get_db_connection()
         data = conn.execute('''
-            SELECT sr.*, c.company_name, u.name as technician_name
+            SELECT sr.*, c.company_name, c.address as customer_address, u.name as technician_name,
+                   ic.code as invoice_code, ic.description as invoice_description
             FROM service_reports sr
             LEFT JOIN customers c ON sr.customer_id = c.id
             LEFT JOIN users u ON sr.technician_id = u.id
+            LEFT JOIN invoice_codes ic ON sr.invoice_code_id = ic.id
             WHERE sr.id = ?
         ''', (report_id,)).fetchone()
         conn.close()
@@ -68,7 +78,10 @@ class ServiceReport:
         if data:
             report = cls._from_db_row(data)
             report.customer_name = data['company_name']
+            report.customer_address = data['customer_address']
             report.technician_name = data['technician_name']
+            report.invoice_code = data['invoice_code']
+            report.invoice_description = data['invoice_description']
             return report
         return None
     
@@ -80,10 +93,12 @@ class ServiceReport:
         offset = (page - 1) * per_page
         
         query = '''
-            SELECT sr.*, c.company_name, u.name as technician_name
+            SELECT sr.*, c.company_name, u.name as technician_name,
+                   ic.code as invoice_code, ic.description as invoice_description
             FROM service_reports sr
             LEFT JOIN customers c ON sr.customer_id = c.id
             LEFT JOIN users u ON sr.technician_id = u.id
+            LEFT JOIN invoice_codes ic ON sr.invoice_code_id = ic.id
             WHERE 1=1
         '''
         params = []
@@ -146,12 +161,13 @@ class ServiceReport:
                     report_number=?, customer_id=?, technician_id=?, machine_model=?,
                     machine_serial=?, service_date=?, problem_description=?,
                     solution_description=?, parts_used=?, work_hours=?, status=?,
-                    updated_at=CURRENT_TIMESTAMP
+                    invoice_code_id=?, support_technician_ids=?, updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
                 ''', (self.report_number, self.customer_id, self.technician_id,
                       self.machine_model, self.machine_serial, self.service_date,
                       self.problem_description, self.solution_description,
-                      self.parts_used, self.work_hours, self.status, self.id))
+                      self.parts_used, self.work_hours, self.status, 
+                      self.invoice_code_id, self.support_technician_ids, self.id))
             else:
                 # 신규 생성
                 if not self.report_number:
@@ -165,12 +181,14 @@ class ServiceReport:
                     INSERT INTO service_reports 
                     (report_number, customer_id, technician_id, machine_model,
                      machine_serial, service_date, problem_description,
-                     solution_description, parts_used, work_hours, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     solution_description, parts_used, work_hours, status, 
+                     invoice_code_id, support_technician_ids)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (self.report_number, self.customer_id, self.technician_id,
                       self.machine_model, self.machine_serial, self.service_date,
                       self.problem_description, self.solution_description,
-                      self.parts_used, self.work_hours, self.status))
+                      self.parts_used, self.work_hours, self.status, 
+                      self.invoice_code_id, self.support_technician_ids))
                 self.id = cursor.lastrowid
                 print(f"[DEBUG] New report created with id: {self.id}")
             
@@ -238,7 +256,7 @@ class ServiceReport:
     @classmethod
     def _from_db_row(cls, row):
         """데이터베이스 행에서 객체 생성"""
-        return cls(
+        report = cls(
             id=row['id'],
             report_number=row['report_number'],
             customer_id=row['customer_id'],
@@ -251,9 +269,19 @@ class ServiceReport:
             parts_used=row['parts_used'],
             work_hours=row['work_hours'],
             status=row['status'],
+            invoice_code_id=row['invoice_code_id'] if 'invoice_code_id' in row.keys() else None,
+            support_technician_ids=row['support_technician_ids'] if 'support_technician_ids' in row.keys() else None,
             created_at=row['created_at'],
             updated_at=row['updated_at']
         )
+        
+        # Invoice 코드 정보 추가 (JOIN으로 가져온 경우)
+        if 'invoice_code' in row.keys():
+            report.invoice_code = row['invoice_code']
+        if 'invoice_description' in row.keys():
+            report.invoice_description = row['invoice_description']
+            
+        return report
     
     def save_parts(self, parts_data):
         """사용부품 저장 (기존 부품 삭제 후 새로 저장)"""
@@ -321,6 +349,8 @@ class ServiceReport:
 
     def to_dict(self):
         """딕셔너리로 변환"""
+        import json
+        
         result = {
             'id': self.id,
             'report_number': self.report_number,
@@ -334,6 +364,8 @@ class ServiceReport:
             'parts_used': self.parts_used,  # 하위 호환성을 위해 유지
             'work_hours': self.work_hours,
             'status': self.status,
+            'invoice_code_id': self.invoice_code_id,
+            'support_technician_ids': json.loads(self.support_technician_ids) if self.support_technician_ids else [],
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
@@ -357,7 +389,13 @@ class ServiceReport:
         # 추가 정보가 있으면 포함
         if hasattr(self, 'customer_name'):
             result['customer_name'] = self.customer_name
+        if hasattr(self, 'customer_address'):
+            result['customer_address'] = self.customer_address
         if hasattr(self, 'technician_name'):
             result['technician_name'] = self.technician_name
+        if hasattr(self, 'invoice_code'):
+            result['invoice_code'] = self.invoice_code
+        if hasattr(self, 'invoice_description'):
+            result['invoice_description'] = self.invoice_description
         
         return result

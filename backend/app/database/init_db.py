@@ -20,12 +20,14 @@ def init_database():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
+            username TEXT UNIQUE,
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             contact TEXT,
             department TEXT,
+            role TEXT DEFAULT '사용자',
             service_report_access BOOLEAN DEFAULT 0,
-            transaction_access BOOLEAN DEFAULT 0,
+            invoice_access BOOLEAN DEFAULT 0,
             customer_access BOOLEAN DEFAULT 0,
             spare_parts_access BOOLEAN DEFAULT 0,
             is_admin BOOLEAN DEFAULT 0,
@@ -33,6 +35,17 @@ def init_database():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    # 기존 사용자 테이블에 username, role 컬럼이 없다면 추가
+    try:
+        conn.execute('ALTER TABLE users ADD COLUMN username TEXT UNIQUE')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+    
+    try:
+        conn.execute('ALTER TABLE users ADD COLUMN role TEXT DEFAULT "사용자"')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
     
     # 서비스 리포트 테이블 생성
     conn.execute('''
@@ -107,22 +120,74 @@ def init_database():
         conn.execute('ALTER TABLE customers ADD COLUMN contact TEXT')
     except sqlite3.OperationalError:
         pass
+
+    # service_reports 테이블에 invoice_code_id 컬럼 추가
+    try:
+        conn.execute('ALTER TABLE service_reports ADD COLUMN invoice_code_id INTEGER')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
     
-    # 거래명세서 테이블 생성
+    # service_reports 테이블에 invoice_code_id 컬럼 추가 (마이그레이션)
+    try:
+        conn.execute('ALTER TABLE service_reports ADD COLUMN invoice_code_id INTEGER REFERENCES invoice_codes(id)')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+    
+    # invoice_codes 테이블에 category 컬럼 추가 (마이그레이션)
+    try:
+        conn.execute('ALTER TABLE invoice_codes ADD COLUMN category TEXT DEFAULT NULL')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+    
+    # 거래명세표 요율 설정 테이블 생성
     conn.execute('''
-        CREATE TABLE IF NOT EXISTS transactions (
+        CREATE TABLE IF NOT EXISTS invoice_rates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            transaction_number TEXT UNIQUE NOT NULL,
-            customer_id INTEGER,
+            work_rate REAL DEFAULT 50000,
+            travel_rate REAL DEFAULT 30000,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # 거래명세표 테이블 생성
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS invoices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             service_report_id INTEGER,
-            transaction_date DATE NOT NULL,
+            invoice_number TEXT UNIQUE NOT NULL,
+            customer_id INTEGER,
+            customer_name TEXT,
+            customer_address TEXT,
+            issue_date DATE,
+            due_date DATE,
+            work_subtotal REAL DEFAULT 0,
+            travel_subtotal REAL DEFAULT 0,
+            parts_subtotal REAL DEFAULT 0,
             total_amount REAL DEFAULT 0,
-            status TEXT DEFAULT 'pending',
+            vat_amount REAL DEFAULT 0,
+            grand_total REAL DEFAULT 0,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (customer_id) REFERENCES customers (id),
-            FOREIGN KEY (service_report_id) REFERENCES service_reports (id)
+            FOREIGN KEY (service_report_id) REFERENCES service_reports (id),
+            FOREIGN KEY (customer_id) REFERENCES customers (id)
+        )
+    ''')
+    
+    # 거래명세표 항목 테이블 생성
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS invoice_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_id INTEGER NOT NULL,
+            item_type TEXT NOT NULL CHECK(item_type IN ('work', 'travel', 'parts')),
+            description TEXT NOT NULL,
+            quantity REAL DEFAULT 0,
+            unit_price REAL DEFAULT 0,
+            total_price REAL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (invoice_id) REFERENCES invoices (id) ON DELETE CASCADE
         )
     ''')
     
@@ -177,6 +242,17 @@ def init_database():
         )
     ''')
     
+    # Invoice 코드 테이블 생성
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS invoice_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL CHECK(LENGTH(code) = 3 AND code GLOB '[0-9][0-9][0-9]'),
+            description TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # 스페어파트 테이블 생성
     conn.execute('''
         CREATE TABLE IF NOT EXISTS spare_parts (
@@ -193,20 +269,56 @@ def init_database():
         )
     ''')
     
-    # 거래 상세 항목 테이블 생성
+    # 가격 히스토리 테이블 생성
     conn.execute('''
-        CREATE TABLE IF NOT EXISTS transaction_items (
+        CREATE TABLE IF NOT EXISTS price_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            transaction_id INTEGER,
-            item_type TEXT NOT NULL, -- 'service' or 'part'
-            item_id INTEGER, -- service_report_id or spare_part_id
-            description TEXT NOT NULL,
-            quantity INTEGER DEFAULT 1,
-            unit_price REAL DEFAULT 0,
-            total_price REAL DEFAULT 0,
-            FOREIGN KEY (transaction_id) REFERENCES transactions (id)
+            spare_part_id INTEGER NOT NULL,
+            price REAL NOT NULL,
+            effective_date DATE NOT NULL,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by TEXT NOT NULL,
+            FOREIGN KEY (spare_part_id) REFERENCES spare_parts (id) ON DELETE CASCADE
         )
     ''')
+    
+    # price_history 테이블에 billing_price 컬럼 추가 (migration)
+    try:
+        conn.execute('ALTER TABLE price_history ADD COLUMN billing_price REAL DEFAULT 0')
+        print("Added billing_price column to price_history table")
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+        
+    # price_history 테이블에 currency 컬럼 추가 (기존 migration)
+    try:
+        conn.execute('ALTER TABLE price_history ADD COLUMN currency TEXT DEFAULT "KRW"')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+        
+    # price_history 테이블에 part_type 컬럼 추가 (기존 migration)
+    try:
+        conn.execute('ALTER TABLE price_history ADD COLUMN part_type TEXT DEFAULT "repair"')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+    
+    # 사용자별 스페어파트 권한 테이블 생성
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS user_spare_part_permissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            can_edit BOOLEAN DEFAULT 0,
+            can_delete BOOLEAN DEFAULT 0,
+            can_inbound BOOLEAN DEFAULT 0,
+            can_outbound BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            UNIQUE(user_id)
+        )
+    ''')
+    
+    # 거래 상세 항목 테이블 생성
     
     conn.commit()
     
@@ -228,22 +340,38 @@ def create_initial_data(conn):
         # admin 계정 생성
         admin_password = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt())
         conn.execute('''
-            INSERT INTO users (name, email, password, contact, department, 
-                             service_report_access, transaction_access, 
+            INSERT INTO users (name, username, email, password, contact, department, role,
+                             service_report_access, invoice_access, 
                              customer_access, spare_parts_access, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', ('관리자', 'admin@webtranet.com', admin_password.decode('utf-8'),
-              '02-1234-5678', '관리부', 1, 1, 1, 1, 1))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', ('관리자', 'admin', 'admin@webtranet.com', admin_password.decode('utf-8'),
+              '02-1234-5678', '관리부', '관리자', 1, 1, 1, 1, 1))
         
-        # 테스트용 일반 사용자 생성
+        # 테스트용 일반 사용자들 생성
         user_password = bcrypt.hashpw('password123'.encode('utf-8'), bcrypt.gensalt())
         conn.execute('''
-            INSERT INTO users (name, email, password, contact, department,
-                             service_report_access, transaction_access,
+            INSERT INTO users (name, username, email, password, contact, department, role,
+                             service_report_access, invoice_access,
                              customer_access, spare_parts_access, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', ('김기술', 'technician@webtranet.com', user_password.decode('utf-8'),
-              '010-1234-5678', '기술부', 1, 0, 1, 1, 0))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', ('운영자1', 'operator1', 'operator1@webtranet.com', user_password.decode('utf-8'),
+              '010-1234-5679', '운영부', '운영자', 1, 1, 1, 1, 0))
+        
+        conn.execute('''
+            INSERT INTO users (name, username, email, password, contact, department, role,
+                             service_report_access, invoice_access,
+                             customer_access, spare_parts_access, is_admin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', ('기술자1', 'technician1', 'tech1@webtranet.com', user_password.decode('utf-8'),
+              '010-1234-5680', '기술부', '기술자', 1, 0, 1, 1, 0))
+        
+        conn.execute('''
+            INSERT INTO users (name, username, email, password, contact, department, role,
+                             service_report_access, invoice_access,
+                             customer_access, spare_parts_access, is_admin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', ('조회자1', 'viewer1', 'viewer1@webtranet.com', user_password.decode('utf-8'),
+              '010-1234-5681', '조회부', '조회자', 1, 0, 1, 1, 0))
         
         # 샘플 고객 데이터
         conn.execute('''
@@ -256,6 +384,32 @@ def create_initial_data(conn):
             VALUES (?, ?, ?, ?, ?)
         ''', ('XYZ 공업', '이순신', 'info@xyz.com', '031-555-1234', '경기도 성남시 분당구 판교로 456'))
         
+        # 샘플 Invoice 코드 데이터
+        conn.execute('''
+            INSERT OR IGNORE INTO invoice_codes (code, description)
+            VALUES (?, ?)
+        ''', ('001', '정기점검'))
+        
+        conn.execute('''
+            INSERT OR IGNORE INTO invoice_codes (code, description)
+            VALUES (?, ?)
+        ''', ('002', '긴급수리'))
+        
+        conn.execute('''
+            INSERT OR IGNORE INTO invoice_codes (code, description)
+            VALUES (?, ?)
+        ''', ('003', '부품교체'))
+        
+        conn.execute('''
+            INSERT OR IGNORE INTO invoice_codes (code, description)
+            VALUES (?, ?)
+        ''', ('004', '소프트웨어 업데이트'))
+        
+        conn.execute('''
+            INSERT OR IGNORE INTO invoice_codes (code, description)
+            VALUES (?, ?)
+        ''', ('005', '설치 및 설정'))
+
         # 샘플 스페어파트 데이터
         conn.execute('''
             INSERT INTO spare_parts (part_number, part_name, description, price, stock_quantity, minimum_stock, supplier)

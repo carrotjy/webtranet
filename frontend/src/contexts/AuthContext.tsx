@@ -11,6 +11,10 @@ interface User {
   transaction_access: boolean;
   customer_access: boolean;
   spare_parts_access: boolean;
+  spare_parts_edit: boolean;
+  spare_parts_delete: boolean;
+  spare_parts_stock_in: boolean;
+  spare_parts_stock_out: boolean;
   is_admin: boolean;
 }
 

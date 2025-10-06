@@ -567,8 +567,13 @@ const Customers: React.FC = () => {
       <div className="container-xl">
         <div className="row g-2 align-items-center">
           <div className="col">
-            <h2 className="page-title">고객 관리</h2>
-            <div className="text-muted mt-1">고객 정보 및 보유 장비를 관리합니다</div>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="검색어를 입력하세요 (고객사명, 담당자, 주소)"
+              value={searchTerm}
+              onChange={handleSearchChange}
+            />
           </div>
           <div className="col-auto ms-auto d-print-none">
             <div className="btn-list">
@@ -608,15 +613,9 @@ const Customers: React.FC = () => {
                 <div className="card-header">
                   <h3 className="card-title">고객 목록</h3>
                   <div className="card-actions">
-                    <div className="input-group">
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="고객명 또는 담당자 검색..."
-                        value={searchTerm}
-                        onChange={handleSearchChange}
-                      />
-                    </div>
+                    <span className="text-muted">
+                      총 {totalCustomers}개의 고객
+                    </span>
                   </div>
                 </div>
                 <div className="card-body">

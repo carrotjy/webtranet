@@ -3,17 +3,19 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
-import { 
-  Login, 
-  Dashboard, 
-  ServiceReports, 
-  Transactions, 
+import {
+  Login,
+  Dashboard,
+  ServiceReports,
   Customers, 
   SpareParts, 
   UserManagement,
   ServiceReportSettings,
-  TransactionSettings,
-  SparePartSettings
+  InvoiceSettings,
+  SparePartSettings,
+  Invoices,
+  InvoiceForm,
+  InvoiceView
 } from './pages';
 import './App.css';
 
@@ -36,11 +38,6 @@ function App() {
                   <ServiceReports />
                 </ProtectedRoute>
               } />
-              <Route path="transactions" element={
-                <ProtectedRoute requiredPermission="transaction">
-                  <Transactions />
-                </ProtectedRoute>
-              } />
               <Route path="customers" element={
                 <ProtectedRoute requiredPermission="customer">
                   <Customers />
@@ -49,6 +46,31 @@ function App() {
               <Route path="spare-parts" element={
                 <ProtectedRoute requiredPermission="spare_parts">
                   <SpareParts />
+                </ProtectedRoute>
+              } />
+              <Route path="invoices" element={
+                <ProtectedRoute requiredPermission="transaction">
+                  <Invoices />
+                </ProtectedRoute>
+              } />
+              <Route path="invoices/:invoiceId" element={
+                <ProtectedRoute requiredPermission="invoice">
+                  <InvoiceView />
+                </ProtectedRoute>
+              } />
+              <Route path="invoices/new" element={
+                <ProtectedRoute requiredPermission="invoice">
+                  <InvoiceForm />
+                </ProtectedRoute>
+              } />
+              <Route path="invoices/:invoiceId/edit" element={
+                <ProtectedRoute requiredPermission="invoice">
+                  <InvoiceForm />
+                </ProtectedRoute>
+              } />
+              <Route path="invoices/from-service-report/:serviceReportId" element={
+                <ProtectedRoute requiredPermission="invoice">
+                  <InvoiceForm />
                 </ProtectedRoute>
               } />
               <Route path="user-management" element={
@@ -61,9 +83,9 @@ function App() {
                   <ServiceReportSettings />
                 </ProtectedRoute>
               } />
-              <Route path="admin/transactions" element={
+              <Route path="admin/invoices" element={
                 <ProtectedRoute adminOnly>
-                  <TransactionSettings />
+                  <InvoiceSettings />
                 </ProtectedRoute>
               } />
               <Route path="admin/spare-parts" element={

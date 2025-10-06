@@ -1,233 +1,98 @@
-from app.database.init_db import get_db_connection
 from datetime import datetime
+from . import db
 
-class SparePart:
-    def __init__(self, id=None, part_number=None, part_name=None,
-                 description=None, price=0, stock_quantity=0, minimum_stock=0,
-                 supplier=None, created_at=None, updated_at=None):
-        self.id = id
-        self.part_number = part_number
-        self.part_name = part_name
-        self.description = description
-        self.price = price
-        self.stock_quantity = stock_quantity
-        self.minimum_stock = minimum_stock
-        self.supplier = supplier
-        self.created_at = created_at
-        self.updated_at = updated_at
+class SparePart(db.Model):
+    __tablename__ = 'spare_parts'
     
-    @classmethod
-    def get_all(cls, page=1, per_page=10):
-        """모든 스페어파트 조회 (페이징)"""
-        conn = get_db_connection()
-        offset = (page - 1) * per_page
-        
-        parts_data = conn.execute('''
-            SELECT * FROM spare_parts 
-            ORDER BY part_number ASC
-            LIMIT ? OFFSET ?
-        ''', (per_page, offset)).fetchall()
-        
-        total = conn.execute('SELECT COUNT(*) FROM spare_parts').fetchone()[0]
-        conn.close()
-        
-        parts = [cls._from_db_row(data) for data in parts_data]
-        return parts, total
+    part_number = db.Column(db.String(100), primary_key=True)
+    part_name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(100))
+    current_stock = db.Column(db.Integer, default=0)
+    min_stock = db.Column(db.Integer, default=0)
+    current_price_eur = db.Column(db.Float)
+    current_price_krw = db.Column(db.Float)
+    current_price_updated_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = db.Column(db.String(100))
     
-    @classmethod
-    def get_by_id(cls, part_id):
-        """ID로 스페어파트 조회"""
-        conn = get_db_connection()
-        data = conn.execute(
-            'SELECT * FROM spare_parts WHERE id = ?', (part_id,)
-        ).fetchone()
-        conn.close()
-        
-        if data:
-            return cls._from_db_row(data)
-        return None
-    
-    @classmethod
-    def get_by_part_number(cls, part_number):
-        """부품 번호로 스페어파트 조회"""
-        conn = get_db_connection()
-        data = conn.execute(
-            'SELECT * FROM spare_parts WHERE part_number = ?', (part_number,)
-        ).fetchone()
-        conn.close()
-        
-        if data:
-            return cls._from_db_row(data)
-        return None
-    
-    @classmethod
-    def search(cls, keyword=None, low_stock_only=False, page=1, per_page=10):
-        """스페어파트 검색"""
-        conn = get_db_connection()
-        offset = (page - 1) * per_page
-        
-        query = 'SELECT * FROM spare_parts WHERE 1=1'
-        params = []
-        
-        if keyword:
-            query += ''' AND (part_number LIKE ? OR part_name LIKE ? 
-                           OR description LIKE ? OR supplier LIKE ?)'''
-            keyword_param = f'%{keyword}%'
-            params.extend([keyword_param] * 4)
-        
-        if low_stock_only:
-            query += ' AND stock_quantity <= minimum_stock'
-        
-        query += ' ORDER BY part_number ASC LIMIT ? OFFSET ?'
-        params.extend([per_page, offset])
-        
-        parts_data = conn.execute(query, params).fetchall()
-        
-        # 총 개수 조회
-        count_query = query.replace('SELECT *', 'SELECT COUNT(*)')
-        count_query = count_query.replace('ORDER BY part_number ASC LIMIT ? OFFSET ?', '')
-        count_params = params[:-2]  # LIMIT, OFFSET 제외
-        total = conn.execute(count_query, count_params).fetchone()[0]
-        
-        conn.close()
-        
-        parts = [cls._from_db_row(data) for data in parts_data]
-        return parts, total
-    
-    @classmethod
-    def get_low_stock_parts(cls):
-        """재고 부족 부품 조회"""
-        conn = get_db_connection()
-        parts_data = conn.execute('''
-            SELECT * FROM spare_parts 
-            WHERE stock_quantity <= minimum_stock
-            ORDER BY part_number ASC
-        ''').fetchall()
-        conn.close()
-        
-        return [cls._from_db_row(data) for data in parts_data]
-    
-    def save(self):
-        """스페어파트 저장 (생성 또는 수정)"""
-        conn = get_db_connection()
-        
-        try:
-            if self.id:
-                # 수정
-                conn.execute('''
-                    UPDATE spare_parts SET 
-                    part_number=?, part_name=?, description=?, price=?,
-                    stock_quantity=?, minimum_stock=?, supplier=?,
-                    updated_at=CURRENT_TIMESTAMP
-                    WHERE id=?
-                ''', (self.part_number, self.part_name, self.description,
-                      self.price, self.stock_quantity, self.minimum_stock,
-                      self.supplier, self.id))
-            else:
-                # 신규 생성 - 부품 번호 중복 확인
-                existing = conn.execute(
-                    'SELECT id FROM spare_parts WHERE part_number = ?',
-                    (self.part_number,)
-                ).fetchone()
-                
-                if existing:
-                    raise Exception(f'부품 번호 {self.part_number}는 이미 존재합니다.')
-                
-                cursor = conn.execute('''
-                    INSERT INTO spare_parts 
-                    (part_number, part_name, description, price,
-                     stock_quantity, minimum_stock, supplier)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (self.part_number, self.part_name, self.description,
-                      self.price, self.stock_quantity, self.minimum_stock,
-                      self.supplier))
-                self.id = cursor.lastrowid
-            
-            conn.commit()
-            return self.id
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            conn.close()
-    
-    def delete(self):
-        """스페어파트 삭제"""
-        if self.id:
-            conn = get_db_connection()
-            try:
-                conn.execute('DELETE FROM spare_parts WHERE id = ?', (self.id,))
-                conn.commit()
-                return True
-            except Exception as e:
-                conn.rollback()
-                raise e
-            finally:
-                conn.close()
-        return False
-    
-    def update_stock(self, quantity_change, operation='add'):
-        """재고 수량 업데이트"""
-        if self.id:
-            conn = get_db_connection()
-            try:
-                if operation == 'add':
-                    new_quantity = self.stock_quantity + quantity_change
-                elif operation == 'subtract':
-                    new_quantity = self.stock_quantity - quantity_change
-                    if new_quantity < 0:
-                        raise Exception('재고 수량이 부족합니다.')
-                else:
-                    new_quantity = quantity_change
-                
-                conn.execute('''
-                    UPDATE spare_parts SET 
-                    stock_quantity=?, updated_at=CURRENT_TIMESTAMP
-                    WHERE id=?
-                ''', (new_quantity, self.id))
-                
-                conn.commit()
-                self.stock_quantity = new_quantity
-                return True
-            except Exception as e:
-                conn.rollback()
-                raise e
-            finally:
-                conn.close()
-        return False
-    
-    def is_low_stock(self):
-        """재고 부족 여부 확인"""
-        return self.stock_quantity <= self.minimum_stock
-    
-    @classmethod
-    def _from_db_row(cls, row):
-        """데이터베이스 행에서 객체 생성"""
-        return cls(
-            id=row['id'],
-            part_number=row['part_number'],
-            part_name=row['part_name'],
-            description=row['description'],
-            price=row['price'],
-            stock_quantity=row['stock_quantity'],
-            minimum_stock=row['minimum_stock'],
-            supplier=row['supplier'],
-            created_at=row['created_at'],
-            updated_at=row['updated_at']
-        )
+    # Relationships
+    stock_history = db.relationship('StockHistory', backref='spare_part', lazy=True, cascade='all, delete-orphan')
+    price_history = db.relationship('PriceHistory', backref='spare_part', lazy=True, cascade='all, delete-orphan')
     
     def to_dict(self):
-        """딕셔너리로 변환"""
         return {
-            'id': self.id,
             'part_number': self.part_number,
             'part_name': self.part_name,
             'description': self.description,
-            'price': self.price,
-            'stock_quantity': self.stock_quantity,
-            'minimum_stock': self.minimum_stock,
+            'category': self.category,
+            'current_stock': self.current_stock,
+            'min_stock': self.min_stock,
+            'current_price_eur': self.current_price_eur,
+            'current_price_krw': self.current_price_krw,
+            'current_price_updated_at': self.current_price_updated_at.isoformat() if self.current_price_updated_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'created_by': self.created_by
+        }
+
+class StockHistory(db.Model):
+    __tablename__ = 'stock_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    part_number = db.Column(db.String(100), db.ForeignKey('spare_parts.part_number'), nullable=False)
+    transaction_type = db.Column(db.String(20), nullable=False)  # IN, OUT, ADJUST
+    quantity = db.Column(db.Integer, nullable=False)
+    previous_stock = db.Column(db.Integer)
+    new_stock = db.Column(db.Integer)
+    transaction_date = db.Column(db.Date, nullable=False)
+    supplier = db.Column(db.String(200))
+    invoice_number = db.Column(db.String(100))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.String(100))
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'part_number': self.part_number,
+            'transaction_type': self.transaction_type,
+            'quantity': self.quantity,
+            'previous_stock': self.previous_stock,
+            'new_stock': self.new_stock,
+            'transaction_date': self.transaction_date.isoformat() if self.transaction_date else None,
             'supplier': self.supplier,
-            'is_low_stock': self.is_low_stock(),
-            'created_at': self.created_at,
-            'updated_at': self.updated_at
+            'invoice_number': self.invoice_number,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'created_by': self.created_by
+        }
+
+class PriceHistory(db.Model):
+    __tablename__ = 'price_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    part_number = db.Column(db.String(100), db.ForeignKey('spare_parts.part_number'), nullable=False)
+    price_eur = db.Column(db.Float, nullable=False)
+    price_krw = db.Column(db.Float)
+    exchange_rate = db.Column(db.Float)
+    price_date = db.Column(db.Date, nullable=False)
+    supplier = db.Column(db.String(200))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.String(100))
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'part_number': self.part_number,
+            'price_eur': self.price_eur,
+            'price_krw': self.price_krw,
+            'exchange_rate': self.exchange_rate,
+            'price_date': self.price_date.isoformat() if self.price_date else None,
+            'supplier': self.supplier,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'created_by': self.created_by
         }

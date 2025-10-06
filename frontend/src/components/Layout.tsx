@@ -157,22 +157,22 @@ const Layout: React.FC = () => {
                   </li>
                 )}
                 
-                {hasPermission('transaction_access') && (
+                {hasPermission('invoice_access') && (
                   <li className="nav-item">
                     <Link 
-                      className={`nav-link ${isActive('/transactions') ? 'active' : ''}`} 
-                      to="/transactions"
+                      className={`nav-link ${isActive('/invoices') ? 'active' : ''}`} 
+                      to="/invoices"
                     >
                       <span className="nav-link-icon d-md-none d-lg-inline-block">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                          <rect x="3" y="5" width="18" height="14" rx="2"/>
-                          <line x1="3" y1="10" x2="21" y2="10"/>
-                          <line x1="7" y1="15" x2="7.01" y2="15"/>
-                          <line x1="11" y1="15" x2="13" y2="15"/>
+                          <rect x="3" y="4" width="18" height="16" rx="3"/>
+                          <line x1="7" y1="8" x2="17" y2="8"/>
+                          <line x1="7" y1="12" x2="17" y2="12"/>
+                          <line x1="7" y1="16" x2="9" y2="16"/>
                         </svg>
                       </span>
-                      <span className="nav-link-title">거래 관리</span>
+                      <span className="nav-link-title">거래명세표</span>
                     </Link>
                   </li>
                 )}
@@ -192,7 +192,7 @@ const Layout: React.FC = () => {
                           <rect x="14" y="14" width="6" height="6" rx="1"/>
                         </svg>
                       </span>
-                      <span className="nav-link-title">부품 관리</span>
+                      <span className="nav-link-title">스페어파트</span>
                     </Link>
                   </li>
                 )}
@@ -269,7 +269,7 @@ const Layout: React.FC = () => {
                             </Link>
                             <Link 
                               className="dropdown-item" 
-                              to="/admin/transactions"
+                              to="/admin/invoices"
                               onClick={() => setIsAdminDropdownOpen(false)}
                             >
                               <span className="nav-link-icon d-md-none d-lg-inline-block">
@@ -280,7 +280,7 @@ const Layout: React.FC = () => {
                                   <path d="M17 9v-2a2 2 0 0 0 -2 -2h-10a2 2 0 0 0 -2 2v6a2 2 0 0 0 2 2h2"/>
                                 </svg>
                               </span>
-                              거래관리 설정
+                              거래명세표 관리
                             </Link>
                             <Link 
                               className="dropdown-item" 

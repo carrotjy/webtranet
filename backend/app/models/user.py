@@ -6,7 +6,9 @@ class User:
     def __init__(self, id=None, name=None, email=None, password=None, 
                  contact=None, department=None, service_report_access=False,
                  transaction_access=False, customer_access=False, 
-                 spare_parts_access=False, is_admin=False):
+                 spare_parts_access=False, spare_parts_edit=True,
+                 spare_parts_delete=True, spare_parts_stock_in=True,
+                 spare_parts_stock_out=True, is_admin=False):
         self.id = id
         self.name = name
         self.email = email
@@ -17,6 +19,10 @@ class User:
         self.transaction_access = transaction_access
         self.customer_access = customer_access
         self.spare_parts_access = spare_parts_access
+        self.spare_parts_edit = spare_parts_edit
+        self.spare_parts_delete = spare_parts_delete
+        self.spare_parts_stock_in = spare_parts_stock_in
+        self.spare_parts_stock_out = spare_parts_stock_out
         self.is_admin = is_admin
     
     @classmethod
@@ -40,6 +46,10 @@ class User:
                 transaction_access=bool(user_data['transaction_access']),
                 customer_access=bool(user_data['customer_access']),
                 spare_parts_access=bool(user_data['spare_parts_access']),
+                spare_parts_edit=bool(user_data['spare_parts_edit'] if user_data['spare_parts_edit'] is not None else 1),
+                spare_parts_delete=bool(user_data['spare_parts_delete'] if user_data['spare_parts_delete'] is not None else 1),
+                spare_parts_stock_in=bool(user_data['spare_parts_stock_in'] if user_data['spare_parts_stock_in'] is not None else 1),
+                spare_parts_stock_out=bool(user_data['spare_parts_stock_out'] if user_data['spare_parts_stock_out'] is not None else 1),
                 is_admin=bool(user_data['is_admin'])
             )
         return None
@@ -65,6 +75,10 @@ class User:
                 transaction_access=bool(user_data['transaction_access']),
                 customer_access=bool(user_data['customer_access']),
                 spare_parts_access=bool(user_data['spare_parts_access']),
+                spare_parts_edit=bool(user_data['spare_parts_edit'] if user_data['spare_parts_edit'] is not None else 1),
+                spare_parts_delete=bool(user_data['spare_parts_delete'] if user_data['spare_parts_delete'] is not None else 1),
+                spare_parts_stock_in=bool(user_data['spare_parts_stock_in'] if user_data['spare_parts_stock_in'] is not None else 1),
+                spare_parts_stock_out=bool(user_data['spare_parts_stock_out'] if user_data['spare_parts_stock_out'] is not None else 1),
                 is_admin=bool(user_data['is_admin'])
             )
         return None
@@ -94,6 +108,10 @@ class User:
                 transaction_access=bool(user_data['transaction_access']),
                 customer_access=bool(user_data['customer_access']),
                 spare_parts_access=bool(user_data['spare_parts_access']),
+                spare_parts_edit=bool(user_data['spare_parts_edit'] if user_data['spare_parts_edit'] is not None else 1),
+                spare_parts_delete=bool(user_data['spare_parts_delete'] if user_data['spare_parts_delete'] is not None else 1),
+                spare_parts_stock_in=bool(user_data['spare_parts_stock_in'] if user_data['spare_parts_stock_in'] is not None else 1),
+                spare_parts_stock_out=bool(user_data['spare_parts_stock_out'] if user_data['spare_parts_stock_out'] is not None else 1),
                 is_admin=bool(user_data['is_admin'])
             ))
         return users
@@ -120,6 +138,10 @@ class User:
                 transaction_access=bool(user_data['transaction_access']),
                 customer_access=bool(user_data['customer_access']),
                 spare_parts_access=bool(user_data['spare_parts_access']),
+                spare_parts_edit=bool(user_data['spare_parts_edit'] if user_data['spare_parts_edit'] is not None else 1),
+                spare_parts_delete=bool(user_data['spare_parts_delete'] if user_data['spare_parts_delete'] is not None else 1),
+                spare_parts_stock_in=bool(user_data['spare_parts_stock_in'] if user_data['spare_parts_stock_in'] is not None else 1),
+                spare_parts_stock_out=bool(user_data['spare_parts_stock_out'] if user_data['spare_parts_stock_out'] is not None else 1),
                 is_admin=bool(user_data['is_admin'])
             ))
         return users
@@ -194,5 +216,9 @@ class User:
             'transaction_access': self.transaction_access,
             'customer_access': self.customer_access,
             'spare_parts_access': self.spare_parts_access,
+            'spare_parts_edit': self.spare_parts_edit if self.spare_parts_edit is not None else False,
+            'spare_parts_delete': self.spare_parts_delete if self.spare_parts_delete is not None else False,
+            'spare_parts_stock_in': self.spare_parts_stock_in if self.spare_parts_stock_in is not None else False,
+            'spare_parts_stock_out': self.spare_parts_stock_out if self.spare_parts_stock_out is not None else False,
             'is_admin': self.is_admin
         }

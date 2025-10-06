@@ -30,16 +30,24 @@ class Customer:
         self.updated_at = updated_at
     
     @classmethod
-    def get_all(cls, page=1, per_page=10):
+    def get_all(cls, page=1, per_page=None):
         """모든 고객 정보 조회 (페이징)"""
         conn = get_db_connection()
-        offset = (page - 1) * per_page
         
-        customers_data = conn.execute('''
-            SELECT * FROM customers 
-            ORDER BY company_name ASC
-            LIMIT ? OFFSET ?
-        ''', (per_page, offset)).fetchall()
+        if per_page is None:
+            # 제한 없이 모든 데이터 반환
+            customers_data = conn.execute('''
+                SELECT * FROM customers 
+                ORDER BY company_name ASC
+            ''').fetchall()
+        else:
+            # 페이징 적용
+            offset = (page - 1) * per_page
+            customers_data = conn.execute('''
+                SELECT * FROM customers 
+                ORDER BY company_name ASC
+                LIMIT ? OFFSET ?
+            ''', (per_page, offset)).fetchall()
         
         total = conn.execute('SELECT COUNT(*) FROM customers').fetchone()[0]
         conn.close()
@@ -74,23 +82,35 @@ class Customer:
         return None
     
     @classmethod
-    def search(cls, keyword=None, page=1, per_page=10):
+    def search(cls, keyword=None, page=1, per_page=None):
         """고객 정보 검색"""
         conn = get_db_connection()
-        offset = (page - 1) * per_page
         
         if keyword:
-            query = '''
-                SELECT * FROM customers 
-                WHERE company_name LIKE ? OR contact_person LIKE ? 
-                   OR email LIKE ? OR phone LIKE ? OR address LIKE ?
-                ORDER BY company_name ASC
-                LIMIT ? OFFSET ?
-            '''
-            keyword_param = f'%{keyword}%'
-            params = [keyword_param] * 5 + [per_page, offset]
-            
-            customers_data = conn.execute(query, params).fetchall()
+            if per_page is None:
+                # 제한 없이 모든 검색 결과 반환
+                query = '''
+                    SELECT * FROM customers 
+                    WHERE company_name LIKE ? OR contact_person LIKE ? 
+                       OR email LIKE ? OR phone LIKE ? OR address LIKE ?
+                    ORDER BY company_name ASC
+                '''
+                keyword_param = f'%{keyword}%'
+                params = [keyword_param] * 5
+                customers_data = conn.execute(query, params).fetchall()
+            else:
+                # 페이징 적용
+                offset = (page - 1) * per_page
+                query = '''
+                    SELECT * FROM customers 
+                    WHERE company_name LIKE ? OR contact_person LIKE ? 
+                       OR email LIKE ? OR phone LIKE ? OR address LIKE ?
+                    ORDER BY company_name ASC
+                    LIMIT ? OFFSET ?
+                '''
+                keyword_param = f'%{keyword}%'
+                params = [keyword_param] * 5 + [per_page, offset]
+                customers_data = conn.execute(query, params).fetchall()
             
             count_query = '''
                 SELECT COUNT(*) FROM customers 
@@ -99,11 +119,20 @@ class Customer:
             '''
             total = conn.execute(count_query, [keyword_param] * 5).fetchone()[0]
         else:
-            customers_data = conn.execute('''
-                SELECT * FROM customers 
-                ORDER BY company_name ASC
-                LIMIT ? OFFSET ?
-            ''', (per_page, offset)).fetchall()
+            if per_page is None:
+                # 제한 없이 모든 데이터 반환
+                customers_data = conn.execute('''
+                    SELECT * FROM customers 
+                    ORDER BY company_name ASC
+                ''').fetchall()
+            else:
+                # 페이징 적용
+                offset = (page - 1) * per_page
+                customers_data = conn.execute('''
+                    SELECT * FROM customers 
+                    ORDER BY company_name ASC
+                    LIMIT ? OFFSET ?
+                ''', (per_page, offset)).fetchall()
             
             total = conn.execute('SELECT COUNT(*) FROM customers').fetchone()[0]
         

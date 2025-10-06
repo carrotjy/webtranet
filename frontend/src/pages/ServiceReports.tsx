@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { customerAPI, serviceReportAPI, resourceAPI, authAPI, userAPI } from '../services/api';
+import api, { customerAPI, serviceReportAPI, resourceAPI, authAPI, userAPI } from '../services/api';
 
 interface Customer {
   id: number;
@@ -38,16 +38,27 @@ interface TimeRecord {
   calculated_travel_time?: string;
 }
 
+interface InvoiceCode {
+  id: number;
+  code: string;
+  description: string;
+}
+
 interface ServiceReport {
   id: number;
   report_number: string;
   customer_id: number;
   customer_name?: string;
+  customer_address?: string;
   technician_id: number;
   technician_name?: string;
+  support_technician_ids?: number[]; // 서비스 동행/지원 FSE들
   machine_model: string;
   machine_serial: string;
   symptom?: string;
+  invoice_code_id?: number;
+  invoice_code?: string;
+  invoice_description?: string;
   details?: string;
   problem_description?: string;
   solution_description?: string;
@@ -67,6 +78,8 @@ interface FormData {
   customer_address: string;
   technician_id: number;
   technician_name: string;
+  support_technician_ids: number[]; // 서비스 동행/지원 FSE들
+  support_technician_names: string[]; // 서비스 동행/지원 FSE 이름들
   resource_id: number;
   machine_model: string;
   machine_serial: string;
@@ -75,6 +88,7 @@ interface FormData {
   service_date: string;
   used_parts: UsedPart[];
   time_records: TimeRecord[];
+  invoice_code_id?: number;
 }
 
 // 시간 계산 유틸리티 함수들
@@ -219,21 +233,30 @@ const ServiceReports: React.FC = () => {
   const [editingReport, setEditingReport] = useState<ServiceReport | null>(null);
   
   // 폼 데이터 기본값 함수
-  const getDefaultFormData = (): FormData => ({
-    customer_id: 0,
-    customer_name: '',
-    customer_address: '',
-    technician_id: 1,
-    technician_name: '현재 사용자', // TODO: 로그인 사용자 정보에서 가져오기
-    resource_id: 0,
-    machine_model: '',
-    machine_serial: '',
-    symptom: '',
-    details: '',
-    service_date: new Date().toISOString().split('T')[0], // 오늘 날짜를 기본값으로
-    used_parts: [],
-    time_records: []
-  });
+  const getDefaultFormData = (codes?: InvoiceCode[]): FormData => {
+    // 131-유상청구건 코드의 ID 찾기
+    const defaultInvoiceCode = codes?.find(code => code.code === '131');
+    const defaultInvoiceCodeId = defaultInvoiceCode?.id;
+    
+    return {
+      customer_id: 0,
+      customer_name: '',
+      customer_address: '',
+      technician_id: 1,
+      technician_name: '현재 사용자', // TODO: 로그인 사용자 정보에서 가져오기
+      support_technician_ids: [],
+      support_technician_names: [],
+      resource_id: 0,
+      machine_model: '',
+      machine_serial: '',
+      symptom: '',
+      details: '',
+      service_date: new Date().toISOString().split('T')[0], // 오늘 날짜를 기본값으로
+      used_parts: [],
+      time_records: [],
+      invoice_code_id: defaultInvoiceCodeId
+    };
+  };
   
   const [formData, setFormData] = useState<FormData>(getDefaultFormData());
   
@@ -258,16 +281,59 @@ const ServiceReports: React.FC = () => {
   const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   
+  // 서비스 동행/지원 FSE 선택 관련 상태
+  const [showSupportTechnicianDropdown, setShowSupportTechnicianDropdown] = useState(false);
+  
+  // 리소스 추가 모달 관련 상태
+  const [showAddResourceModal, setShowAddResourceModal] = useState(false);
+  const [newResourceData, setNewResourceData] = useState({
+    category: '',
+    product_name: '',
+    serial_number: '',
+    note: ''
+  });
+  
+  // 고객사 추가 모달 관련 상태
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [newCustomerData, setNewCustomerData] = useState({
+    company_name: '',
+    contact_person: '',
+    phone: '',
+    email: '',
+    address: ''
+  });
+  
   // 기술부 직원 관련 상태
   const [technicians, setTechnicians] = useState<{id: number, name: string}[]>([]);
   const [currentUser, setCurrentUser] = useState<{id: number, name: string, department: string} | null>(null);
+  
+  // Invoice 코드 관련 상태
+  const [invoiceCodes, setInvoiceCodes] = useState<InvoiceCode[]>([]);
+  
+  // 권한 확인 (관리자인지)
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadReports();
     loadCustomers();
     loadCurrentUser();
     loadTechnicians();
+    loadInvoiceCodes();
+    checkAdminPermission();
   }, []);
+
+  // 인보이스 코드 로드 후 기본값 업데이트
+  useEffect(() => {
+    if (invoiceCodes.length > 0 && formData.invoice_code_id === undefined) {
+      const defaultInvoiceCode = invoiceCodes.find(code => code.code === '131');
+      if (defaultInvoiceCode) {
+        setFormData(prev => ({
+          ...prev,
+          invoice_code_id: defaultInvoiceCode.id
+        }));
+      }
+    }
+  }, [invoiceCodes]);
 
   // 검색 결과 외부 클릭 시 숨기기
   useEffect(() => {
@@ -284,16 +350,33 @@ const ServiceReports: React.FC = () => {
     };
   }, [showCustomerSearch]);
 
+  // 서비스 동행/지원 드롭다운 외부 클릭 시 숨기기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (showSupportTechnicianDropdown && !target.closest('.position-relative')) {
+        setShowSupportTechnicianDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSupportTechnicianDropdown]);
+
+  // customerResources 변화 모니터링 (디버깅용)
+  useEffect(() => {
+    console.log('customerResources 변경됨:', customerResources);
+    console.log('customerResources 길이:', customerResources.length);
+  }, [customerResources]);
+
   const loadReports = async () => {
     try {
       setLoading(true);
       const response = await serviceReportAPI.getServiceReports();
       // API 응답에서 reports 배열 추출
       const reportData = response.data?.reports || [];
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Service Report API Response:', response.data);
-        console.log('Extracted Reports:', reportData);
-      }
       setReports(Array.isArray(reportData) ? reportData : []);
     } catch (error) {
       console.error('서비스 리포트 로딩 실패:', error);
@@ -308,10 +391,6 @@ const ServiceReports: React.FC = () => {
       const response = await customerAPI.getCustomers();
       // API 응답에서 customers 배열 추출
       const customerData = response.data?.customers || [];
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Customer API Response:', response.data);
-        console.log('Extracted Customers:', customerData);
-      }
       setCustomers(Array.isArray(customerData) ? customerData : []);
     } catch (error) {
       console.error('고객 로딩 실패:', error);
@@ -350,19 +429,48 @@ const ServiceReports: React.FC = () => {
     }
   };
 
+  // Invoice 코드 목록 로드
+  const loadInvoiceCodes = async () => {
+    try {
+      const response = await api.get('/invoice-codes');
+      const invoiceData = response.data?.invoice_codes || [];
+      setInvoiceCodes(Array.isArray(invoiceData) ? invoiceData : []);
+    } catch (error) {
+      console.error('Invoice 코드 로딩 실패:', error);
+      setInvoiceCodes([]);
+    }
+  };
+
+  // 관리자 권한 확인
+  const checkAdminPermission = async () => {
+    try {
+      const response = await authAPI.getCurrentUser();
+      const userData = response.data?.user;
+      setIsAdmin(userData?.is_admin || false);
+    } catch (error) {
+      console.error('사용자 권한 확인 실패:', error);
+      setIsAdmin(false);
+    }
+  };
+
   // 전체 고객 리스트 표시 함수
   const showAllCustomers = async () => {
     try {
+      console.log('ServiceReports showAllCustomers: API 호출 시작');
       const response = await customerAPI.getCustomers();
-      const allCustomers = response.data?.customers || response.data || [];
+      console.log('ServiceReports showAllCustomers: API 응답:', response.data);
       
-      setCustomerSearchResults(allCustomers.slice(0, 15)); // 15개로 제한
-      setShowCustomerSearch(allCustomers.length > 0);
+      const allCustomers = response.data?.customers || response.data || [];
+      console.log('ServiceReports showAllCustomers: 추출된 고객 수:', allCustomers.length);
+      
+      setCustomerSearchResults(allCustomers); // 제한 없이 모든 고객 표시
+      setShowCustomerSearch(true); // 항상 드롭다운을 표시 (새 고객사 추가 옵션 때문에)
     } catch (error) {
       console.error('고객 리스트 로딩 실패:', error);
       // API 실패 시 로컬 customers 배열 사용
-      setCustomerSearchResults(customers.slice(0, 15));
-      setShowCustomerSearch(customers.length > 0);
+      console.log('ServiceReports showAllCustomers: 로컬 customers 배열 사용, 수:', customers.length);
+      setCustomerSearchResults(customers);
+      setShowCustomerSearch(true); // 항상 드롭다운을 표시 (새 고객사 추가 옵션 때문에)
     }
   };
 
@@ -382,20 +490,20 @@ const ServiceReports: React.FC = () => {
       const filteredCustomers = allCustomers.filter((customer: Customer) =>
         customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         customer.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
-      ).slice(0, 15); // 15개로 제한 (페이지네이션)
+      ); // 제한 없이 모든 검색 결과 표시
       
       setCustomerSearchResults(filteredCustomers);
-      setShowCustomerSearch(filteredCustomers.length > 0);
+      setShowCustomerSearch(true); // 검색 결과가 없어도 드롭다운을 표시 (새 고객사 추가 옵션 때문에)
     } catch (error) {
       console.error('고객 검색 실패:', error);
       // API 실패 시 로컬 customers 배열에서 검색
       const filteredCustomers = customers.filter(customer =>
         customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         customer.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
-      ).slice(0, 15);
+      );
       
       setCustomerSearchResults(filteredCustomers);
-      setShowCustomerSearch(filteredCustomers.length > 0);
+      setShowCustomerSearch(true); // 검색 결과가 없어도 드롭다운을 표시 (새 고객사 추가 옵션 때문에)
     }
   };
 
@@ -413,10 +521,11 @@ const ServiceReports: React.FC = () => {
       }));
 
       const resourceResponse = await resourceAPI.getResources(customer.id);
+      console.log('고객 선택: 리소스 API 응답:', resourceResponse.data);
+      
       const resourceData = resourceResponse.data?.resources || resourceResponse.data || [];
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Resource API Response:', resourceResponse.data);
-      }
+      console.log('고객 선택: 추출된 리소스 수:', resourceData.length);
+      console.log('고객 선택: 리소스 데이터:', resourceData);
       
       setCustomerResources(Array.isArray(resourceData) ? resourceData : []);
       setShowCustomerSearch(false);
@@ -450,6 +559,171 @@ const ServiceReports: React.FC = () => {
       machine_model: resource.product_name || '',
       machine_serial: resource.serial_number || ''
     }));
+  };
+
+  // 서비스 동행/지원 FSE 추가
+  const handleAddSupportTechnician = (technician: any) => {
+    // 이미 선택된 FSE인지 확인
+    if (formData.support_technician_ids.includes(technician.id)) {
+      alert('이미 선택된 FSE입니다.');
+      return;
+    }
+    
+    // 주 담당 FSE와 같은지 확인
+    if (formData.technician_id === technician.id) {
+      alert('주 담당 FSE와 동일한 사람은 선택할 수 없습니다.');
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      support_technician_ids: [...prev.support_technician_ids, technician.id],
+      support_technician_names: [...prev.support_technician_names, technician.name]
+    }));
+    setShowSupportTechnicianDropdown(false);
+  };
+
+  // 서비스 동행/지원 FSE 제거
+  const handleRemoveSupportTechnician = (technicianId: number) => {
+    const index = formData.support_technician_ids.indexOf(technicianId);
+    if (index > -1) {
+      const newIds = [...formData.support_technician_ids];
+      const newNames = [...formData.support_technician_names];
+      newIds.splice(index, 1);
+      newNames.splice(index, 1);
+      
+      setFormData(prev => ({
+        ...prev,
+        support_technician_ids: newIds,
+        support_technician_names: newNames
+      }));
+    }
+  };
+
+  // 고객사 추가 모달 열기
+  const handleAddCustomer = () => {
+    setNewCustomerData({
+      company_name: formData.customer_name || '', // 검색 중이던 텍스트를 기본값으로 사용
+      contact_person: '',
+      phone: '',
+      email: '',
+      address: ''
+    });
+    setShowAddCustomerModal(true);
+    setShowCustomerSearch(false); // 검색 드롭다운 닫기
+  };
+
+  // 새 고객사 저장
+  const handleSaveNewCustomer = async () => {
+    try {
+      if (!newCustomerData.company_name.trim()) {
+        alert('회사명을 입력해주세요.');
+        return;
+      }
+      
+      if (!newCustomerData.contact_person.trim()) {
+        alert('담당자명을 입력해주세요.');
+        return;
+      }
+
+      const customerData = {
+        company_name: newCustomerData.company_name.trim(),
+        contact_person: newCustomerData.contact_person.trim(),
+        phone: newCustomerData.phone.trim(),
+        email: newCustomerData.email.trim(),
+        address: newCustomerData.address.trim()
+      };
+
+      const response = await customerAPI.createCustomer(customerData);
+      
+      if (response.data) {
+        alert('고객사가 성공적으로 추가되었습니다.');
+        setShowAddCustomerModal(false);
+        
+        // 고객 목록 새로고침
+        await loadCustomers();
+        
+        // 새로 추가된 고객을 자동 선택
+        const newCustomer = response.data.customer || response.data;
+        if (newCustomer) {
+          handleSelectCustomer(newCustomer);
+        }
+        
+        // 모달 데이터 초기화
+        setNewCustomerData({
+          company_name: '',
+          contact_person: '',
+          phone: '',
+          email: '',
+          address: ''
+        });
+      }
+    } catch (error: any) {
+      console.error('고객사 추가 실패:', error);
+      
+      let errorMessage = '고객사 추가에 실패했습니다.';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = `오류: ${error.message}`;
+      }
+      
+      alert(errorMessage);
+    }
+  };
+
+  // 리소스 추가 모달 열기
+  const handleAddResource = () => {
+    if (!formData.customer_id) {
+      alert('먼저 고객사를 선택해주세요.');
+      return;
+    }
+    setNewResourceData({
+      category: '',
+      product_name: '',
+      serial_number: '',
+      note: ''
+    });
+    setShowAddResourceModal(true);
+  };
+
+  // 새 리소스 저장
+  const handleSaveNewResource = async () => {
+    if (!newResourceData.category || !newResourceData.product_name || !newResourceData.serial_number) {
+      alert('카테고리, 제품명, 시리얼번호는 필수 항목입니다.');
+      return;
+    }
+
+    try {
+      const resourceData = {
+        ...newResourceData,
+        customer_id: formData.customer_id
+      };
+
+      const response = await resourceAPI.createResource(resourceData);
+      
+      if (response.data) {
+        alert('리소스가 성공적으로 추가되었습니다.');
+        setShowAddResourceModal(false);
+        
+        // 고객의 리소스 목록 새로고침
+        const customer = customers.find(c => c.id === formData.customer_id);
+        if (customer) {
+          const resourceResponse = await resourceAPI.getResources(customer.id);
+          const resourceData = resourceResponse.data?.resources || resourceResponse.data || [];
+          setCustomerResources(Array.isArray(resourceData) ? resourceData : []);
+          
+          // 새로 추가된 리소스를 자동 선택
+          const newResource = response.data.resource || response.data;
+          if (newResource) {
+            handleSelectResource(newResource);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('리소스 추가 실패:', error);
+      alert('리소스 추가에 실패했습니다.');
+    }
   };
 
   // 사용부품 관련 함수들 (핵심 기능)
@@ -547,6 +821,40 @@ const ServiceReports: React.FC = () => {
     });
   };
 
+  // 거래명세표 생성 함수
+  const handleCreateInvoice = async (serviceReportId: number) => {
+    try {
+      setLoading(true);
+      
+      const response = await api.post(`/invoices/from-service-report/${serviceReportId}`);
+      
+      if (response.data.invoice_id) {
+        alert('거래명세표가 성공적으로 생성되었습니다.');
+        // 새 탭에서 거래명세표 상세보기 열기
+        window.open(`/invoices/${response.data.invoice_id}`, '_blank');
+      } else if (response.data.message) {
+        // 이미 존재하는 경우
+        alert(response.data.message);
+        if (response.data.invoice_id) {
+          window.open(`/invoices/${response.data.invoice_id}`, '_blank');
+        }
+      }
+    } catch (error: any) {
+      console.error('거래명세표 생성 실패:', error);
+      
+      let errorMessage = '거래명세표 생성에 실패했습니다.';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = `오류: ${error.message}`;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 정렬 함수
   const handleSort = (field: 'date' | 'sn') => {
     if (sortField === field) {
@@ -633,11 +941,7 @@ const ServiceReports: React.FC = () => {
     e.preventDefault();
     
     try {
-      console.log('=== 서비스 리포트 제출 시작 ===');
-      console.log('editingReport:', editingReport);
-      console.log('현재 formData:', formData);
-      console.log('formData.used_parts:', formData.used_parts);
-      console.log('used_parts 길이:', formData.used_parts.length);
+
       
       // 시간 형식을 백엔드용으로 변환 (HHMM -> HH:MM)
       const convertedTimeRecords = formData.time_records.map(record => ({
@@ -654,6 +958,7 @@ const ServiceReports: React.FC = () => {
       const submitData = {
         customer_id: formData.customer_id,
         technician_id: formData.technician_id,
+        support_technician_ids: formData.support_technician_ids, // 서비스 동행/지원 FSE들
         machine_model: formData.machine_model,
         machine_serial: formData.machine_serial,
         service_date: formData.service_date,
@@ -663,24 +968,17 @@ const ServiceReports: React.FC = () => {
         time_records: convertedTimeRecords, // 새로운 time_records 배열 사용
         time_record: convertedTimeRecords.length > 0 ? convertedTimeRecords[0] : null, // 백워드 호환성용
         work_hours: 0, // 필요시 time_record에서 계산
-        status: 'completed'
+        status: 'completed',
+        invoice_code_id: formData.invoice_code_id || null // Invoice 코드 추가
       };
       
-      console.log('제출할 데이터:', submitData);
-      console.log('제출할 used_parts:', submitData.used_parts);
-      console.log('JSON.stringify(submitData):', JSON.stringify(submitData, null, 2));
-
       if (editingReport) {
         // 수정 모드
-        console.log('수정 모드: 리포트 ID', editingReport.id);
         const response = await serviceReportAPI.updateServiceReport(editingReport.id, submitData);
-        console.log('수정 API 응답:', response);
         alert('서비스 리포트가 수정되었습니다.');
       } else {
         // 새로 생성 모드
-        console.log('생성 모드');
         const response = await serviceReportAPI.createServiceReport(submitData);
-        console.log('생성 API 응답:', response);
         alert('서비스 리포트가 생성되었습니다.');
       }
       
@@ -689,9 +987,7 @@ const ServiceReports: React.FC = () => {
       setEditingReport(null);
       
       // 목록 새로고침
-      console.log('목록 새로고침 시작');
       await loadReports();
-      console.log('=== 서비스 리포트 제출 완료 ===');
       
     } catch (error: any) {
       console.error('=== 서비스 리포트 저장 실패 ===');
@@ -710,12 +1006,7 @@ const ServiceReports: React.FC = () => {
   };
 
   // 수정 버튼 클릭 핸들러
-  const handleEdit = (report: ServiceReport) => {
-    console.log('=== 수정 모달 열기 시작 ===');
-    console.log('선택한 리포트:', report);
-    console.log('리포트의 used_parts:', report.used_parts);
-    console.log('리포트의 parts_used:', (report as any).parts_used);
-    
+  const handleEdit = async (report: ServiceReport) => {
     setEditingReport(report);
     
     // used_parts 데이터 처리 (보기 모달과 동일한 로직)
@@ -774,16 +1065,14 @@ const ServiceReports: React.FC = () => {
       }
     }
     
-    console.log('수정 폼에 설정할 부품 데이터:', editPartsData);
-    console.log('부품 개수:', editPartsData.length);
+
     
     // 시간기록 데이터 처리 (새로운 time_records 배열 우선 확인)
     let editTimeRecordsData: TimeRecord[] = [];
     const timeRecords = (report as any).time_records;
     const timeRecord = report.time_record;
     
-    console.log('리포트의 time_records:', timeRecords);
-    console.log('리포트의 time_record:', timeRecord);
+
     
     if (Array.isArray(timeRecords) && timeRecords.length > 0) {
       // 새로운 time_records 배열 사용 (HH:MM을 HHMM 형식으로 변환)
@@ -811,24 +1100,94 @@ const ServiceReports: React.FC = () => {
       }];
     }
     
-    console.log('수정 폼에 설정할 시간기록 데이터:', editTimeRecordsData);
-    console.log('시간기록 개수:', editTimeRecordsData.length);
+
     
+    // 131-유상청구건 코드의 ID 찾기
+    const defaultInvoiceCode = invoiceCodes.find(code => code.code === '131');
+    const defaultInvoiceCodeId = defaultInvoiceCode?.id;
+
+    // 먼저 기본 폼 데이터 설정
+    const supportTechnicianIds = report.support_technician_ids || [];
+    const supportTechnicianNames = supportTechnicianIds.map(techId => {
+      const tech = technicians.find(t => t.id === techId);
+      return tech ? tech.name : '';
+    }).filter(name => name); // 빈 이름 제거
+
     setFormData({
       customer_id: report.customer_id,
       customer_name: report.customer_name || '',
-      customer_address: '', // TODO: 고객 주소 정보 가져오기
+      customer_address: '', // 고객 선택시 자동으로 채워질 예정
       technician_id: report.technician_id,
       technician_name: report.technician_name || '',
-      resource_id: 0, // TODO: 리소스 ID 가져오기
+      support_technician_ids: supportTechnicianIds,
+      support_technician_names: supportTechnicianNames,
+      resource_id: 0, // 고객 선택시 자동으로 채워질 예정
       machine_model: report.machine_model,
       machine_serial: report.machine_serial,
       symptom: report.problem_description || report.symptom || '',
       details: report.solution_description || report.details || '',
       service_date: report.service_date || new Date().toISOString().split('T')[0],
       used_parts: editPartsData,
-      time_records: editTimeRecordsData
+      time_records: editTimeRecordsData,
+      invoice_code_id: report.invoice_code_id || defaultInvoiceCodeId
     });
+
+    // 고객 정보 로드 및 선택 처리
+    if (report.customer_id) {
+      try {
+        // 전체 고객 목록에서 해당 고객 찾기
+        const response = await customerAPI.getCustomers();
+        const allCustomers = response.data?.customers || response.data || [];
+        const selectedCustomer = allCustomers.find((customer: Customer) => customer.id === report.customer_id);
+        
+        if (selectedCustomer) {
+          // handleSelectCustomer와 동일한 로직 실행
+          console.log('수정 모드: 고객 정보 로드됨:', selectedCustomer);
+          
+          // 고객 주소 설정
+          setFormData(prev => ({
+            ...prev,
+            customer_address: selectedCustomer.address || ''
+          }));
+
+          // 고객 리소스 로드
+          const customerResourcesResponse = await resourceAPI.getResources(selectedCustomer.id);
+          console.log('수정 모드: 리소스 API 응답:', customerResourcesResponse.data);
+          
+          const resources = customerResourcesResponse.data?.resources || customerResourcesResponse.data || [];
+          console.log('수정 모드: 추출된 리소스 수:', resources.length);
+          console.log('수정 모드: 리소스 데이터:', resources);
+          
+          setCustomerResources(resources);
+
+          // 기존 리소스 ID가 있으면 해당 리소스 선택, 없으면 첫 번째 리소스 선택
+          if (resources.length > 0) {
+            let selectedResourceId = 0;
+            
+            // 기존 machine_model과 machine_serial로 리소스 찾기
+            const matchingResource = resources.find((resource: any) => 
+              resource.product_name === report.machine_model && resource.serial_number === report.machine_serial
+            );
+            
+            if (matchingResource) {
+              selectedResourceId = matchingResource.id;
+            } else {
+              selectedResourceId = resources[0].id;
+            }
+
+            setFormData(prev => ({
+              ...prev,
+              resource_id: selectedResourceId,
+              machine_model: report.machine_model || resources.find((r: any) => r.id === selectedResourceId)?.product_name || '',
+              machine_serial: report.machine_serial || resources.find((r: any) => r.id === selectedResourceId)?.serial_number || ''
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('고객 정보 로드 실패:', error);
+      }
+    }
+
     setShowForm(true);
   };
 
@@ -860,15 +1219,6 @@ const ServiceReports: React.FC = () => {
     <>
       <style>
         {`
-          .hover-row:hover {
-            background-color: #f8f9fa !important;
-            transform: scale(1.005);
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-          }
-          .hover-row:hover td {
-            background-color: #f8f9fa !important;
-          }
           .table-bordered th,
           .table-bordered td {
             border-color: #e9ecef;
@@ -904,6 +1254,8 @@ const ServiceReports: React.FC = () => {
                       service_date: todayString,
                       technician_id: currentUser?.id || 0,
                       technician_name: currentUser?.department === '기술부' ? currentUser.name : '',
+                      support_technician_ids: [],
+                      support_technician_names: [],
                       customer_id: 0,
                       customer_name: '',
                       customer_address: '',
@@ -998,7 +1350,7 @@ const ServiceReports: React.FC = () => {
                 </thead>
                 <tbody>
                   {filteredAndSortedReports.length > 0 ? filteredAndSortedReports.map((report) => (
-                    <tr key={report.id} className="hover-row" style={{backgroundColor: '#fdfdfd'}}>
+                    <tr key={report.id} style={{backgroundColor: '#fdfdfd'}}>
                       <td className="bg-white text-center">{getLatestWorkDate(report)}</td>
                       <td className="bg-white fw-medium">{report.customer_name}</td>
                       <td className="bg-white">{report.technician_name}</td>
@@ -1045,23 +1397,40 @@ const ServiceReports: React.FC = () => {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">{editingReport ? '서비스 리포트 수정' : '서비스 리포트 작성'}</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingReport(null);
-                    setFormData(getDefaultFormData());
-                    setCustomerResources([]);
-                    setShowCustomerSearch(false);
-                  }}
-                />
+                <div className="ms-auto">
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      padding: '0',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    onClick={() => {
+                      setShowForm(false);
+                      setEditingReport(null);
+                      setFormData(getDefaultFormData(invoiceCodes));
+                      setCustomerResources([]);
+                      setShowCustomerSearch(false);
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div className="modal-body">
                 <form onSubmit={handleSubmit}>
-                  {/* 첫 번째 행: 서비스일자, 서비스담당 */}
+                  {/* 첫 번째 행: 서비스일자, 서비스담당, 서비스 동행/지원 */}
                   <div className="row mb-3">
-                    <div className="col-md-6">
+                    <div className="col-md-4">
                       <label className="form-label">서비스 날짜</label>
                       <input
                         type="date"
@@ -1071,7 +1440,7 @@ const ServiceReports: React.FC = () => {
                         required
                       />
                     </div>
-                    <div className="col-md-6">
+                    <div className="col-md-4">
                       <label className="form-label">서비스담당</label>
                       <select
                         className="form-control"
@@ -1094,6 +1463,105 @@ const ServiceReports: React.FC = () => {
                           </option>
                         ))}
                       </select>
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">서비스 동행/지원</label>
+                      <div className="position-relative">
+                        <div 
+                          className="form-control d-flex flex-wrap gap-1 align-items-center"
+                          style={{ 
+                            minHeight: '38px', 
+                            height: '38px',
+                            cursor: 'pointer',
+                            overflow: 'visible'
+                          }}
+                          onClick={() => setShowSupportTechnicianDropdown(!showSupportTechnicianDropdown)}
+                        >
+                          {formData.support_technician_names.length === 0 ? (
+                            <span className="text-muted">동행/지원 FSE를 선택하세요 (선택사항)</span>
+                          ) : (
+                            formData.support_technician_names.map((name, index) => (
+                              <span 
+                                key={formData.support_technician_ids[index]} 
+                                className="d-flex align-items-center gap-1"
+                                style={{ 
+                                  backgroundColor: 'white',
+                                  color: 'black',
+                                  border: '1px solid #6c757d',
+                                  borderRadius: '4px',
+                                  padding: '2px 6px',
+                                  fontSize: '0.875rem',
+                                  lineHeight: '1.2'
+                                }}
+                              >
+                                {name}
+                                <button
+                                  type="button"
+                                  className="btn-close"
+                                  style={{ 
+                                    fontSize: '0.6em',
+                                    filter: 'invert(18%) sepia(93%) saturate(7499%) hue-rotate(357deg) brightness(91%) contrast(135%)'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveSupportTechnician(formData.support_technician_ids[index]);
+                                  }}
+                                />
+                              </span>
+                            ))
+                          )}
+                        </div>
+                        
+                        {showSupportTechnicianDropdown && (
+                          <div 
+                            className="position-absolute w-100"
+                            style={{
+                              zIndex: 1000,
+                              backgroundColor: '#ffffff',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                              maxHeight: '200px',
+                              overflowY: 'auto',
+                              marginTop: '4px'
+                            }}
+                          >
+                            {technicians
+                              .filter(tech => 
+                                tech.id !== formData.technician_id && 
+                                !formData.support_technician_ids.includes(tech.id)
+                              )
+                              .map((tech) => (
+                                <div
+                                  key={tech.id}
+                                  className="px-3 py-2"
+                                  style={{ 
+                                    cursor: 'pointer',
+                                    borderBottom: '1px solid #eee'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    (e.target as HTMLElement).style.backgroundColor = '#f8f9fa';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    (e.target as HTMLElement).style.backgroundColor = 'transparent';
+                                  }}
+                                  onClick={() => {
+                                    handleAddSupportTechnician(tech);
+                                    setShowSupportTechnicianDropdown(false);
+                                  }}
+                                >
+                                  {tech.name}
+                                </div>
+                              ))}
+                            {technicians.filter(tech => 
+                              tech.id !== formData.technician_id && 
+                              !formData.support_technician_ids.includes(tech.id)
+                            ).length === 0 && (
+                              <div className="px-3 py-2 text-muted">선택 가능한 FSE가 없습니다</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1130,20 +1598,46 @@ const ServiceReports: React.FC = () => {
                             }}
                             value={formData.customer_name}
                           />
-                          {showCustomerSearch && customerSearchResults.length > 0 && (
+                          {showCustomerSearch && (
                             <div className="position-absolute w-100 mt-1" style={{zIndex: 1000}}>
-                              <div className="list-group shadow">
-                                {customerSearchResults.map((customer) => (
-                                  <button
-                                    key={customer.id}
-                                    type="button"
-                                    className="list-group-item list-group-item-action"
-                                    onClick={() => handleSelectCustomer(customer)}
-                                  >
-                                    <strong>{customer.company_name}</strong>
-                                    <small className="text-muted d-block">{customer.contact_person} | {customer.address}</small>
-                                  </button>
-                                ))}
+                              <div className="list-group shadow" style={{
+                                backgroundColor: '#ffffff', 
+                                opacity: 1,
+                                maxHeight: '300px',
+                                overflowY: 'auto'
+                              }}>
+                                {customerSearchResults.length > 0 ? (
+                                  customerSearchResults.map((customer) => (
+                                    <button
+                                      key={customer.id}
+                                      type="button"
+                                      className="list-group-item list-group-item-action"
+                                      style={{backgroundColor: '#ffffff', opacity: 1}}
+                                      onClick={() => handleSelectCustomer(customer)}
+                                    >
+                                      <strong>{customer.company_name}</strong>
+                                      <small className="text-muted d-block">{customer.contact_person} | {customer.address}</small>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="list-group-item text-muted">
+                                    검색 결과가 없습니다.
+                                  </div>
+                                )}
+                                {/* 새 고객사 추가 옵션 */}
+                                <button
+                                  type="button"
+                                  className="list-group-item list-group-item-action"
+                                  style={{backgroundColor: '#e3f2fd', fontWeight: 'bold', borderTop: '2px solid #2196f3'}}
+                                  onClick={handleAddCustomer}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="icon me-2" width="20" height="20" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                  </svg>
+                                  새 고객사 추가
+                                </button>
                               </div>
                             </div>
                           )}
@@ -1170,12 +1664,17 @@ const ServiceReports: React.FC = () => {
                   <div className="row mb-3">
                     <div className="col-md-6">
                       <label className="form-label">Model</label>
-                      {customerResources.length > 0 ? (
+                      {formData.customer_id ? (
                         <select
                           className="form-select"
                           value={formData.resource_id}
                           onChange={(e) => {
-                            const resourceId = parseInt(e.target.value);
+                            const value = e.target.value;
+                            if (value === 'add_new') {
+                              handleAddResource();
+                              return;
+                            }
+                            const resourceId = parseInt(value);
                             const resource = customerResources.find(r => r.id === resourceId);
                             if (resource) {
                               handleSelectResource(resource);
@@ -1189,6 +1688,9 @@ const ServiceReports: React.FC = () => {
                               {resource.product_name} ({resource.serial_number})
                             </option>
                           ))}
+                          <option value="add_new" style={{backgroundColor: '#e3f2fd', fontWeight: 'bold'}}>
+                            + 새 리소스 추가
+                          </option>
                         </select>
                       ) : (
                         <input
@@ -1479,6 +1981,30 @@ const ServiceReports: React.FC = () => {
                     )}
                   </div>
 
+                  {/* Invoice 코드 선택 (관리자만 보임) - 시간 기록부 아래 배치 */}
+                  {isAdmin && (
+                    <div className="row mt-4">
+                      <div className="col-md-6">
+                        <label className="form-label">Invoice 코드 (선택사항)</label>
+                        <select
+                          className="form-control"
+                          value={formData.invoice_code_id || ''}
+                          onChange={(e) => setFormData({
+                            ...formData, 
+                            invoice_code_id: e.target.value ? parseInt(e.target.value) : undefined
+                          })}
+                        >
+                          <option value="">코드를 선택하세요</option>
+                          {invoiceCodes.map((code) => (
+                            <option key={code.id} value={code.id}>
+                              {code.code} - {code.description}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="row mt-4">
                     <div className="col-12 d-flex gap-2 justify-content-end">
                       <button type="submit" className="btn btn-primary">
@@ -1490,7 +2016,7 @@ const ServiceReports: React.FC = () => {
                         onClick={() => {
                           setShowForm(false);
                           setEditingReport(null);
-                          setFormData(getDefaultFormData());
+                          setFormData(getDefaultFormData(invoiceCodes));
                           setCustomerResources([]);
                           setShowCustomerSearch(false);
                         }}
@@ -1513,14 +2039,31 @@ const ServiceReports: React.FC = () => {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">고객 선택</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => {
-                    setShowCustomerModal(false);
-                    setCustomerSearchTerm('');
-                  }}
-                />
+                <div className="ms-auto">
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      padding: '0',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    onClick={() => {
+                      setShowCustomerModal(false);
+                      setCustomerSearchTerm('');
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div className="modal-body">
                 <div className="mb-3">
@@ -1534,7 +2077,7 @@ const ServiceReports: React.FC = () => {
                 </div>
                 
                 <div className="table-responsive" style={{maxHeight: '400px'}}>
-                  <table className="table table-sm table-hover">
+                  <table className="table table-sm">
                     <thead className="table-light">
                       <tr>
                         <th>고객사명</th>
@@ -1584,14 +2127,31 @@ const ServiceReports: React.FC = () => {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">서비스 리포트 상세 보기</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => {
-                    setShowViewModal(false);
-                    setViewingReport(null);
-                  }}
-                />
+                <div className="ms-auto">
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      padding: '0',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    onClick={() => {
+                      setShowViewModal(false);
+                      setViewingReport(null);
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div className="modal-body">
                 {/* 기본 정보 - 표 형태 */}
@@ -1601,12 +2161,23 @@ const ServiceReports: React.FC = () => {
                     <table className="table table-bordered mb-0">
                       <tbody>
                         <tr>
-                          <td className="bg-light fw-bold" style={{width: '150px'}}>서비스 날짜</td>
-                          <td className="bg-white">
+                          <td className="bg-light fw-bold" style={{width: '120px'}}>서비스 날짜</td>
+                          <td className="bg-white" style={{width: '150px'}}>
                             {viewingReport.service_date ? new Date(viewingReport.service_date).toLocaleDateString('ko-KR') : '-'}
                           </td>
                           <td className="bg-light fw-bold" style={{width: '100px'}}>서비스담당</td>
-                          <td className="bg-white">{viewingReport.technician_name || '-'}</td>
+                          <td className="bg-white" style={{width: '120px'}}>{viewingReport.technician_name || '-'}</td>
+                          <td className="bg-light fw-bold" style={{width: '100px'}}>동행/지원</td>
+                          <td className="bg-white">
+                            {viewingReport.support_technician_ids && viewingReport.support_technician_ids.length > 0 ? (
+                              viewingReport.support_technician_ids.map(techId => {
+                                const tech = technicians.find(t => t.id === techId);
+                                return tech ? tech.name : null;
+                              }).filter(name => name).join(', ')
+                            ) : (
+                              <span className="text-muted">없음</span>
+                            )}
+                          </td>
                         </tr>
                         <tr>
                           <td className="bg-light fw-bold">고객명</td>
@@ -1615,8 +2186,7 @@ const ServiceReports: React.FC = () => {
                         <tr>
                           <td className="bg-light fw-bold">고객사 주소</td>
                           <td className="bg-white" colSpan={3}>
-                            {/* TODO: 고객사 주소 정보 표시 */}
-                            고객사 주소 정보
+                            {viewingReport.customer_address || '-'}
                           </td>
                         </tr>
                         <tr>
@@ -1774,8 +2344,49 @@ const ServiceReports: React.FC = () => {
                   );
                 })()}
 
+                {/* Invoice 코드 정보 (관리자만 보임) - 시간 기록부 하단에 배치 */}
+                {isAdmin && (
+                  <div className="mb-4">
+                    <h5 className="mb-3">Invoice 코드</h5>
+                    <div className="table-responsive">
+                      <table className="table table-bordered mb-0">
+                        <tbody>
+                          <tr>
+                            <td className="bg-light fw-bold" style={{width: '150px'}}>Invoice 코드</td>
+                            <td className="bg-white">
+                              {viewingReport.invoice_code ? 
+                                `${viewingReport.invoice_code} - ${viewingReport.invoice_description || ''}` : 
+                                '설정되지 않음'}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
                 <div className="row mt-4">
                   <div className="col-12 d-flex gap-2 justify-content-end">
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      onClick={() => {
+                        if (viewingReport?.id) {
+                          handleCreateInvoice(viewingReport.id);
+                        }
+                      }}
+                      disabled={loading}
+                      title="이 서비스 리포트를 기반으로 거래명세표를 생성합니다"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <rect x="3" y="4" width="18" height="16" rx="3"/>
+                        <line x1="7" y1="8" x2="17" y2="8"/>
+                        <line x1="7" y1="12" x2="17" y2="12"/>
+                        <line x1="7" y1="16" x2="9" y2="16"/>
+                      </svg>
+                      {loading ? '생성 중...' : '거래명세표 생성'}
+                    </button>
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -1798,6 +2409,257 @@ const ServiceReports: React.FC = () => {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 리소스 추가 모달 */}
+      {showAddResourceModal && (
+        <div className="modal modal-blur fade show" style={{display: 'block', zIndex: 2100}}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">새 리소스 추가</h5>
+                <div className="ms-auto">
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      padding: '0',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    onClick={() => setShowAddResourceModal(false)}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="modal-body">
+                <div className="row mb-3">
+                  <div className="col-md-6">
+                    <label className="form-label">카테고리 *</label>
+                    <select
+                      className="form-select"
+                      value={newResourceData.category}
+                      onChange={(e) => setNewResourceData({
+                        ...newResourceData,
+                        category: e.target.value
+                      })}
+                      required
+                    >
+                      <option value="">카테고리를 선택하세요</option>
+                      <option value="Laser">Laser</option>
+                      <option value="Pressbrake">Pressbrake</option>
+                      <option value="Punch">Punch</option>
+                      <option value="Shear">Shear</option>
+                      <option value="Bender">Bender</option>
+                      <option value="Welder">Welder</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">시리얼번호 *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={newResourceData.serial_number}
+                      onChange={(e) => setNewResourceData({
+                        ...newResourceData,
+                        serial_number: e.target.value
+                      })}
+                      placeholder="시리얼번호 입력"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="row mb-3">
+                  <div className="col-12">
+                    <label className="form-label">제품명 *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={newResourceData.product_name}
+                      onChange={(e) => setNewResourceData({
+                        ...newResourceData,
+                        product_name: e.target.value
+                      })}
+                      placeholder="제품명 입력"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="row mb-3">
+                  <div className="col-12">
+                    <label className="form-label">비고</label>
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      value={newResourceData.note}
+                      onChange={(e) => setNewResourceData({
+                        ...newResourceData,
+                        note: e.target.value
+                      })}
+                      placeholder="추가 정보 입력 (선택사항)"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveNewResource}
+                >
+                  저장
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowAddResourceModal(false)}
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 고객사 추가 모달 */}
+      {showAddCustomerModal && (
+        <div className="modal modal-blur fade show" style={{display: 'block', zIndex: 2100}}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">새 고객사 추가</h5>
+                <div className="ms-auto">
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      padding: '0',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    onClick={() => setShowAddCustomerModal(false)}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="modal-body">
+                <div className="row mb-3">
+                  <div className="col-md-6">
+                    <label className="form-label">회사명 *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={newCustomerData.company_name}
+                      onChange={(e) => setNewCustomerData({
+                        ...newCustomerData,
+                        company_name: e.target.value
+                      })}
+                      placeholder="회사명 입력"
+                      required
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">담당자명 *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={newCustomerData.contact_person}
+                      onChange={(e) => setNewCustomerData({
+                        ...newCustomerData,
+                        contact_person: e.target.value
+                      })}
+                      placeholder="담당자명 입력"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="row mb-3">
+                  <div className="col-md-6">
+                    <label className="form-label">전화번호</label>
+                    <input
+                      type="tel"
+                      className="form-control"
+                      value={newCustomerData.phone}
+                      onChange={(e) => setNewCustomerData({
+                        ...newCustomerData,
+                        phone: e.target.value
+                      })}
+                      placeholder="전화번호 입력"
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">이메일</label>
+                    <input
+                      type="email"
+                      className="form-control"
+                      value={newCustomerData.email}
+                      onChange={(e) => setNewCustomerData({
+                        ...newCustomerData,
+                        email: e.target.value
+                      })}
+                      placeholder="이메일 입력"
+                    />
+                  </div>
+                </div>
+
+                <div className="row mb-3">
+                  <div className="col-12">
+                    <label className="form-label">주소</label>
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      value={newCustomerData.address}
+                      onChange={(e) => setNewCustomerData({
+                        ...newCustomerData,
+                        address: e.target.value
+                      })}
+                      placeholder="주소 입력"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveNewCustomer}
+                >
+                  저장
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowAddCustomerModal(false)}
+                >
+                  취소
+                </button>
               </div>
             </div>
           </div>

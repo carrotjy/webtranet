@@ -18,12 +18,13 @@ def create_app():
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))
     
-    # CORS 설정 - 프론트엔드 주소만 허용
+    # CORS 설정 - 개발환경에서 더 관대하게 설정
     CORS(app, 
-         origins=['http://localhost:3000'],  # React 개발 서버 주소
-         allow_headers=['Content-Type', 'Authorization'],
-         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+         origins=['http://localhost:3000', 'http://127.0.0.1:3000'],  # React 개발 서버 주소
+         allow_headers=['Content-Type', 'Authorization', 'Access-Control-Allow-Headers', 'Access-Control-Allow-Origin'],
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
          supports_credentials=True,
+         expose_headers=['Content-Type', 'Authorization'],
          max_age=600)
     
     # JWT 설정
@@ -44,18 +45,26 @@ def create_app():
     from app.blueprints.auth import auth_bp
     from app.blueprints.user_management import user_mgmt_bp
     from app.blueprints.service_report import service_report_bp
-    from app.blueprints.transaction import transaction_bp
     from app.blueprints.customer import customer_bp
-    from app.blueprints.spare_parts import spare_parts_bp
+    from app.blueprints.spare_parts_simple import spare_parts_bp
+    from app.blueprints.user_permissions import user_permissions_bp
     from app.blueprints.resource import resource_bp
+    from app.blueprints.invoice_code import invoice_code_bp
+    from app.blueprints.invoice import invoice_bp
+    from app.blueprints.invoice_rate import invoice_rate_bp
+    from app.blueprints.spare_part_settings import spare_part_settings_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(user_mgmt_bp, url_prefix='/users')
     app.register_blueprint(service_report_bp, url_prefix='/service-reports')
-    app.register_blueprint(transaction_bp, url_prefix='/transactions')
     app.register_blueprint(customer_bp, url_prefix='/customers')
-    app.register_blueprint(spare_parts_bp, url_prefix='/spare-parts')
+    app.register_blueprint(spare_parts_bp, url_prefix='/api')
+    app.register_blueprint(user_permissions_bp, url_prefix='/api')
     app.register_blueprint(resource_bp, url_prefix='/resources')
+    app.register_blueprint(invoice_code_bp)
+    app.register_blueprint(invoice_bp)
+    app.register_blueprint(invoice_rate_bp)
+    app.register_blueprint(spare_part_settings_bp, url_prefix='/api')
     
     # JWT 에러 핸들러 추가
     from flask_jwt_extended.exceptions import JWTExtendedException
