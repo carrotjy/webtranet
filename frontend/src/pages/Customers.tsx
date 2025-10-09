@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { customerAPI, resourceAPI } from '../services/api';
 import Pagination from '../components/Pagination';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Customer {
   id: number;
@@ -46,6 +47,7 @@ interface CustomerForm {
 const CATEGORIES = ['Pressbrake', 'Laser', 'Software'];
 
 const Customers: React.FC = () => {
+  const { user } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showResourceForm, setShowResourceForm] = useState(false);
@@ -57,7 +59,7 @@ const Customers: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCustomers, setTotalCustomers] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [perPage] = useState(10); // 페이지당 고객 수
+  const [perPage, setPerPage] = useState(10); // 페이지당 고객 수
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerResources, setCustomerResources] = useState<Resource[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -87,7 +89,7 @@ const Customers: React.FC = () => {
 
   useEffect(() => {
     loadCustomers();
-  }, [currentPage, searchTerm]); // currentPage와 searchTerm이 변경될 때마다 호출
+  }, [currentPage, searchTerm, perPage]); // currentPage, searchTerm, perPage가 변경될 때마다 호출
 
   const loadCustomers = async (page: number = currentPage, keyword: string = searchTerm) => {
     try {
@@ -263,6 +265,25 @@ const Customers: React.FC = () => {
   };
 
   const handleEdit = (customer: Customer) => {
+    setEditingCustomer(customer);
+    setFormData({
+      company_name: customer.company_name,
+      contact_person: customer.contact_person,
+      email: customer.email || '',
+      phone: customer.phone || '',
+      address: customer.address || '',
+      postal_code: customer.postal_code || '',
+      tel: customer.tel || '',
+      fax: customer.fax || '',
+      president: customer.president || '',
+      mobile: customer.mobile || '',
+      contact: customer.contact || ''
+    });
+    setShowForm(true);
+  };
+
+  const handleView = (customer: Customer) => {
+    // 보기 모드로 설정 (편집 불가)
     setEditingCustomer(customer);
     setFormData({
       company_name: customer.company_name,
@@ -542,6 +563,18 @@ const Customers: React.FC = () => {
                     <button type="submit" className="btn btn-primary">
                       {editingCustomer ? '수정' : '저장'}
                     </button>
+                    {editingCustomer && (
+                      <button 
+                        type="button"
+                        className="btn btn-info"
+                        onClick={() => {
+                          setSelectedCustomer(editingCustomer);
+                          loadCustomerResources(editingCustomer.id);
+                        }}
+                      >
+                        장비관리
+                      </button>
+                    )}
                     <button 
                       type="button" 
                       className="btn btn-outline-secondary"
@@ -575,6 +608,21 @@ const Customers: React.FC = () => {
               onChange={handleSearchChange}
             />
           </div>
+          <div className="col-auto d-print-none">
+            <select
+              className="form-select"
+              value={perPage}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value));
+                setCurrentPage(1); // 페이지 크기 변경 시 첫 페이지로 이동
+              }}
+            >
+              <option value={5}>5개씩</option>
+              <option value={10}>10개씩</option>
+              <option value={20}>20개씩</option>
+              <option value={50}>50개씩</option>
+            </select>
+          </div>
           <div className="col-auto ms-auto d-print-none">
             <div className="btn-list">
               <button 
@@ -607,46 +655,34 @@ const Customers: React.FC = () => {
       
       <div className="page-body">
         <div className="container-xl">
-          <div className="row row-deck row-cards">
-            <div className="col-12">
-              <div className="card">
-                <div className="card-header">
-                  <h3 className="card-title">고객 목록</h3>
-                  <div className="card-actions">
-                    <span className="text-muted">
-                      총 {totalCustomers}개의 고객
-                    </span>
-                  </div>
+          {customers.length === 0 ? (
+            <div className="text-center py-5">
+              <div className="empty">
+                <div className="empty-img">
+                  <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwIDIxVjE5QTQgNCAwIDAgMCAxNiAxNUg4QTQgNCAwIDAgMCA0IDE5VjIxIiBzdHJva2U9IiM4Nzk0YTgiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CjxjaXJjbGUgY3g9IjEyIiBjeT0iOSIgcj0iNCIgc3Ryb2tlPSIjODc5NGE4IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8L3N2Zz4K" alt="" height="128" width="128" />
                 </div>
-                <div className="card-body">
-                  {customers.length === 0 ? (
-                    <div className="text-center py-5">
-                      <div className="empty">
-                        <div className="empty-img">
-                          <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwIDIxVjE5QTQgNCAwIDAgMCAxNiAxNUg4QTQgNCAwIDAgMCA0IDE5VjIxIiBzdHJva2U9IiM4Nzk0YTgiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CjxjaXJjbGUgY3g9IjEyIiBjeT0iOSIgcj0iNCIgc3Ryb2tlPSIjODc5NGE4IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8L3N2Zz4K" alt="" height="128" width="128" />
-                        </div>
-                        <p className="empty-title">고객이 없습니다</p>
-                        <p className="empty-subtitle text-muted">
-                          첫 번째 고객을 추가해보세요.
-                        </p>
-                        <div className="empty-action">
-                          <button 
-                            className="btn btn-primary"
-                            onClick={() => setShowForm(true)}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                              <line x1="12" y1="5" x2="12" y2="19"></line>
-                              <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                            새 고객 추가
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="table-responsive">
-                        <table className="table table-vcenter">
+                <p className="empty-title">고객이 없습니다</p>
+                <p className="empty-subtitle text-muted">
+                  첫 번째 고객을 추가해보세요.
+                </p>
+                <div className="empty-action">
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => setShowForm(true)}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    새 고객 추가
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+            <div className="table-responsive">
+              <table className="table table-vcenter table-striped">
                         <thead>
                           <tr>
                             <th>회사명</th>
@@ -716,29 +752,67 @@ const Customers: React.FC = () => {
                                 </div>
                               </td>
                               <td>
-                                <div className="btn-list flex-nowrap">
-                                  <button 
-                                    className="btn btn-sm btn-outline-primary"
-                                    onClick={() => {
-                                      setSelectedCustomer(customer);
-                                      // 항상 서버에서 최신 장비 데이터를 로드
-                                      loadCustomerResources(customer.id);
-                                    }}
-                                  >
-                                    장비관리
-                                  </button>
-                                  <button 
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={() => handleEdit(customer)}
-                                  >
-                                    편집
-                                  </button>
-                                  <button 
-                                    className="btn btn-sm btn-outline-danger"
-                                    onClick={() => handleDelete(customer.id)}
-                                  >
-                                    삭제
-                                  </button>
+                                <div className="d-flex gap-1">
+                                  {user?.customer_access && (
+                                    <button 
+                                      className="btn btn-sm btn-outline-primary"
+                                      style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        width: '32px',
+                                        height: '32px',
+                                        padding: '0'
+                                      }}
+                                      onClick={() => handleView(customer)}
+                                      title="보기"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                      </svg>
+                                    </button>
+                                  )}
+                                  {(user?.customer_access && user?.is_admin) && (
+                                    <button 
+                                      className="btn btn-sm btn-outline-secondary"
+                                      style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        width: '32px',
+                                        height: '32px',
+                                        padding: '0'
+                                      }}
+                                      onClick={() => handleEdit(customer)}
+                                      title="편집"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                      </svg>
+                                    </button>
+                                  )}
+                                  {user?.is_admin && (
+                                    <button 
+                                      className="btn btn-sm btn-outline-danger"
+                                      style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        width: '32px',
+                                        height: '32px',
+                                        padding: '0'
+                                      }}
+                                      onClick={() => handleDelete(customer.id)}
+                                      title="삭제"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="3,6 5,6 21,6"/>
+                                        <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                                      </svg>
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -758,10 +832,6 @@ const Customers: React.FC = () => {
                     />
                     </>
                   )}
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 

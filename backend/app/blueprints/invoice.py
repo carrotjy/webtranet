@@ -78,33 +78,21 @@ def create_invoice_from_service_report(service_report_id):
         if not service_report:
             return jsonify({'error': '서비스 리포트를 찾을 수 없습니다.'}), 404
         
-        print(f"[DEBUG] 서비스 리포트 정보: ID={service_report.id}, 고객명={getattr(service_report, 'customer_name', 'N/A')}")
-        
         # 시간기록 확인
         time_records = service_report.get_time_records()
-        print(f"[DEBUG] 시간기록 개수: {len(time_records)}")
-        for i, tr in enumerate(time_records):
-            print(f"[DEBUG] 시간기록 {i+1}: 작업시간={tr.calculated_work_time}, 이동시간={tr.calculated_travel_time}")
         
         # 부품정보 확인
         used_parts = service_report.get_parts()
-        print(f"[DEBUG] 부품 개수: {len(used_parts)}")
-        for i, part in enumerate(used_parts):
-            print(f"[DEBUG] 부품 {i+1}: {part.part_name}, 수량={part.quantity}, 단가={part.unit_price}")
         
         # 거래명세표 생성
         invoice = Invoice.create_from_service_report(service_report)
         invoice_id = invoice.save()
         
-        print(f"[DEBUG] 거래명세표 생성됨: ID={invoice_id}")
-        
         # 거래명세표 항목들 생성
         items = InvoiceItem.create_from_service_report(invoice_id, service_report)
-        print(f"[DEBUG] 생성될 항목 개수: {len(items)}")
         
         for item in items:
             item.save()
-            print(f"[DEBUG] 항목 저장: {item.description}, 수량={item.quantity}, 단가={item.unit_price}")
         
         return jsonify({
             'message': '거래명세표가 생성되었습니다.',
@@ -112,7 +100,6 @@ def create_invoice_from_service_report(service_report_id):
         }), 201
         
     except Exception as e:
-        print(f"[ERROR] 거래명세표 생성 실패: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'거래명세표 생성 실패: {str(e)}'}), 500

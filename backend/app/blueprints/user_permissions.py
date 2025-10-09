@@ -18,13 +18,6 @@ def get_all_user_permissions():
     try:
         conn = get_db_connection()
         
-        # 디버깅: 테이블 구조 확인
-        try:
-            columns = conn.execute("PRAGMA table_info(users)").fetchall()
-            print(f"Users table columns: {[col[1] for col in columns]}")
-        except Exception as debug_e:
-            print(f"Debug error: {debug_e}")
-        
         # users 테이블에서 직접 권한 정보 조회
         users = conn.execute('''
             SELECT 
@@ -59,7 +52,6 @@ def get_all_user_permissions():
         })
         
     except Exception as e:
-        print(f"Error in get_all_user_permissions: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({

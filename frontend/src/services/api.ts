@@ -99,9 +99,16 @@ export const customerAPI = {
 
 // Resource API
 export const resourceAPI = {
-  getResources: (customerId?: number) => {
-    const params = customerId ? `?customer_id=${customerId}` : '';
-    return api.get(`/resources${params}`);
+  getResources: (customerId?: number, includeCustomer?: boolean) => {
+    const params = new URLSearchParams();
+    if (customerId) {
+      params.append('customer_id', customerId.toString());
+    }
+    if (includeCustomer) {
+      params.append('include_customer', 'true');
+    }
+    const queryString = params.toString();
+    return api.get(`/resources${queryString ? `?${queryString}` : ''}`);
   },
   getResourceById: (id: number) => api.get(`/resources/${id}`),
   createResource: (resourceData: any) => api.post('/resources', resourceData),
@@ -112,8 +119,11 @@ export const resourceAPI = {
 // Service Report API
 export const serviceReportAPI = {
   getServiceReports: () => {
-    console.log('API: 서비스 리포트 목록 조회 시작');
-    return api.get('/service-reports/');
+    return api.get('/service-reports/', {
+      params: {
+        per_page: 1000 // 충분히 큰 수로 설정하여 모든 데이터 가져오기
+      }
+    });
   },
   getServiceReportById: (id: number) => {
     console.log(`API: 서비스 리포트 조회 시작, ID: ${id}`);
@@ -142,6 +152,22 @@ export const sparePartsAPI = {
   createSparePart: (partData: any) => api.post('/spare-parts', partData),
   updateSparePart: (id: number, partData: any) => api.put(`/spare-parts/${id}`, partData),
   deleteSparePart: (id: number) => api.delete(`/spare-parts/${id}`),
+  
+  // 서비스 리포트용 부품 검색
+  searchPartByNumber: (partNumber: string) => 
+    api.post('/api/spare-parts/service-search', { part_number: partNumber }),
+  
+  // 서비스 리포트 저장 시 부품 처리
+  processServiceParts: (data: {
+    service_report_id: number;
+    customer_name: string;
+    used_parts: Array<{
+      part_number?: string;
+      part_name: string;
+      quantity: number;
+      unit_price: number;
+    }>;
+  }) => api.post('/api/spare-parts/process-service-parts', data),
 };
 
 // Transaction API

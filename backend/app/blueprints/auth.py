@@ -28,7 +28,6 @@ def login():
             return jsonify({'error': '이메일 또는 비밀번호가 올바르지 않습니다.'}), 401
             
     except Exception as e:
-        print(f"Login error: {str(e)}")  # 디버깅용 로그 추가
         import traceback
         traceback.print_exc()  # 상세한 오류 추적
         return jsonify({'error': f'로그인 중 오류가 발생했습니다: {str(e)}'}), 500

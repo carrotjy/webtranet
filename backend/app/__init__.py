@@ -71,23 +71,19 @@ def create_app():
     
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
-        print(f"[JWT DEBUG] Token expired: {jwt_payload}")
         return {'error': 'Token has expired'}, 401
     
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
-        print(f"[JWT DEBUG] Invalid token: {error}")
         return {'error': 'Invalid token'}, 401
     
     @jwt.unauthorized_loader
     def missing_token_callback(error):
-        print(f"[JWT DEBUG] Missing token: {error}")
         return {'error': 'Authorization token is required'}, 401
     
     # 422 오류 핸들러 추가
     @app.errorhandler(422)
     def handle_unprocessable_entity(e):
-        print(f"[ERROR DEBUG] 422 error: {str(e)}")
         import traceback
         traceback.print_exc()
         return {'error': 'Unprocessable Entity', 'message': str(e)}, 422

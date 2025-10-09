@@ -99,13 +99,13 @@ const Layout: React.FC = () => {
         <div className="collapse navbar-collapse" id="navbar-menu">
           <div className="navbar navbar-light">
             <div className="container-xl">
-              <ul className="navbar-nav">
+              <ul className="navbar-nav flex-row flex-wrap justify-content-center justify-content-sm-start">
                 <li className="nav-item">
                   <Link 
                     className={`nav-link ${isActive('/dashboard') ? 'active' : ''}`} 
                     to="/dashboard"
                   >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                    <span className="nav-link-icon">
                       <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
                         <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                         <rect x="4" y="4" width="6" height="8" rx="1"/>
@@ -114,7 +114,7 @@ const Layout: React.FC = () => {
                         <rect x="14" y="12" width="6" height="8" rx="1"/>
                       </svg>
                     </span>
-                    <span className="nav-link-title">대시보드</span>
+                    <span className="nav-link-title d-none d-sm-inline">대시보드</span>
                   </Link>
                 </li>
                 
@@ -124,7 +124,7 @@ const Layout: React.FC = () => {
                       className={`nav-link ${isActive('/service-reports') ? 'active' : ''}`} 
                       to="/service-reports"
                     >
-                      <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <span className="nav-link-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
@@ -134,7 +134,7 @@ const Layout: React.FC = () => {
                           <line x1="9" y1="17" x2="15" y2="17"/>
                         </svg>
                       </span>
-                      <span className="nav-link-title">서비스 리포트</span>
+                      <span className="nav-link-title d-none d-sm-inline">서비스 리포트</span>
                     </Link>
                   </li>
                 )}
@@ -145,14 +145,35 @@ const Layout: React.FC = () => {
                       className={`nav-link ${isActive('/customers') ? 'active' : ''}`} 
                       to="/customers"
                     >
-                      <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <span className="nav-link-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <circle cx="12" cy="7" r="4"/>
                           <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"/>
                         </svg>
                       </span>
-                      <span className="nav-link-title">고객 관리</span>
+                      <span className="nav-link-title d-none d-sm-inline">고객정보</span>
+                    </Link>
+                  </li>
+                )}
+                
+                {hasPermission('customer_access') && (
+                  <li className="nav-item">
+                    <Link 
+                      className={`nav-link ${isActive('/resource-management') ? 'active' : ''}`} 
+                      to="/resource-management"
+                    >
+                      <span className="nav-link-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                          <rect x="3" y="3" width="18" height="18" rx="2"/>
+                          <rect x="9" y="8" width="6" height="8" rx="1"/>
+                          <circle cx="12" cy="5" r="1"/>
+                          <circle cx="6" cy="12" r="1"/>
+                          <circle cx="18" cy="12" r="1"/>
+                        </svg>
+                      </span>
+                      <span className="nav-link-title d-none d-sm-inline">리소스</span>
                     </Link>
                   </li>
                 )}
@@ -163,7 +184,7 @@ const Layout: React.FC = () => {
                       className={`nav-link ${isActive('/invoices') ? 'active' : ''}`} 
                       to="/invoices"
                     >
-                      <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <span className="nav-link-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <rect x="3" y="4" width="18" height="16" rx="3"/>
@@ -172,7 +193,7 @@ const Layout: React.FC = () => {
                           <line x1="7" y1="16" x2="9" y2="16"/>
                         </svg>
                       </span>
-                      <span className="nav-link-title">거래명세표</span>
+                      <span className="nav-link-title d-none d-sm-inline">거래명세표</span>
                     </Link>
                   </li>
                 )}
@@ -183,7 +204,7 @@ const Layout: React.FC = () => {
                       className={`nav-link ${isActive('/spare-parts') ? 'active' : ''}`} 
                       to="/spare-parts"
                     >
-                      <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <span className="nav-link-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <rect x="4" y="4" width="6" height="6" rx="1"/>
@@ -192,7 +213,7 @@ const Layout: React.FC = () => {
                           <rect x="14" y="14" width="6" height="6" rx="1"/>
                         </svg>
                       </span>
-                      <span className="nav-link-title">스페어파트</span>
+                      <span className="nav-link-title d-none d-sm-inline">스페어파트</span>
                     </Link>
                   </li>
                 )}
@@ -209,14 +230,14 @@ const Layout: React.FC = () => {
                         setIsAdminDropdownOpen(!isAdminDropdownOpen);
                       }}
                     >
-                      <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <span className="nav-link-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
                           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                           <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0 -1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                           <circle cx="12" cy="12" r="3"/>
                         </svg>
                       </span>
-                      <span className="nav-link-title">관리자 메뉴</span>
+                      <span className="nav-link-title d-none d-sm-inline">관리자</span>
                     </a>
                     {isAdminDropdownOpen && (
                       <div 
@@ -269,6 +290,26 @@ const Layout: React.FC = () => {
                             </Link>
                             <Link 
                               className="dropdown-item" 
+                              to="/admin/resource-settings"
+                              onClick={() => setIsAdminDropdownOpen(false)}
+                            >
+                              <span className="nav-link-icon d-md-none d-lg-inline-block">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                  <rect x="4" y="4" width="6" height="6" rx="1"/>
+                                  <rect x="14" y="4" width="6" height="6" rx="1"/>
+                                  <rect x="4" y="14" width="6" height="6" rx="1"/>
+                                  <rect x="14" y="14" width="6" height="6" rx="1"/>
+                                  <circle cx="7" cy="7" r="1"/>
+                                  <circle cx="17" cy="7" r="1"/>
+                                  <circle cx="7" cy="17" r="1"/>
+                                  <circle cx="17" cy="17" r="1"/>
+                                </svg>
+                              </span>
+                              리소스 설정
+                            </Link>
+                            <Link 
+                              className="dropdown-item" 
                               to="/admin/invoices"
                               onClick={() => setIsAdminDropdownOpen(false)}
                             >
@@ -280,7 +321,7 @@ const Layout: React.FC = () => {
                                   <path d="M17 9v-2a2 2 0 0 0 -2 -2h-10a2 2 0 0 0 -2 2v6a2 2 0 0 0 2 2h2"/>
                                 </svg>
                               </span>
-                              거래명세표 관리
+                              거래명세표 설정
                             </Link>
                             <Link 
                               className="dropdown-item" 
@@ -296,7 +337,7 @@ const Layout: React.FC = () => {
                                   <rect x="17" y="17" width="3" height="3" rx=".5"/>
                                 </svg>
                               </span>
-                              부품관리 설정
+                              스페어파트 설정
                             </Link>
                           </div>
                         </div>

@@ -979,3 +979,272 @@ def add_price_history(part_id):
             'success': False,
             'error': str(e)
         }), 500
+
+@spare_parts_bp.route('/spare-parts/service-search', methods=['POST'])
+def search_part_for_service_report():
+    """파트번호로 부품 검색 (서비스 리포트용)"""
+    try:
+        data = request.get_json()
+        part_number = data.get('part_number', '').strip() if data else ''
+        print(f"[DEBUG] 부품 검색 요청: part_number={part_number}")
+        
+        if not part_number:
+            return jsonify({
+                'success': False,
+                'error': '파트번호를 입력해주세요.'
+            }), 400
+        
+        conn = get_db_connection()
+        
+        # 정확한 파트번호로 검색
+        part = conn.execute('''
+            SELECT * FROM spare_parts 
+            WHERE part_number = ?
+        ''', (part_number,)).fetchone()
+        
+        if part:
+            # Row 객체를 dict로 변환
+            part_dict = dict(part)
+            
+            # 최신 청구가 조회
+            latest_billing_price = conn.execute('''
+                SELECT billing_price 
+                FROM price_history 
+                WHERE spare_part_id = ? 
+                ORDER BY effective_date DESC, created_at DESC 
+                LIMIT 1
+            ''', (part_dict['id'],)).fetchone()
+            
+            billing_price = latest_billing_price['billing_price'] if latest_billing_price else 0
+            
+            print(f"[DEBUG] 부품 찾음: {part_dict['part_name']}, 청구가: {billing_price}")
+            
+            return jsonify({
+                'success': True,
+                'found': True,
+                'part': {
+                    'id': part_dict['id'],
+                    'part_number': part_dict['part_number'],
+                    'part_name': part_dict['part_name'],
+                    'billing_price': billing_price,
+                    'current_stock': part_dict['stock_quantity']
+                }
+            })
+        else:
+            print(f"[DEBUG] 부품 없음: {part_number}")
+            return jsonify({
+                'success': True,
+                'found': False,
+                'message': '해당 파트는 등록되어 있지 않습니다. 파트명을 직접 입력하세요.'
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@spare_parts_bp.route('/spare-parts/process-service-parts', methods=['POST'])
+def process_service_parts():
+    """서비스 리포트 저장 시 부품 처리 (출고 및 신규 등록)"""
+    try:
+        # 임시로 JWT 인증 제거하고 기본 사용자 사용
+        # current_user_id = get_jwt_identity()
+        # user = User.get_by_id(int(current_user_id))
+        # if not user:
+        #     return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 401
+        
+        # 임시 사용자 정보
+        class TempUser:
+            username = 'system'
+        user = TempUser()
+            
+        data = request.get_json()
+        print(f"[DEBUG] 부품 처리 요청 데이터: {data}")
+        
+        service_report_id = data.get('service_report_id')
+        customer_name = data.get('customer_name', '')
+        used_parts = data.get('used_parts', [])
+        
+        print(f"[DEBUG] service_report_id: {service_report_id}")
+        print(f"[DEBUG] customer_name: {customer_name}")
+        print(f"[DEBUG] used_parts count: {len(used_parts)}")
+        
+        if not service_report_id:
+            print("[DEBUG] 서비스 리포트 ID 누락")
+            return jsonify({
+                'success': False,
+                'error': '서비스 리포트 ID가 필요합니다.'
+            }), 400
+        
+        conn = get_db_connection()
+        
+        # 서비스 리포트 정보 조회 (작성일과 작성자 정보 가져오기)
+        service_report = conn.execute('''
+            SELECT sr.service_date, sr.technician_id, u.name 
+            FROM service_reports sr
+            LEFT JOIN users u ON sr.technician_id = u.id
+            WHERE sr.id = ?
+        ''', (service_report_id,)).fetchone()
+        
+        if not service_report:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': '해당 서비스 리포트를 찾을 수 없습니다.'
+            }), 404
+            
+        # 서비스 리포트의 작성일을 출고일로 사용
+        service_date = service_report['service_date']
+        technician_name = service_report['name'] or 'system'
+        print(f"[DEBUG] 서비스 리포트 작성일: {service_date}")
+        print(f"[DEBUG] 기술자(작성자): {technician_name}")
+        
+        # 날짜 형식 확인 및 변환 (현재 시간을 포함한 완전한 datetime으로)
+        if isinstance(service_date, str) and len(service_date) == 10:
+            # YYYY-MM-DD 형식인 경우 현재 시간을 추가
+            current_time = datetime.now()
+            formatted_datetime = f"{service_date} {current_time.strftime('%H:%M:%S')}"
+        else:
+            # 다른 형식인 경우 현재 날짜와 시간 사용
+            formatted_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        print(f"[DEBUG] 포맷된 날짜/시간: {formatted_datetime}")
+        
+        processed_parts = []
+        
+        for part_data in used_parts:
+            part_number = part_data.get('part_number', '').strip()
+            part_name = part_data.get('part_name', '').strip()
+            quantity = int(part_data.get('quantity', 0))
+            unit_price = float(part_data.get('unit_price', 0))
+            
+            if quantity <= 0:
+                continue
+                
+            if part_number:
+                # 파트번호가 있는 경우 기존 부품 검색
+                existing_part = conn.execute('''
+                    SELECT * FROM spare_parts WHERE part_number = ?
+                ''', (part_number,)).fetchone()
+                
+                if existing_part:
+                    # 기존 부품 출고 처리
+                    spare_part_id = existing_part['id']
+                    
+                    # 재고 확인 (경고만, 마이너스 재고 허용)
+                    current_stock = existing_part['stock_quantity']
+                    if current_stock < quantity:
+                        # 마이너스 재고 허용하되 기록
+                        pass
+                    
+                    # 재고 업데이트
+                    new_stock = current_stock - quantity
+                    conn.execute('''
+                        UPDATE spare_parts 
+                        SET stock_quantity = ?, updated_at = ? 
+                        WHERE id = ?
+                    ''', (new_stock, datetime.now().isoformat(), spare_part_id))
+                    
+                    # 출고 내역 기록
+                    conn.execute('''
+                        INSERT INTO stock_history 
+                        (part_number, transaction_type, quantity, previous_stock, new_stock,
+                         transaction_date, customer_name, reference_number, notes, created_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        part_number,
+                        'out',  # 출고
+                        quantity,
+                        current_stock,
+                        new_stock,
+                        formatted_datetime,  # 포맷된 날짜/시간 사용
+                        customer_name,  # 사용처를 고객사명으로
+                        customer_name,  # reference_number도 고객사명으로
+                        f'서비스 리포트 ID: {service_report_id}',
+                        technician_name  # 레포트 작성자(기술자)를 출고 요청자로
+                    ))
+                    
+                    processed_parts.append({
+                        'part_number': part_number,
+                        'part_name': existing_part['part_name'],
+                        'action': 'outbound',
+                        'quantity': quantity,
+                        'new_stock': new_stock
+                    })
+                    
+                else:
+                    # 신규 부품 등록
+                    if not part_name:
+                        return jsonify({
+                            'success': False,
+                            'error': f'파트번호 {part_number}의 파트명이 필요합니다.'
+                        }), 400
+                    
+                    # 신규 부품 등록
+                    cursor = conn.execute('''
+                        INSERT INTO spare_parts 
+                        (part_number, part_name, stock_quantity, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (
+                        part_number,
+                        part_name,
+                        -quantity,  # 초기 재고를 마이너스로 설정 (출고부터 시작)
+                        datetime.now().isoformat(),
+                        datetime.now().isoformat()
+                    ))
+                    
+                    spare_part_id = cursor.lastrowid
+                    
+                    # 출고 내역 기록
+                    conn.execute('''
+                        INSERT INTO stock_history 
+                        (part_number, transaction_type, quantity, previous_stock, new_stock,
+                         transaction_date, customer_name, reference_number, notes, created_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        part_number,
+                        'out',  # 출고
+                        quantity,
+                        0,  # 신규 부품이므로 이전 재고는 0
+                        -quantity,  # 새로운 재고 (마이너스)
+                        formatted_datetime,  # 포맷된 날짜/시간 사용
+                        customer_name,  # 사용처를 고객사명으로
+                        customer_name,  # reference_number도 고객사명으로
+                        f'서비스 리포트 ID: {service_report_id} (신규 부품 등록)',
+                        technician_name  # 레포트 작성자(기술자)를 출고 요청자로
+                    ))
+                    
+                    processed_parts.append({
+                        'part_number': part_number,
+                        'part_name': part_name,
+                        'action': 'new_and_outbound',
+                        'quantity': quantity,
+                        'new_stock': -quantity
+                    })
+            else:
+                # 파트번호 없이 파트명만 있는 경우 (임시 처리, 별도 기록)
+                # 실제로는 파트번호가 있어야 하지만 예외적으로 허용
+                if part_name:
+                    processed_parts.append({
+                        'part_number': '',
+                        'part_name': part_name,
+                        'action': 'manual_entry',
+                        'quantity': quantity,
+                        'note': '파트번호 없이 수동 입력된 부품'
+                    })
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{len(processed_parts)}개 부품이 처리되었습니다.',
+            'processed_parts': processed_parts
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

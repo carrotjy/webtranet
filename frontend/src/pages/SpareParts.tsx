@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import Pagination from '../components/Pagination';
 
 interface SparePart {
   id: number;
@@ -47,6 +48,10 @@ const SpareParts: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // 메인 목록 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
   // Modal states
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -57,6 +62,15 @@ const SpareParts: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedPart, setSelectedPart] = useState<SparePart | null>(null);
   const [history, setHistory] = useState<SparePartHistory[]>([]);
+  
+  // 입출고 내역 페이지네이션 상태
+  const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
+  const [historyItemsPerPage] = useState(10);
+  
+  // 가격 이력 페이지네이션 상태
+  const [priceHistoryCurrentPage, setPriceHistoryCurrentPage] = useState(1);
+  const [priceHistoryItemsPerPage] = useState(5);
+  
   const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([]);
   const [billingPrices, setBillingPrices] = useState<{[key: number]: number}>({});
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
@@ -253,7 +267,15 @@ const SpareParts: React.FC = () => {
       console.log('Fetching all history...');
       const response = await api.get('/api/spare-parts/history');
       console.log('History response:', response.data);
-      setHistory(response.data);
+      
+      // 날짜일시 내림차순으로 정렬 (최신 순)
+      const sortedHistory = response.data.sort((a: SparePartHistory, b: SparePartHistory) => {
+        const dateA = new Date(a.transaction_date);
+        const dateB = new Date(b.transaction_date);
+        return dateB.getTime() - dateA.getTime(); // 내림차순
+      });
+      
+      setHistory(sortedHistory);
     } catch (err) {
       console.error('Error fetching all history:', err);
       setError('입출고 내역을 불러오는데 실패했습니다.');
@@ -532,6 +554,11 @@ const SpareParts: React.FC = () => {
     (part.part_name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // 페이지네이션 계산
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentParts = filteredParts.slice(startIndex, endIndex);
+
   if (loading) {
     return (
       <div className="container-fluid">
@@ -555,8 +582,26 @@ const SpareParts: React.FC = () => {
                 className="form-control"
                 placeholder="부품번호 또는 부품명을 검색하세요..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1); // 검색어 변경시 첫 페이지로 이동
+                }}
               />
+            </div>
+            <div className="col-auto d-print-none">
+              <select
+                className="form-select"
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1); // 페이지 크기 변경 시 첫 페이지로 이동
+                }}
+              >
+                <option value={5}>5개씩</option>
+                <option value={10}>10개씩</option>
+                <option value={20}>20개씩</option>
+                <option value={50}>50개씩</option>
+              </select>
             </div>
             <div className="col-auto ms-auto d-print-none">
               <div className="btn-list">
@@ -565,6 +610,7 @@ const SpareParts: React.FC = () => {
                     className="btn btn-outline-secondary"
                     onClick={() => {
                       fetchAllHistory();
+                      setHistoryCurrentPage(1); // 페이지 초기화
                       setShowHistoryModal(true);
                     }}
                   >
@@ -615,7 +661,7 @@ const SpareParts: React.FC = () => {
         </div>
       </div>
 
-      <div className="page-body" style={{ marginTop: '6px' }}>
+      <div className="page-body">
         <div className="container-xl">
           {error && (
             <div className="alert alert-danger" role="alert">
@@ -623,22 +669,21 @@ const SpareParts: React.FC = () => {
             </div>
           )}
           
-          <div className="card">
-            <div className="table-responsive">
-              <table className="table table-vcenter">
-                <thead>
-                  <tr>
-                    <th>부품번호</th>
-                    <th>부품명</th>
-                    <th>재고수량</th>
-                    <th>청구가(KRW)</th>
+          <div className="table-responsive">
+            <table className="table table-vcenter table-striped">
+              <thead>
+                <tr>
+                  <th>부품번호</th>
+                  <th>부품명</th>
+                  <th>재고수량</th>
+                  <th>청구가(KRW)</th>
                     <th>등록일</th>
                     <th className="w-1">액션</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredParts.length > 0 ? (
-                    filteredParts.map((part) => (
+                    currentParts.map((part) => (
                       <tr key={part.id}>
                         <td>{part.part_number}</td>
                         <td>{part.part_name}</td>
@@ -735,7 +780,29 @@ const SpareParts: React.FC = () => {
                 </tbody>
               </table>
             </div>
-          </div>
+          
+          {/* 페이지네이션 */}
+          {filteredParts.length >= itemsPerPage && (
+            <div className="mt-3">
+              <div className="d-flex align-items-center justify-content-start mb-2">
+                <span className="text-muted small">
+                  총 {filteredParts.length}개의 부품 (페이지 {currentPage}/{Math.ceil(filteredParts.length / itemsPerPage)})
+                </span>
+              </div>
+              
+              <div className="d-flex justify-content-center">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(filteredParts.length / itemsPerPage)}
+                  totalItems={filteredParts.length}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={(page) => setCurrentPage(page)}
+                  onPreviousPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  onNextPage={() => setCurrentPage(prev => Math.min(Math.ceil(filteredParts.length / itemsPerPage), prev + 1))}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -746,7 +813,10 @@ const SpareParts: React.FC = () => {
             <div className="modal-dialog modal-xl modal-dialog-centered">
               <div className="modal-content">
                 <div className="modal-header">
-                  <h5 className="modal-title">입출고 내역</h5>
+                  <h5 className="modal-title">
+                    입출고 내역 
+                    <span className="text-muted ms-2" style={{ fontSize: '14px', fontWeight: 'normal' }}>({history.length}건)</span>
+                  </h5>
                   <button type="button" className="btn-close" onClick={() => setShowHistoryModal(false)}></button>
                 </div>
                 <div className="modal-body">
@@ -765,62 +835,84 @@ const SpareParts: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {history.length > 0 ? (
-                          history.map((record) => (
-                            <tr key={record.id}>
-                              <td>
-                                <div>{new Date(record.created_at).toLocaleDateString('ko-KR')}</div>
-                                <small className="text-muted">
-                                  {new Date(record.created_at).toLocaleTimeString('ko-KR', { 
-                                    hour: '2-digit', 
-                                    minute: '2-digit' 
-                                  })}
-                                </small>
-                              </td>
-                              <td><code>{record.part_number}</code></td>
-                              <td>{record.part_name || '-'}</td>
-                              <td>
-                                <span className={`badge ${record.transaction_type === 'IN' ? 'bg-primary' : 'bg-warning'}`}>
-                                  {record.transaction_type === 'IN' ? '입고' : '출고'}
-                                </span>
-                              </td>
-                              <td>
-                                <span className={record.transaction_type === 'IN' ? 'text-primary' : 'text-warning'}>
-                                  {record.transaction_type === 'IN' ? '+' : '-'}{record.quantity}개
-                                </span>
-                              </td>
-                              <td><strong>{record.new_stock}개</strong></td>
-                              <td>
-                                <span className="text-muted">
-                                  {record.created_by || 'system'}
-                                </span>
-                              </td>
-                              <td>
-                                {record.transaction_type === 'OUT' && record.customer_name ? (
-                                  <div>
-                                    <div className="text-primary">{record.customer_name}</div>
-                                    {record.reference_number && (
-                                      <small className="text-muted">({record.reference_number})</small>
-                                    )}
-                                  </div>
-                                ) : record.reference_number ? (
-                                  <small className="text-muted">{record.reference_number}</small>
-                                ) : (
-                                  <span className="text-muted">-</span>
-                                )}
+                        {(() => {
+                          // 페이지네이션 계산
+                          const startIndex = (historyCurrentPage - 1) * historyItemsPerPage;
+                          const endIndex = startIndex + historyItemsPerPage;
+                          const currentItems = history.slice(startIndex, endIndex);
+                          
+                          return currentItems.length > 0 ? (
+                            currentItems.map((record) => (
+                              <tr key={record.id}>
+                                <td>
+                                  <div>{new Date(record.transaction_date).toLocaleDateString('ko-KR')}</div>
+                                  <small className="text-muted">
+                                    {new Date(record.transaction_date).toLocaleTimeString('ko-KR', { 
+                                      hour: '2-digit', 
+                                      minute: '2-digit' 
+                                    })}
+                                  </small>
+                                </td>
+                                <td><code>{record.part_number}</code></td>
+                                <td>{record.part_name || '-'}</td>
+                                <td>
+                                  <span className={record.transaction_type === 'IN' ? 'text-primary' : 'text-warning'} style={{ fontSize: '14px', fontWeight: '600' }}>
+                                    {record.transaction_type === 'IN' ? '입고' : '출고'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className={record.transaction_type === 'IN' ? 'text-primary' : 'text-warning'}>
+                                    {record.transaction_type === 'IN' ? '+' : '-'}{record.quantity}개
+                                  </span>
+                                </td>
+                                <td><strong>{record.new_stock}개</strong></td>
+                                <td>
+                                  <span className="text-muted">
+                                    {record.created_by || 'system'}
+                                  </span>
+                                </td>
+                                <td>
+                                  {record.transaction_type === 'OUT' && record.customer_name ? (
+                                    <div>
+                                      <div className="text-primary">{record.customer_name}</div>
+                                      {record.reference_number && (
+                                        <small className="text-muted">({record.reference_number})</small>
+                                      )}
+                                    </div>
+                                  ) : record.reference_number ? (
+                                    <small className="text-muted">{record.reference_number}</small>
+                                  ) : (
+                                    <span className="text-muted">-</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={8} className="text-center text-muted">
+                                입출고 내역이 없습니다.
                               </td>
                             </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={8} className="text-center text-muted">
-                              입출고 내역이 없습니다.
-                            </td>
-                          </tr>
-                        )}
+                          );
+                        })()}
                       </tbody>
                     </table>
                   </div>
+                  
+                  {/* 페이지네이션 */}
+                  {history.length > historyItemsPerPage && (
+                    <div className="mt-4">
+                      <Pagination
+                        currentPage={historyCurrentPage}
+                        totalPages={Math.ceil(history.length / historyItemsPerPage)}
+                        totalItems={history.length}
+                        itemsPerPage={historyItemsPerPage}
+                        onPageChange={(page) => setHistoryCurrentPage(page)}
+                        onPreviousPage={() => setHistoryCurrentPage(historyCurrentPage - 1)}
+                        onNextPage={() => setHistoryCurrentPage(historyCurrentPage + 1)}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-secondary" onClick={() => setShowHistoryModal(false)}>
@@ -1588,42 +1680,65 @@ const SpareParts: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {priceHistory.length > 0 ? (
-                        priceHistory.map((price) => (
-                          <tr key={price.id}>
-                            <td>
-                              <strong style={{ fontSize: '14px' }}>{new Date(price.effective_date).toLocaleDateString('ko-KR')}</strong>
+                      {(() => {
+                        const startIndex = (priceHistoryCurrentPage - 1) * priceHistoryItemsPerPage;
+                        const currentItems = priceHistory.slice(startIndex, startIndex + priceHistoryItemsPerPage);
+                        
+                        return currentItems.length > 0 ? (
+                          currentItems.map((price) => (
+                            <tr key={price.id}>
+                              <td>
+                                <strong style={{ fontSize: '14px' }}>{new Date(price.effective_date).toLocaleDateString('ko-KR')}</strong>
+                              </td>
+                              <td>
+                                <span style={{ fontSize: '14px', color: '#0d6efd', fontWeight: '600' }}>₩{price.price.toLocaleString('ko-KR')}</span>
+                              </td>
+                              <td>
+                                <div style={{ fontSize: '14px' }}>{new Date(price.created_at).toLocaleDateString('ko-KR')}</div>
+                                <small className="text-muted" style={{ fontSize: '12px' }}>
+                                  {new Date(price.created_at).toLocaleTimeString('ko-KR', { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}
+                                </small>
+                              </td>
+                              <td>
+                                <span style={{ fontSize: '14px', color: '#6c757d' }}>{price.created_by}</span>
+                              </td>
+                              <td style={{ fontSize: '14px' }}>{price.notes || '-'}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="text-center text-muted" style={{ fontSize: '14px' }}>
+                              가격 변경 이력이 없습니다.
                             </td>
-                            <td>
-                              <span style={{ fontSize: '14px', color: '#0d6efd', fontWeight: '600' }}>₩{price.price.toLocaleString('ko-KR')}</span>
-                            </td>
-                            <td>
-                              <div style={{ fontSize: '14px' }}>{new Date(price.created_at).toLocaleDateString('ko-KR')}</div>
-                              <small className="text-muted" style={{ fontSize: '12px' }}>
-                                {new Date(price.created_at).toLocaleTimeString('ko-KR', { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit' 
-                                })}
-                              </small>
-                            </td>
-                            <td>
-                              <span style={{ fontSize: '14px', color: '#6c757d' }}>{price.created_by}</span>
-                            </td>
-                            <td style={{ fontSize: '14px' }}>{price.notes || '-'}</td>
                           </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="text-center text-muted" style={{ fontSize: '14px' }}>
-                            가격 변경 이력이 없습니다.
-                          </td>
-                        </tr>
-                      )}
+                        );
+                      })()}
                     </tbody>
                   </table>
                 </div>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer d-flex justify-content-between align-items-center">
+                <div className="d-flex align-items-center">
+                  <span className="text-muted small">
+                    총 {priceHistory.length}개의 이력
+                  </span>
+                </div>
+                
+                {priceHistory.length > priceHistoryItemsPerPage && (
+                  <Pagination
+                    currentPage={priceHistoryCurrentPage}
+                    totalPages={Math.ceil(priceHistory.length / priceHistoryItemsPerPage)}
+                    totalItems={priceHistory.length}
+                    itemsPerPage={priceHistoryItemsPerPage}
+                    onPageChange={(page) => setPriceHistoryCurrentPage(page)}
+                    onPreviousPage={() => setPriceHistoryCurrentPage(prev => Math.max(1, prev - 1))}
+                    onNextPage={() => setPriceHistoryCurrentPage(prev => Math.min(Math.ceil(priceHistory.length / priceHistoryItemsPerPage), prev + 1))}
+                  />
+                )}
+                
                 <button type="button" className="btn btn-secondary" onClick={() => setShowPriceHistoryModal(false)}>
                   닫기
                 </button>
@@ -1740,7 +1855,7 @@ const SpareParts: React.FC = () => {
                                                price.currency === 'EUR' ? '€' : '$')}{price.price.toLocaleString()}</small>
                                     </td>
                                     <td>
-                                      <span className="badge bg-secondary">{price.currency}</span>
+                                      <small className="text-muted">{price.currency}</small>
                                     </td>
                                     <td>
                                       <small>{price.created_by}</small>

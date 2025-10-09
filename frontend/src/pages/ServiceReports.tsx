@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import api, { customerAPI, serviceReportAPI, resourceAPI, authAPI, userAPI } from '../services/api';
+import api, { customerAPI, serviceReportAPI, resourceAPI, authAPI, userAPI, sparePartsAPI } from '../services/api';
+import Pagination from '../components/Pagination';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Customer {
   id: number;
@@ -24,6 +26,11 @@ interface UsedPart {
   quantity: number;
   unit_price: number;
   total_price: number;
+  // 새로 추가된 필드들
+  isFoundInDB?: boolean;
+  searchMessage?: string;
+  currentStock?: number;
+  sparePart_id?: number;
 }
 
 interface TimeRecord {
@@ -227,6 +234,7 @@ const calculateTravelTime = (departureTime: string, workStartTime: string, workE
 };
 
 const ServiceReports: React.FC = () => {
+  const { user } = useAuth();
   const [reports, setReports] = useState<ServiceReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -267,6 +275,10 @@ const ServiceReports: React.FC = () => {
   
   // 검색 관련 상태
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   
   // 정렬 관련 상태
   const [sortField, setSortField] = useState<'date' | 'sn' | null>('date');
@@ -365,16 +377,11 @@ const ServiceReports: React.FC = () => {
     };
   }, [showSupportTechnicianDropdown]);
 
-  // customerResources 변화 모니터링 (디버깅용)
-  useEffect(() => {
-    console.log('customerResources 변경됨:', customerResources);
-    console.log('customerResources 길이:', customerResources.length);
-  }, [customerResources]);
-
   const loadReports = async () => {
     try {
       setLoading(true);
       const response = await serviceReportAPI.getServiceReports();
+      
       // API 응답에서 reports 배열 추출
       const reportData = response.data?.reports || [];
       setReports(Array.isArray(reportData) ? reportData : []);
@@ -733,7 +740,11 @@ const ServiceReports: React.FC = () => {
       part_number: '',
       quantity: 1,
       unit_price: 0,
-      total_price: 0
+      total_price: 0,
+      isFoundInDB: undefined,
+      searchMessage: '',
+      currentStock: undefined,
+      sparePart_id: undefined
     };
     setFormData(prev => ({
       ...prev,
@@ -750,7 +761,8 @@ const ServiceReports: React.FC = () => {
     }
   };
 
-  const updateUsedPart = (index: number, field: keyof UsedPart, value: string | number) => {
+  const updateUsedPart = async (index: number, field: keyof UsedPart, value: string | number) => {
+    console.log('updateUsedPart 호출됨:', { index, field, value });
     setFormData(prev => {
       const updatedParts = [...prev.used_parts];
       updatedParts[index] = { ...updatedParts[index], [field]: value };
@@ -763,6 +775,69 @@ const ServiceReports: React.FC = () => {
       
       return { ...prev, used_parts: updatedParts };
     });
+
+    // 파트번호가 입력되면 자동으로 부품 검색
+    if (field === 'part_number' && value && typeof value === 'string') {
+      console.log('부품번호 입력됨:', value);
+      await searchPartByNumber(index, value);
+    }
+  };
+
+  // 파트번호로 부품 검색
+  const searchPartByNumber = async (index: number, partNumber: string) => {
+    console.log('searchPartByNumber 호출됨:', partNumber);
+    try {
+      console.log('API 호출 시작');
+      const response = await sparePartsAPI.searchPartByNumber(partNumber);
+      console.log('API 응답:', response.data);
+      
+      if (response.data.success) {
+        setFormData(prev => {
+          const updatedParts = [...prev.used_parts];
+          
+          if (response.data.found) {
+            // 부품을 찾은 경우
+            const part = response.data.part;
+            updatedParts[index] = {
+              ...updatedParts[index],
+              part_name: part.part_name,
+              unit_price: part.billing_price,
+              total_price: updatedParts[index].quantity * part.billing_price,
+              isFoundInDB: true,
+              currentStock: part.current_stock,
+              sparePart_id: part.id,
+              searchMessage: `현재 재고: ${part.current_stock}개`
+            };
+          } else {
+            // 부품을 찾지 못한 경우
+            updatedParts[index] = {
+              ...updatedParts[index],
+              part_name: '',
+              isFoundInDB: false,
+              searchMessage: response.data.message,
+              currentStock: undefined,
+              sparePart_id: undefined
+            };
+          }
+          
+          return { ...prev, used_parts: updatedParts };
+        });
+      }
+    } catch (error) {
+      console.error('부품 검색 중 오류:', error);
+      console.error('오류 상세:', (error as any)?.response?.data);
+      setFormData(prev => {
+        const updatedParts = [...prev.used_parts];
+        updatedParts[index] = {
+          ...updatedParts[index],
+          isFoundInDB: false,
+          searchMessage: '부품 검색 중 오류가 발생했습니다.',
+          currentStock: undefined,
+          sparePart_id: undefined
+        };
+        return { ...prev, used_parts: updatedParts };
+      });
+    }
   };
 
   // 시간 기록 관련 함수들 (새로운 테이블 형태)
@@ -937,6 +1012,52 @@ const ServiceReports: React.FC = () => {
     });
   })();
 
+  // 페이지네이션 적용
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentReports = filteredAndSortedReports.slice(startIndex, endIndex);
+
+  // 서비스 리포트 저장 후 부품 처리
+  const processServiceParts = async (serviceReportId: number, serviceReportData: any) => {
+    try {
+      // 고객명 추출
+      const customer = customers.find(c => c.id === formData.customer_id);
+      const customerName = customer ? customer.company_name : '고객명 미상';
+      
+      // 부품 처리 데이터 준비
+      const processData = {
+        service_report_id: serviceReportId,
+        customer_name: customerName,
+        used_parts: formData.used_parts.map(part => ({
+          part_number: part.part_number || '',
+          part_name: part.part_name,
+          quantity: part.quantity,
+          unit_price: part.unit_price
+        }))
+      };
+      
+      const response = await sparePartsAPI.processServiceParts(processData);
+      
+      if (response.data.success) {
+        console.log('부품 처리 완료:', response.data.message);
+        console.log('처리된 부품들:', response.data.processed_parts);
+        
+        // 처리 결과를 사용자에게 알림 (선택사항)
+        const processedInfo = response.data.processed_parts
+          .map((p: any) => `${p.part_name} (${p.quantity}개) - ${p.action}`)
+          .join('\n');
+        
+        if (processedInfo) {
+          console.log('부품 출고/등록 완료:\n', processedInfo);
+        }
+      }
+    } catch (error) {
+      console.error('부품 처리 중 오류:', error);
+      // 부품 처리 실패는 서비스 리포트 저장을 방해하지 않도록 경고만 표시
+      alert('서비스 리포트는 저장되었으나 부품 처리 중 오류가 발생했습니다.');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -975,10 +1096,22 @@ const ServiceReports: React.FC = () => {
       if (editingReport) {
         // 수정 모드
         const response = await serviceReportAPI.updateServiceReport(editingReport.id, submitData);
+        
+        // 부품 처리 (수정 시에도 부품 출고 처리)
+        if (formData.used_parts.length > 0) {
+          await processServiceParts(editingReport.id, response.data);
+        }
+        
         alert('서비스 리포트가 수정되었습니다.');
       } else {
         // 새로 생성 모드
         const response = await serviceReportAPI.createServiceReport(submitData);
+        
+        // 부품 처리 (신규 생성 시 부품 출고 처리)
+        if (formData.used_parts.length > 0 && response.data.report) {
+          await processServiceParts(response.data.report.id, response.data);
+        }
+        
         alert('서비스 리포트가 생성되었습니다.');
       }
       
@@ -1235,8 +1368,26 @@ const ServiceReports: React.FC = () => {
                 className="form-control"
                 placeholder="검색어를 입력하세요 (고객사, 담당자, 모델, S/N, 작업내용, 날짜: yymmdd 형식)"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1); // 검색어 변경시 첫 페이지로 이동
+                }}
               />
+            </div>
+            <div className="col-auto d-print-none">
+              <select
+                className="form-select"
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1); // 페이지 크기 변경 시 첫 페이지로 이동
+                }}
+              >
+                <option value={5}>5개씩</option>
+                <option value={10}>10개씩</option>
+                <option value={20}>20개씩</option>
+                <option value={50}>50개씩</option>
+              </select>
             </div>
             <div className="col-auto ms-auto d-print-none">
               <div className="btn-list">
@@ -1281,38 +1432,22 @@ const ServiceReports: React.FC = () => {
         </div>
       </div>
 
-      <div className="page-body" style={{ marginTop: '6px' }}>
+      <div className="page-body">
         <div className="container-xl">
-          <div className="card">
-            <div className="card-header" style={{ padding: '0.75rem', height: '3.25rem', display: 'flex', alignItems: 'center' }}>
-              <small className="text-muted">💡 DATE / SN 헤더 클릭 시 정렬 가능</small>
-            </div>
-            <div className="table-responsive">
-              <table className="table card-table table-vcenter text-nowrap datatable table-bordered">
-                <thead className="table-light">
-                  <tr style={{ height: '3.25rem' }}>
+          <div className="mb-2">
+            <small className="text-muted">💡 DATE / SN 헤더 클릭 시 정렬 가능</small>
+          </div>
+          <div className="table-responsive">
+            <table className="table table-vcenter table-striped">
+                <thead>
+                  <tr>
                     <th 
                       style={{
                         cursor: 'pointer', 
                         userSelect: 'none',
-                        transition: 'all 0.2s ease',
-                        position: 'relative',
-                        padding: '0.75rem'
+                        color: '#206bc4'
                       }}
-                      className="sortable-header"
                       onClick={() => handleSort('date')}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f8f9fa';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                        e.currentTarget.style.fontWeight = 'bold';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = '';
-                        e.currentTarget.style.transform = '';
-                        e.currentTarget.style.boxShadow = '';
-                        e.currentTarget.style.fontWeight = '';
-                      }}
                     >
                       작업일자 {getSortIcon('date')}
                     </th>
@@ -1323,33 +1458,18 @@ const ServiceReports: React.FC = () => {
                       style={{
                         cursor: 'pointer', 
                         userSelect: 'none',
-                        transition: 'all 0.2s ease',
-                        position: 'relative',
-                        padding: '0.75rem'
+                        color: '#206bc4'
                       }}
-                      className="sortable-header"
                       onClick={() => handleSort('sn')}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f8f9fa';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                        e.currentTarget.style.fontWeight = 'bold';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = '';
-                        e.currentTarget.style.transform = '';
-                        e.currentTarget.style.boxShadow = '';
-                        e.currentTarget.style.fontWeight = '';
-                      }}
                     >
-                      Sn {getSortIcon('sn')}
+                      SN {getSortIcon('sn')}
                     </th>
-                    <th style={{ padding: '0.75rem' }}>Job Description</th>
-                    <th className="w-1" style={{ padding: '0.75rem' }}>액션</th>
+                    <th>Job Description</th>
+                    <th>액션</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAndSortedReports.length > 0 ? filteredAndSortedReports.map((report) => (
+                  {filteredAndSortedReports.length > 0 ? currentReports.map((report) => (
                     <tr key={report.id} style={{backgroundColor: '#fdfdfd'}}>
                       <td className="bg-white text-center">{getLatestWorkDate(report)}</td>
                       <td className="bg-white fw-medium">{report.customer_name}</td>
@@ -1360,19 +1480,67 @@ const ServiceReports: React.FC = () => {
                         {report.problem_description || report.symptom}
                       </td>
                       <td className="bg-white text-center">
-                        <div className="btn-list flex-nowrap">
-                          <button 
-                            className="btn btn-sm btn-outline-info"
-                            onClick={() => handleView(report)}
-                          >
-                            보기
-                          </button>
-                          <button 
-                            className="btn btn-sm btn-outline-danger"
-                            onClick={() => handleDelete(report.id)}
-                          >
-                            삭제
-                          </button>
+                        <div className="d-flex gap-1">
+                          {user?.service_report_access && (
+                            <button 
+                              className="btn btn-sm btn-outline-primary"
+                              style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                width: '32px',
+                                height: '32px',
+                                padding: '0'
+                              }}
+                              onClick={() => handleView(report)}
+                              title="보기"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                              </svg>
+                            </button>
+                          )}
+                          {(user?.service_report_access && (user?.is_admin || user?.name === report.technician_name)) && (
+                            <button 
+                              className="btn btn-sm btn-outline-secondary"
+                              style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                width: '32px',
+                                height: '32px',
+                                padding: '0'
+                              }}
+                              onClick={() => handleEdit(report)}
+                              title="편집"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              </svg>
+                            </button>
+                          )}
+                          {(user?.is_admin || user?.name === report.technician_name) && (
+                            <button 
+                              className="btn btn-sm btn-outline-danger"
+                              style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                width: '32px',
+                                height: '32px',
+                                padding: '0'
+                              }}
+                              onClick={() => handleDelete(report.id)}
+                              title="삭제"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3,6 5,6 21,6"/>
+                                <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1386,14 +1554,53 @@ const ServiceReports: React.FC = () => {
                 </tbody>
               </table>
             </div>
-          </div>
+            
+            {/* 페이지네이션 */}
+            {filteredAndSortedReports.length >= itemsPerPage && (
+              <div className="mt-3">
+                <div className="d-flex align-items-center justify-content-start mb-2">
+                  <span className="text-muted small">
+                    총 {filteredAndSortedReports.length}개의 리포트 (페이지 {currentPage}/{Math.ceil(filteredAndSortedReports.length / itemsPerPage)})
+                  </span>
+                </div>
+                
+                <div className="d-flex justify-content-center">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={Math.ceil(filteredAndSortedReports.length / itemsPerPage)}
+                    totalItems={filteredAndSortedReports.length}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={(page) => setCurrentPage(page)}
+                    onPreviousPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    onNextPage={() => setCurrentPage(prev => Math.min(Math.ceil(filteredAndSortedReports.length / itemsPerPage), prev + 1))}
+                  />
+                </div>
+              </div>
+            )}
         </div>
       </div>
 
       {/* 서비스 리포트 작성/수정 모달 */}
       {showForm && (
         <div className="modal modal-blur fade show" style={{display: 'block'}}>
-          <div className="modal-dialog modal-xl modal-dialog-centered">
+          {/* 모달 백드롭 */}
+          <div 
+            className="modal-backdrop fade show" 
+            style={{ 
+              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              width: '100%', 
+              height: '100%', 
+              zIndex: 1040 
+            }}
+            onClick={() => {
+              setShowForm(false);
+              setEditingReport(null);
+            }}
+          ></div>
+          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">{editingReport ? '서비스 리포트 수정' : '서비스 리포트 작성'}</h5>
@@ -1760,8 +1967,8 @@ const ServiceReports: React.FC = () => {
                         <table className="table table-sm table-bordered">
                           <thead className="table-light">
                             <tr>
-                              <th>부품명</th>
                               <th>부품번호</th>
+                              <th>부품명</th>
                               <th>수량</th>
                               <th>단가</th>
                               <th>총액</th>
@@ -1775,18 +1982,30 @@ const ServiceReports: React.FC = () => {
                                   <input
                                     type="text"
                                     className="form-control form-control-sm"
-                                    value={part.part_name}
-                                    onChange={(e) => updateUsedPart(index, 'part_name', e.target.value)}
-                                    required
+                                    value={part.part_number || ''}
+                                    onChange={(e) => updateUsedPart(index, 'part_number', e.target.value)}
+                                    placeholder="파트번호 입력"
                                   />
+                                  {part.isFoundInDB === false && part.part_number && (
+                                    <small className="text-info d-block mt-1">
+                                      신규 부품으로 등록됩니다
+                                    </small>
+                                  )}
                                 </td>
                                 <td>
                                   <input
                                     type="text"
                                     className="form-control form-control-sm"
-                                    value={part.part_number || ''}
-                                    onChange={(e) => updateUsedPart(index, 'part_number', e.target.value)}
+                                    value={part.part_name}
+                                    onChange={(e) => updateUsedPart(index, 'part_name', e.target.value)}
+                                    required
+                                    readOnly={part.isFoundInDB === true}
                                   />
+                                  {part.searchMessage && (
+                                    <small className={`text-${part.isFoundInDB ? 'success' : 'warning'} d-block mt-1`}>
+                                      {part.searchMessage}
+                                    </small>
+                                  )}
                                 </td>
                                 <td>
                                   <input
@@ -1797,6 +2016,11 @@ const ServiceReports: React.FC = () => {
                                     min="0"
                                     required
                                   />
+                                  {part.currentStock !== undefined && part.quantity > part.currentStock && (
+                                    <small className="text-warning d-block mt-1">
+                                      재고 부족 (현재: {part.currentStock}개)
+                                    </small>
+                                  )}
                                 </td>
                                 <td>
                                   <input
@@ -1807,6 +2031,7 @@ const ServiceReports: React.FC = () => {
                                     min="0"
                                     step="0.01"
                                     required
+                                    readOnly={part.isFoundInDB === true}
                                   />
                                 </td>
                                 <td>
@@ -2035,7 +2260,21 @@ const ServiceReports: React.FC = () => {
       {/* 고객 선택 모달 */}
       {showCustomerModal && (
         <div className="modal modal-blur fade show" style={{display: 'block', zIndex: 2000}}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
+          {/* 모달 백드롭 */}
+          <div 
+            className="modal-backdrop fade show" 
+            style={{ 
+              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              width: '100%', 
+              height: '100%', 
+              zIndex: 1040 
+            }}
+            onClick={() => setShowCustomerModal(false)}
+          ></div>
+          <div className="modal-dialog modal-lg modal-dialog-centered" style={{ zIndex: 1050 }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">고객 선택</h5>
@@ -2123,7 +2362,21 @@ const ServiceReports: React.FC = () => {
       {/* 서비스 리포트 보기 모달 */}
       {showViewModal && viewingReport && (
         <div className="modal modal-blur fade show" style={{display: 'block', zIndex: 2000}}>
-          <div className="modal-dialog modal-xl modal-dialog-centered">
+          {/* 모달 백드롭 */}
+          <div 
+            className="modal-backdrop fade show" 
+            style={{ 
+              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              width: '100%', 
+              height: '100%', 
+              zIndex: 1040 
+            }}
+            onClick={() => setShowViewModal(false)}
+          ></div>
+          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">서비스 리포트 상세 보기</h5>
@@ -2418,7 +2671,21 @@ const ServiceReports: React.FC = () => {
       {/* 리소스 추가 모달 */}
       {showAddResourceModal && (
         <div className="modal modal-blur fade show" style={{display: 'block', zIndex: 2100}}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
+          {/* 모달 백드롭 */}
+          <div 
+            className="modal-backdrop fade show" 
+            style={{ 
+              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              width: '100%', 
+              height: '100%', 
+              zIndex: 1040 
+            }}
+            onClick={() => setShowAddResourceModal(false)}
+          ></div>
+          <div className="modal-dialog modal-lg modal-dialog-centered" style={{ zIndex: 1050 }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">새 리소스 추가</h5>
@@ -2541,7 +2808,21 @@ const ServiceReports: React.FC = () => {
       {/* 고객사 추가 모달 */}
       {showAddCustomerModal && (
         <div className="modal modal-blur fade show" style={{display: 'block', zIndex: 2100}}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
+          {/* 모달 백드롭 */}
+          <div 
+            className="modal-backdrop fade show" 
+            style={{ 
+              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              width: '100%', 
+              height: '100%', 
+              zIndex: 1040 
+            }}
+            onClick={() => setShowAddCustomerModal(false)}
+          ></div>
+          <div className="modal-dialog modal-lg modal-dialog-centered" style={{ zIndex: 1050 }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">새 고객사 추가</h5>

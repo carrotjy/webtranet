@@ -8,6 +8,7 @@ import {
   Dashboard,
   ServiceReports,
   Customers, 
+  ResourceManagement,
   SpareParts, 
   UserManagement,
   ServiceReportSettings,
@@ -17,6 +18,7 @@ import {
   InvoiceForm,
   InvoiceView
 } from './pages';
+import ResourceSettings from './pages/ResourceSettings';
 import './App.css';
 
 function App() {
@@ -41,6 +43,11 @@ function App() {
               <Route path="customers" element={
                 <ProtectedRoute requiredPermission="customer">
                   <Customers />
+                </ProtectedRoute>
+              } />
+              <Route path="resource-management" element={
+                <ProtectedRoute requiredPermission="customer">
+                  <ResourceManagement />
                 </ProtectedRoute>
               } />
               <Route path="spare-parts" element={
@@ -81,6 +88,11 @@ function App() {
               <Route path="admin/service-reports" element={
                 <ProtectedRoute adminOnly>
                   <ServiceReportSettings />
+                </ProtectedRoute>
+              } />
+              <Route path="admin/resource-settings" element={
+                <ProtectedRoute adminOnly>
+                  <ResourceSettings />
                 </ProtectedRoute>
               } />
               <Route path="admin/invoices" element={

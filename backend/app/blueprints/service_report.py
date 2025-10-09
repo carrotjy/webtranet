@@ -127,8 +127,6 @@ def create_service_report():
             support_technician_ids=support_technician_ids
         )
         
-        print(f"[DEBUG] ServiceReport object created: {report}")
-        
         report_id = report.save()
         report_id = report.save()
         

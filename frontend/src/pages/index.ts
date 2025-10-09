@@ -1,6 +1,7 @@
 export { default as Dashboard } from './Dashboard';
 export { default as ServiceReports } from './ServiceReports';
 export { default as Customers } from './Customers';
+export { default as ResourceManagement } from './ResourceManagement';
 export { default as SpareParts } from './SpareParts';
 export { default as UserManagement } from './UserManagement';
 export { default as Login } from './Login';

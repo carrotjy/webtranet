@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Invoice {
   id: number;
@@ -15,13 +16,14 @@ interface Invoice {
 }
 
 const Invoices: React.FC = () => {
+  const { user } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
   
-  const perPage = 10;
+  const [perPage, setPerPage] = useState(10);
 
   const fetchInvoices = async (page: number) => {
     try {
@@ -63,7 +65,7 @@ const Invoices: React.FC = () => {
 
   useEffect(() => {
     fetchInvoices(1);
-  }, []);
+  }, [perPage]);
 
   return (
     <div className="page-header d-print-none">
@@ -77,6 +79,21 @@ const Invoices: React.FC = () => {
               value=""
               onChange={() => {}}
             />
+          </div>
+          <div className="col-auto d-print-none">
+            <select
+              className="form-select"
+              value={perPage}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value));
+                setCurrentPage(1); // 페이지 크기 변경 시 첫 페이지로 이동
+              }}
+            >
+              <option value={5}>5개씩</option>
+              <option value={10}>10개씩</option>
+              <option value={20}>20개씩</option>
+              <option value={50}>50개씩</option>
+            </select>
           </div>
           <div className="col-auto ms-auto d-print-none">
             <div className="btn-list">
@@ -102,55 +119,43 @@ const Invoices: React.FC = () => {
 
       <div className="page-body">
         <div className="container-xl">
-          <div className="row row-deck row-cards">
-            <div className="col-12">
-              <div className="card">
-                <div className="card-header">
-                  <h3 className="card-title">거래명세표 목록</h3>
-                  <div className="card-actions">
-                    <span className="text-muted">
-                      총 {total}개의 거래명세표
-                    </span>
-                  </div>
+          {loading ? (
+            <div className="text-center py-4">
+              <div className="spinner-border" role="status">
+                <span className="visually-hidden">로딩 중...</span>
+              </div>
+            </div>
+          ) : invoices.length === 0 ? (
+            <div className="text-center py-4">
+              <div className="empty">
+                <div className="empty-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <rect x="3" y="4" width="18" height="16" rx="3"/>
+                    <line x1="7" y1="8" x2="17" y2="8"/>
+                    <line x1="7" y1="12" x2="17" y2="12"/>
+                    <line x1="7" y1="16" x2="9" y2="16"/>
+                  </svg>
                 </div>
-
-                <div className="card-body p-0">
-                  {loading ? (
-                    <div className="text-center py-4">
-                      <div className="spinner-border" role="status">
-                        <span className="visually-hidden">로딩 중...</span>
-                      </div>
-                    </div>
-                  ) : invoices.length === 0 ? (
-                    <div className="text-center py-4">
-                      <div className="empty">
-                        <div className="empty-icon">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                            <rect x="3" y="4" width="18" height="16" rx="3"/>
-                            <line x1="7" y1="8" x2="17" y2="8"/>
-                            <line x1="7" y1="12" x2="17" y2="12"/>
-                            <line x1="7" y1="16" x2="9" y2="16"/>
-                          </svg>
-                        </div>
-                        <p className="empty-title">거래명세표가 없습니다</p>
-                        <p className="empty-subtitle text-muted">
-                          서비스 리포트에서 거래명세표를 생성해보세요.
-                        </p>
-                        <div className="empty-action">
-                          <Link to="/service-reports" className="btn btn-primary">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                              <line x1="12" y1="5" x2="12" y2="19"/>
-                              <line x1="5" y1="12" x2="19" y2="12"/>
-                            </svg>
-                            서비스 리포트 보기
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="table-responsive">
-                      <table className="table table-vcenter table-mobile-md card-table">
+                <p className="empty-title">거래명세표가 없습니다</p>
+                <p className="empty-subtitle text-muted">
+                  서비스 리포트에서 거래명세표를 생성해보세요.
+                </p>
+                <div className="empty-action">
+                  <Link to="/service-reports" className="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"/>
+                      <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    서비스 리포트 보기
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="table-responsive">
+                      <table className="table table-vcenter table-striped">
                         <thead>
                           <tr>
                             <th>거래명세표 번호</th>
@@ -205,72 +210,77 @@ const Invoices: React.FC = () => {
                               </td>
                               <td>
                                 <div className="d-flex gap-1">
-                                  <Link
-                                    to={`/invoices/${invoice.id}`}
-                                    className="btn btn-sm btn-outline-primary"
-                                    style={{ 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
-                                      justifyContent: 'center',
-                                      width: '32px',
-                                      height: '32px',
-                                      padding: '0'
-                                    }}
-                                    title="보기"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                      <circle cx="12" cy="12" r="3"/>
-                                    </svg>
-                                  </Link>
-                                  <Link
-                                    to={`/invoices/${invoice.id}/edit`}
-                                    className="btn btn-sm btn-outline-secondary"
-                                    style={{ 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
-                                      justifyContent: 'center',
-                                      width: '32px',
-                                      height: '32px',
-                                      padding: '0'
-                                    }}
-                                    title="수정"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                    </svg>
-                                  </Link>
-                                  <button
-                                    className="btn btn-sm btn-outline-danger"
-                                    style={{ 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
-                                      justifyContent: 'center',
-                                      width: '32px',
-                                      height: '32px',
-                                      padding: '0'
-                                    }}
-                                    onClick={() => handleDelete(invoice.id)}
-                                    title="삭제"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <polyline points="3,6 5,6 21,6"/>
-                                      <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
-                                    </svg>
-                                  </button>
+                                  {user?.transaction_access && (
+                                    <Link
+                                      to={`/invoices/${invoice.id}`}
+                                      className="btn btn-sm btn-outline-primary"
+                                      style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        width: '32px',
+                                        height: '32px',
+                                        padding: '0'
+                                      }}
+                                      title="보기"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                      </svg>
+                                    </Link>
+                                  )}
+                                  {(user?.transaction_access && user?.is_admin) && (
+                                    <Link
+                                      to={`/invoices/${invoice.id}/edit`}
+                                      className="btn btn-sm btn-outline-secondary"
+                                      style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        width: '32px',
+                                        height: '32px',
+                                        padding: '0'
+                                      }}
+                                      title="수정"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                      </svg>
+                                    </Link>
+                                  )}
+                                  {user?.is_admin && (
+                                    <button
+                                      className="btn btn-sm btn-outline-danger"
+                                      style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        width: '32px',
+                                        height: '32px',
+                                        padding: '0'
+                                      }}
+                                      onClick={() => handleDelete(invoice.id)}
+                                      title="삭제"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="3,6 5,6 21,6"/>
+                                        <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                                      </svg>
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
-                    </div>
-                  )}
+                  </div>
 
                   {/* 페이지네이션 */}
                   {totalPages > 1 && (
-                    <div className="card-footer d-flex align-items-center">
+                    <div className="d-flex align-items-center mt-3">
                       <p className="m-0 text-muted">
                         {((currentPage - 1) * perPage) + 1}-{Math.min(currentPage * perPage, total)} of {total} 거래명세표
                       </p>
@@ -314,10 +324,8 @@ const Invoices: React.FC = () => {
                       </ul>
                     </div>
                   )}
-                </div>
-              </div>
-            </div>
-          </div>
+                </>
+              )}
         </div>
       </div>
     </div>

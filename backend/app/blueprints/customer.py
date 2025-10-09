@@ -33,7 +33,6 @@ def get_customers():
                     customer_dict['resources'] = [resource.to_dict() for resource in resources]
                 customer_list.append(customer_dict)
             except Exception as e:
-                print(f"[ERROR] Failed to process customer: {e}")
                 raise e
         
         return jsonify({
@@ -44,9 +43,8 @@ def get_customers():
             'total_pages': 1 if per_page is None else (total + per_page - 1) // per_page
         }), 200
     except Exception as e:
-        print(f"[ERROR] Customer list error: {e}")
         import traceback
-        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        traceback.print_exc()
         return jsonify({'error': f'고객정보 조회 중 오류가 발생했습니다: {str(e)}'}), 500
 
 @customer_bp.route('/search', methods=['GET'])
@@ -78,7 +76,6 @@ def search_customers():
         }), 200
         
     except Exception as e:
-        print(f"[ERROR] Customer search error: {e}")
         return jsonify({
             'success': False,
             'error': f'고객 검색 중 오류가 발생했습니다: {str(e)}'
@@ -210,9 +207,6 @@ def import_customers_from_excel():
         try:
             # 엑셀 파일 읽기
             df = pd.read_excel(temp_path)
-            print(f"[DEBUG] Excel file loaded. Shape: {df.shape}")
-            print(f"[DEBUG] Columns: {df.columns.tolist()}")
-            print(f"[DEBUG] Null values per column: {df.isnull().sum().to_dict()}")
             
             # 필요한 컬럼 확인
             required_columns = ['company_name']  # company_name만 필수로 변경
@@ -278,11 +272,9 @@ def import_customers_from_excel():
                             error_count += 1
                             errors.append(f'행 {index + 2}: 고객 정보 업데이트 실패')
                     else:
-                        print(f"[DEBUG] Creating new customer: {customer_data['company_name']}")
                         # 새 고객 생성
                         new_customer = Customer(**customer_data)
                         result = new_customer.save()
-                        print(f"[DEBUG] Save result: {result}")
                         if result:
                             success_count += 1
                         else:
@@ -293,12 +285,8 @@ def import_customers_from_excel():
                     error_count += 1
                     error_msg = f'행 {index + 2}: {str(e)}'
                     errors.append(error_msg)
-                    print(f"[ERROR] {error_msg}")
-                    print(f"[ERROR] Exception type: {type(e).__name__}")
                     import traceback
-                    print(f"[ERROR] Traceback: {traceback.format_exc()}")
-            
-            print(f"[DEBUG] Import completed. Success: {success_count}, Errors: {error_count}")
+                    traceback.print_exc()
             
             return jsonify({
                 'message': f'엑셀 임포트 완료',

@@ -172,15 +172,15 @@ const SparePartSettings: React.FC = () => {
     loadUsers();
   }, []);
 
-  // Excel 수식 기반 2차함수 팩터 계산
-  // =IF((C14<C3),H14,IF((C14>C8),H19,(M17*C14*C14+M18*C14+M19)))
+  // Excel 수식 기반 2차함수 팩터 계산 (2차함수 특성 반영)
+  // =IF((C14<C3),H19,IF((C14>C8),H14,(M17*C14*C14+M18*C14+M19)))
   const calculateQuadraticFactor = (price: number, partConfig: QuadraticFactorConfig): number => {
     const { a, b, c, minPrice, maxPrice, minFactor, maxFactor } = partConfig;
     
     if (price < minPrice) {
-      return minFactor; // H14 (최소 팩터)
+      return maxFactor; // 최소가격 미만일 때 최대팩터 적용 (2차함수 특성)
     } else if (price > maxPrice) {
-      return maxFactor; // H19 (최대 팩터)
+      return minFactor; // 최대가격 초과일 때 최소팩터 적용 (2차함수 특성)
     } else {
       // M17*C14*C14+M18*C14+M19 (2차함수)
       const factor = a * price * price + b * price + c;

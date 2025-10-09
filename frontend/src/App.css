@@ -110,3 +110,90 @@
 .modal-footer {
   border-top: 1px solid #e2e8f0;
 }
+
+/* 반응형 네비게이션 스타일 */
+@media (max-width: 575.98px) {
+  /* xs 브레이크포인트 */
+  .navbar-nav .nav-link {
+    padding: 0.5rem 0.25rem;
+    text-align: center;
+    min-width: 44px; /* 터치 친화적인 최소 크기 */
+  }
+  
+  .navbar-nav .nav-link-icon {
+    margin-bottom: 0;
+  }
+  
+  .navbar-nav .nav-link-icon .icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  /* 드롭다운 메뉴는 모바일에서 텍스트 표시 */
+  .navbar-nav .dropdown .nav-link-title {
+    display: inline !important;
+    font-size: 0.75rem;
+    margin-left: 0.25rem;
+  }
+}
+
+@media (min-width: 576px) {
+  /* sm 브레이크포인트 이상에서는 텍스트 표시 */
+  .navbar-nav .nav-link {
+    padding: 0.75rem 1rem;
+  }
+  
+  .navbar-nav .nav-link-icon {
+    margin-right: 0.5rem;
+  }
+}
+
+/* 네비게이션 아이콘과 텍스트 정렬 */
+.navbar-nav .nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (min-width: 576px) {
+  .navbar-nav .nav-link {
+    justify-content: flex-start;
+  }
+}
+
+/* 테이블 스트라이프 커스터마이징 - 강제 적용 */
+.table-striped tbody tr:nth-of-type(odd) td {
+  background-color: #f8f9fa !important; /* 홀수 행 - 연한 회색 */
+}
+
+.table-striped tbody tr:nth-of-type(even) td {
+  background-color: #ffffff !important; /* 짝수 행 - 흰색 */
+}
+
+/* 테이블 행 호버 효과 - 모든 행에 적용, 최고 우선순위로 강제 */
+.table-striped tbody tr:hover td,
+.table-striped tbody tr:nth-of-type(odd):hover td,
+.table-striped tbody tr:nth-of-type(even):hover td,
+.table tbody tr:hover td {
+  background-color: #e3f2fd !important; /* 호버 시 연한 파란색 */
+  transition: background-color 0.15s ease-in-out !important;
+}
+
+/* Bootstrap과 Tabler의 기본 hover 효과 완전 무력화 */
+.table-hover tbody tr:hover td,
+.table-hover tbody tr:hover th {
+  background-color: #e3f2fd !important;
+}
+
+/* 테이블 헤더 스타일 통일 */
+.table > thead > tr > th {
+  background-color: transparent;
+  border-bottom: 2px solid #dee2e6;
+}
+
+/* Bootstrap table-light 오버라이드 */
+.table-light > thead > tr > th,
+.table-light > tbody > tr > td,
+.table-light > tbody > tr > th {
+  background-color: transparent;
+}
