@@ -50,7 +50,7 @@
 .navbar-nav .nav-link {
   color: #718096;
   font-weight: 500;
-  margin-bottom: 0.25rem; /* 메뉴 간격 추가 */
+  margin-bottom: 0.5rem; /* 메뉴 간격 더 넓게 */
   border-radius: 0.375rem; /* 둥근 모서리 추가 */
   transition: all 0.2s ease-in-out; /* 부드러운 전환 효과 */
 }
@@ -196,7 +196,7 @@ body.modal-open {
     padding: 0.5rem 0.25rem;
     text-align: center;
     min-width: 44px; /* 터치 친화적인 최소 크기 */
-    margin-bottom: 0.125rem; /* 모바일에서 더 작은 간격 */
+    margin-bottom: 0.25rem; /* 모바일에서도 적절한 간격 */
   }
   
   .navbar-nav .nav-link-icon {
@@ -220,7 +220,7 @@ body.modal-open {
   /* sm 브레이크포인트 이상에서는 텍스트 표시 */
   .navbar-nav .nav-link {
     padding: 0.75rem 1rem;
-    margin-bottom: 0.25rem; /* 데스크톱에서 적절한 간격 */
+    margin-bottom: 0.5rem; /* 데스크톱에서 넉넉한 간격 */
   }
   
   .navbar-nav .nav-link-icon {
@@ -250,24 +250,31 @@ body.modal-open {
   background-color: #ffffff; /* 짝수 행 - 흰색 */
 }
 
-/* 테이블 행 호버 효과 - 반드시 기본 스타일보다 나중에 선언하여 우선 적용 */
+/* 테이블 행 호버 효과 - 최고 우선순위로 강제 적용 */
 .table-striped tbody tr:hover td,
 .table-striped tbody tr:nth-of-type(odd):hover td,
 .table-striped tbody tr:nth-of-type(even):hover td,
 .table tbody tr:hover td,
 .table-striped tbody tr.hover td,
 tbody tr:nth-of-type(even):hover td,
-tbody tr:nth-of-type(odd):hover td {
+tbody tr:nth-of-type(odd):hover td,
+tr:nth-of-type(even):hover td,
+tr:nth-of-type(odd):hover td,
+.table tr:hover td {
   background-color: #e3f2fd !important; /* 호버 시 연한 파란색 */
   transition: background-color 0.15s ease-in-out !important;
 }
 
-/* Bootstrap과 Tabler의 기본 hover 효과 완전 무력화 */
+/* Bootstrap과 Tabler의 기본 hover 효과 완전 무력화 및 강제 오버라이드 */
 .table-hover tbody tr:hover td,
 .table-hover tbody tr:hover th,
 .table-hover tbody tr:nth-of-type(even):hover td,
-.table-hover tbody tr:nth-of-type(odd):hover td {
+.table-hover tbody tr:nth-of-type(odd):hover td,
+.table-light tbody tr:hover td,
+.table tbody tr:nth-of-type(even):hover td,
+.table tbody tr:nth-of-type(odd):hover td {
   background-color: #e3f2fd !important;
+  transition: background-color 0.15s ease-in-out !important;
 }
 
 /* 테이블 헤더 스타일 통일 */
