@@ -241,27 +241,32 @@ body.modal-open {
   }
 }
 
-/* 테이블 스트라이프 커스터마이징 - 강제 적용 */
+/* 테이블 기본 스트라이프 스타일 */
 .table-striped tbody tr:nth-of-type(odd) td {
-  background-color: #f8f9fa !important; /* 홀수 행 - 연한 회색 */
+  background-color: #f8f9fa; /* 홀수 행 - 연한 회색 */
 }
 
 .table-striped tbody tr:nth-of-type(even) td {
-  background-color: #ffffff !important; /* 짝수 행 - 흰색 */
+  background-color: #ffffff; /* 짝수 행 - 흰색 */
 }
 
-/* 테이블 행 호버 효과 - 모든 행에 적용, 최고 우선순위로 강제 */
+/* 테이블 행 호버 효과 - 반드시 기본 스타일보다 나중에 선언하여 우선 적용 */
 .table-striped tbody tr:hover td,
 .table-striped tbody tr:nth-of-type(odd):hover td,
 .table-striped tbody tr:nth-of-type(even):hover td,
-.table tbody tr:hover td {
+.table tbody tr:hover td,
+.table-striped tbody tr.hover td,
+tbody tr:nth-of-type(even):hover td,
+tbody tr:nth-of-type(odd):hover td {
   background-color: #e3f2fd !important; /* 호버 시 연한 파란색 */
   transition: background-color 0.15s ease-in-out !important;
 }
 
 /* Bootstrap과 Tabler의 기본 hover 효과 완전 무력화 */
 .table-hover tbody tr:hover td,
-.table-hover tbody tr:hover th {
+.table-hover tbody tr:hover th,
+.table-hover tbody tr:nth-of-type(even):hover td,
+.table-hover tbody tr:nth-of-type(odd):hover td {
   background-color: #e3f2fd !important;
 }
 
