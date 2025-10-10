@@ -410,6 +410,12 @@ const Customers: React.FC = () => {
     setCurrentPage(1); // 검색 시 첫 페이지로 이동
   };
 
+  // 검색어 클리어 함수
+  const handleSearchClear = () => {
+    setSearchTerm('');
+    setCurrentPage(1);
+  };
+
   if (showForm) {
     return (
       <div className="page-header d-print-none">
@@ -823,13 +829,39 @@ const Customers: React.FC = () => {
       <div className="container-xl">
         <div className="row g-2 align-items-center">
           <div className="col">
-            <input
-              type="text"
-              className="form-control"
-              placeholder="검색어를 입력하세요 (고객사명, 담당자, 주소)"
-              value={searchTerm}
-              onChange={handleSearchChange}
-            />
+            <div className="position-relative">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="검색어를 입력하세요 (고객사명, 담당자, 주소)"
+                value={searchTerm}
+                onChange={handleSearchChange}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  className="btn btn-sm position-absolute"
+                  onClick={handleSearchClear}
+                  style={{
+                    right: '8px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    border: 'none',
+                    background: 'none',
+                    padding: '4px',
+                    cursor: 'pointer',
+                    opacity: 0.6,
+                    zIndex: 10
+                  }}
+                  title="검색어 지우기"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
           <div className="col-auto d-print-none">
             <select
