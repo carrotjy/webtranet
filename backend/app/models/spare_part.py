@@ -6,6 +6,7 @@ class SparePart(db.Model):
     
     part_number = db.Column(db.String(100), primary_key=True)
     part_name = db.Column(db.String(200), nullable=False)
+    erp_name = db.Column(db.String(200))  # ERP명 추가
     description = db.Column(db.Text)
     category = db.Column(db.String(100))
     current_stock = db.Column(db.Integer, default=0)
@@ -25,6 +26,7 @@ class SparePart(db.Model):
         return {
             'part_number': self.part_number,
             'part_name': self.part_name,
+            'erp_name': self.erp_name,
             'description': self.description,
             'category': self.category,
             'current_stock': self.current_stock,

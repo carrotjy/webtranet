@@ -99,6 +99,7 @@ def create_spare_part():
         part = SparePart(
             part_number=data['part_number'],
             part_name=data['part_name'],
+            erp_name=data.get('erp_name'),
             description=data.get('description'),
             category=data.get('category'),
             current_stock=data.get('current_stock', 0),
@@ -157,18 +158,27 @@ def update_spare_part(part_number):
         data = request.get_json()
         current_user = get_jwt_identity()
         
+        print(f"Updating part {part_number} with data: {data}")  # 디버깅용
+        
         part = SparePart.query.get(part_number)
         if not part:
             return jsonify({'success': False, 'message': '파트를 찾을 수 없습니다.'}), 404
         
+        print(f"Before update - erp_name: {part.erp_name}")  # 디버깅용
+        
         # 기본 정보 업데이트
         part.part_name = data.get('part_name', part.part_name)
+        part.erp_name = data.get('erp_name', part.erp_name)
         part.description = data.get('description', part.description)
         part.category = data.get('category', part.category)
         part.min_stock = data.get('min_stock', part.min_stock)
         part.updated_at = datetime.utcnow()
         
+        print(f"After update - erp_name: {part.erp_name}")  # 디버깅용
+        
         db.session.commit()
+        
+        print(f"Committed to DB - erp_name: {part.erp_name}")  # 디버깅용
         
         return jsonify({
             'success': True,

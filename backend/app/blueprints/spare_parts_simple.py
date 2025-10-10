@@ -55,6 +55,7 @@ def get_spare_parts():
                 'id': part['id'],  # 실제 id 필드 사용
                 'part_number': part['part_number'],
                 'part_name': part['part_name'],  # part_name 필드명 유지
+                'erp_name': part['erp_name'] if part['erp_name'] else '',  # erp_name 추가
                 'stock_quantity': part['stock_quantity'],  # stock_quantity 필드명 유지
                 'price': part['price'] if part['price'] else 0,  # price 필드명 유지
                 'billing_price': billing_price,  # 최신 청구가 추가
@@ -80,11 +81,14 @@ def create_spare_part():
         
         part_number = data.get('part_number')
         part_name = data.get('part_name')
+        erp_name = data.get('erp_name', '')
         description = data.get('description', '')
         category = data.get('category', '')
         current_stock = data.get('stock_quantity', 0)  # 프론트엔드 필드명에 맞춤
         min_stock = data.get('min_stock', 0)
         price_eur = data.get('price', 0)  # 프론트엔드 필드명에 맞춤
+        
+        print(f"Creating new part with data: {data}")  # 디버깅용
         
         if not part_number or not part_name:
             return jsonify({
@@ -107,14 +111,24 @@ def create_spare_part():
                 'error': '이미 존재하는 파트번호입니다.'
             }), 400
         
-        # 삽입
+        # 삽입 - erp_name 필드 추가
         conn.execute('''
             INSERT INTO spare_parts 
-            (part_number, part_name, description, price, stock_quantity, minimum_stock, supplier)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (part_number, part_name, description, price_eur, current_stock, min_stock, category))
+            (part_number, part_name, erp_name, description, price, stock_quantity, minimum_stock, supplier)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (part_number, part_name, erp_name, description, price_eur, current_stock, min_stock, category))
         
         conn.commit()
+        
+        # 삽입 후 확인
+        inserted_part = conn.execute(
+            'SELECT * FROM spare_parts WHERE part_number = ?', 
+            (part_number,)
+        ).fetchone()
+        
+        print(f"Successfully created part {part_number} with erp_name: {erp_name}")  # 디버깅용
+        print(f"Inserted part data: {dict(inserted_part) if inserted_part else 'None'}")  # 디버깅용
+        
         conn.close()
         
         return jsonify({
@@ -128,18 +142,21 @@ def create_spare_part():
             'error': str(e)
         }), 500
 
-@spare_parts_bp.route('/spare-parts/<int:part_id>', methods=['PUT'])
-def update_spare_part(part_id):
+@spare_parts_bp.route('/spare-parts/<part_number>', methods=['PUT'])
+def update_spare_part(part_number):
     """스페어파트 수정"""
     try:
         data = request.get_json()
         
         part_name = data.get('part_name')
+        erp_name = data.get('erp_name', '')
         description = data.get('description', '')
         category = data.get('category', '')
         current_stock = data.get('stock_quantity', 0)  # 프론트엔드 필드명에 맞춤
         min_stock = data.get('min_stock', 0)
         price_eur = data.get('price', 0)  # 프론트엔드 필드명에 맞춤
+        
+        print(f"Updating part {part_number} with data: {data}")  # 디버깅용
         
         if not part_name:
             return jsonify({
@@ -149,14 +166,14 @@ def update_spare_part(part_id):
         
         conn = get_db_connection()
         
-        # 업데이트
+        # 업데이트 - erp_name 필드 추가
         conn.execute('''
             UPDATE spare_parts 
-            SET part_name = ?, description = ?, price = ?, 
+            SET part_name = ?, erp_name = ?, description = ?, price = ?, 
                 stock_quantity = ?, minimum_stock = ?, supplier = ?,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        ''', (part_name, description, price_eur, current_stock, min_stock, category, part_id))
+            WHERE part_number = ?
+        ''', (part_name, erp_name, description, price_eur, current_stock, min_stock, category, part_number))
         
         if conn.total_changes == 0:
             conn.close()
@@ -164,6 +181,8 @@ def update_spare_part(part_id):
                 'success': False,
                 'error': '해당 부품을 찾을 수 없습니다.'
             }), 404
+        
+        print(f"Successfully updated part {part_number} with erp_name: {erp_name}")  # 디버깅용
         
         conn.commit()
         conn.close()
@@ -904,7 +923,19 @@ def add_price_history(part_id):
         # 통화별 팩터 계산 로직
         if currency == 'KRW':
             # KRW 원가는 최소/최대가격 상관없이 마진율만 적용
-            margin_rate = 1.20  # 기본 마진율 20% (1 + 0.20)
+            # 저장된 마진율 가져오기
+            margin_setting = conn.execute(
+                '''SELECT setting_value FROM spare_part_settings 
+                   WHERE setting_key = "margin_rate"'''
+            ).fetchone()
+            
+            if margin_setting and margin_setting['setting_value']:
+                margin_rate = 1 + (int(margin_setting['setting_value']) / 100)  # 25% -> 1.25
+                print(f"KRW 마진율 적용: {margin_setting['setting_value']}% -> {margin_rate}")
+            else:
+                margin_rate = 1.20  # 기본 마진율 20% (1 + 0.20)
+                print(f"기본 마진율 적용: 20% -> {margin_rate}")
+            
             final_price_krw = krw_cost_price * margin_rate
         else:
             # EUR/USD 원가는 EUR/USD 기준으로 최소/최대가격 비교해서 팩터 계산

@@ -278,9 +278,20 @@ const UserManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* 모달 배경 */}
+      {showForm && (
+        <div 
+          className="modal-backdrop fade show" 
+          style={{ zIndex: 1055 }}
+        ></div>
+      )}
+
       {/* 사용자 추가/수정 모달 */}
       {showForm && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }}>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{ display: 'block', zIndex: 1056 }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
@@ -441,9 +452,6 @@ const UserManagement: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* 모달 배경 */}
-      {showForm && <div className="modal-backdrop fade show"></div>}
     </>
   );
 };

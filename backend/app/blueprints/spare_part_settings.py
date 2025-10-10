@@ -48,6 +48,18 @@ def get_spare_part_settings():
                WHERE currency_from = "USD" AND currency_to = "KRW" AND is_active = 1'''
         ).fetchone()
         
+        # 마진율 설정 조회 (conn.close() 전에 수행)
+        try:
+            margin_setting = conn.execute(
+                '''SELECT setting_value FROM spare_part_settings 
+                   WHERE setting_key = "margin_rate"'''
+            ).fetchone()
+            
+            margin_rate = int(margin_setting['setting_value']) if margin_setting else 20
+        except Exception as margin_error:
+            print(f"마진율 조회 오류: {margin_error}")
+            margin_rate = 20  # 기본값
+        
         conn.close()
         
         # 기본값 설정
@@ -98,7 +110,8 @@ def get_spare_part_settings():
             'USD': usd_rate['rate'] if usd_rate else 1340.0
         }
         
-        settings['marginRate'] = 20  # 기본 마진율 20%
+        # 미리 조회한 마진율 설정
+        settings['marginRate'] = margin_rate
         
         return jsonify({
             'success': True,
@@ -165,6 +178,32 @@ def update_spare_part_settings():
                    WHERE currency_from = "USD" AND currency_to = "KRW" AND is_active = 1''',
                 (rates['USD'], datetime.now())
             )
+        
+        # 마진율 설정 업데이트
+        if 'marginRate' in data:
+            margin_rate = data['marginRate']
+            # 기존 마진율 설정이 있는지 확인
+            existing = conn.execute(
+                '''SELECT id FROM spare_part_settings WHERE setting_key = "margin_rate"'''
+            ).fetchone()
+            
+            if existing:
+                # 업데이트
+                conn.execute(
+                    '''UPDATE spare_part_settings 
+                       SET setting_value = ?, updated_at = ?
+                       WHERE setting_key = "margin_rate"''',
+                    (str(margin_rate), datetime.now())
+                )
+            else:
+                # 새로 삽입
+                conn.execute(
+                    '''INSERT INTO spare_part_settings (setting_key, setting_value, created_at, updated_at)
+                       VALUES ("margin_rate", ?, ?, ?)''',
+                    (str(margin_rate), datetime.now(), datetime.now())
+                )
+            
+            print(f"마진율 저장: {margin_rate}%")  # 디버깅용 로그
         
         conn.commit()
         conn.close()

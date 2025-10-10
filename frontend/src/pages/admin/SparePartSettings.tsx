@@ -102,6 +102,7 @@ const SparePartSettings: React.FC = () => {
   useEffect(() => {
     const loadSettingsFromAPI = async () => {
       try {
+        console.log('API에서 설정 로드 시도...');
         const response = await fetch('/api/admin/spare-part-settings', {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -110,23 +111,22 @@ const SparePartSettings: React.FC = () => {
         
         if (response.ok) {
           const data = await response.json();
-          if (data.success) {
+          console.log('API 응답:', data);
+          if (data.success && data.data) {
+            console.log('로드된 마진율:', data.data.marginRate);
             setConfig(data.data);
             console.log('관리자 설정에서 로드된 계수:', data.data);
           } else {
             console.error('설정 로드 실패:', data.error);
-            // 실패 시 로컬스토리지에서 로드
-            setConfig(loadConfigFromStorage());
+            console.log('API 로드 실패 - 기존 설정 유지');
           }
         } else {
-          console.error('API 호출 실패');
-          // 실패 시 로컬스토리지에서 로드
-          setConfig(loadConfigFromStorage());
+          console.error('API 호출 실패, 상태 코드:', response.status);
+          console.log('API 호출 실패 - 기존 설정 유지');
         }
       } catch (error) {
         console.error('설정 로드 중 오류:', error);
-        // 에러 시 로컬스토리지에서 로드
-        setConfig(loadConfigFromStorage());
+        console.log('API 오류 - 기존 설정 유지');
       }
     };
 
@@ -229,6 +229,7 @@ const SparePartSettings: React.FC = () => {
 
   // 마진율 업데이트
   const handleMarginRateChange = (value: number) => {
+    console.log('마진율 변경:', value);
     setConfig(prev => ({ ...prev, marginRate: value }));
   };
 
@@ -244,6 +245,8 @@ const SparePartSettings: React.FC = () => {
   // 설정 저장
   const handleSaveSettings = async () => {
     try {
+      console.log('저장할 설정:', config);
+      
       // 부품 관리 설정 저장 (API 호출)
       const sparePartResponse = await fetch('/api/admin/spare-part-settings', {
         method: 'POST',
@@ -253,6 +256,8 @@ const SparePartSettings: React.FC = () => {
         },
         body: JSON.stringify(config),
       });
+      
+      console.log('부품 설정 저장 응답 상태:', sparePartResponse.status);
       
       // 사용자별 권한 설정 저장 (API 호출)
       const permissionResponse = await fetch('/api/user-permissions/batch', {
@@ -269,6 +274,7 @@ const SparePartSettings: React.FC = () => {
       // 부품 설정 저장 결과 확인
       if (sparePartResponse.ok) {
         const sparePartData = await sparePartResponse.json();
+        console.log('부품 설정 저장 응답:', sparePartData);
         if (sparePartData.success) {
           settingsSaved = true;
           console.log('부품 관리 설정 저장 성공');
@@ -276,7 +282,8 @@ const SparePartSettings: React.FC = () => {
           console.error('부품 설정 저장 실패:', sparePartData.error);
         }
       } else {
-        console.error('부품 설정 API 호출 실패');
+        const errorText = await sparePartResponse.text();
+        console.error('부품 설정 API 호출 실패:', sparePartResponse.status, errorText);
       }
       
       // 권한 설정 저장 결과 확인

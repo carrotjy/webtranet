@@ -22,6 +22,7 @@ const Invoices: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
   
   const [perPage, setPerPage] = useState(10);
 
@@ -48,6 +49,11 @@ const Invoices: React.FC = () => {
     }
   };
 
+  const handleSearchClear = () => {
+    setSearchTerm('');
+    setCurrentPage(1);
+  };
+
   const handleDelete = async (invoiceId: number) => {
     if (!window.confirm('이 거래명세표를 삭제하시겠습니까?')) {
       return;
@@ -72,13 +78,43 @@ const Invoices: React.FC = () => {
       <div className="container-xl">
         <div className="row g-2 align-items-center">
           <div className="col">
-            <input
-              type="text"
-              className="form-control"
-              placeholder="검색어를 입력하세요 (거래명세표번호, 고객명, 발행일)"
-              value=""
-              onChange={() => {}}
-            />
+            <div className="position-relative">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="검색어를 입력하세요 (거래명세표번호, 고객명, 발행일)"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  className="btn btn-sm position-absolute"
+                  style={{
+                    right: '8px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    border: 'none',
+                    background: 'none',
+                    padding: '4px',
+                    cursor: 'pointer',
+                    opacity: 0.6,
+                    zIndex: 10,
+                    color: '#dc3545'
+                  }}
+                  onClick={handleSearchClear}
+                  title="검색어 지우기"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
           <div className="col-auto d-print-none">
             <select

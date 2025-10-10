@@ -851,7 +851,8 @@ const Customers: React.FC = () => {
                     padding: '4px',
                     cursor: 'pointer',
                     opacity: 0.6,
-                    zIndex: 10
+                    zIndex: 10,
+                    color: '#dc3545'
                   }}
                   title="검색어 지우기"
                 >

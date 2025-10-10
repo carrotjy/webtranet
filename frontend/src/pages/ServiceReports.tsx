@@ -393,6 +393,12 @@ const ServiceReports: React.FC = () => {
     }
   };
 
+  // 검색어 클리어 함수
+  const handleSearchClear = () => {
+    setSearchTerm('');
+    setCurrentPage(1);
+  };
+
   const loadCustomers = async () => {
     try {
       const response = await customerAPI.getCustomers();
@@ -1363,17 +1369,44 @@ const ServiceReports: React.FC = () => {
           <div className="container-xl">
             <div className="row g-2 align-items-center">
               <div className="col">
-              <input
-                type="text"
-                className="form-control"
-                placeholder="검색어를 입력하세요 (고객사, 담당자, 모델, S/N, 작업내용, 날짜: yymmdd 형식)"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1); // 검색어 변경시 첫 페이지로 이동
-                }}
-              />
-            </div>
+                <div className="position-relative">
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="검색어를 입력하세요 (고객사, 담당자, 모델, S/N, 작업내용, 날짜: yymmdd 형식)"
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setCurrentPage(1); // 검색어 변경시 첫 페이지로 이동
+                    }}
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      className="btn btn-sm position-absolute"
+                      style={{
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        border: 'none',
+                        background: 'none',
+                        padding: '4px',
+                        cursor: 'pointer',
+                        opacity: 0.6,
+                        zIndex: 10,
+                        color: '#dc3545'
+                      }}
+                      onClick={handleSearchClear}
+                      title="검색어 지우기"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
             <div className="col-auto d-print-none">
               <select
                 className="form-select"
@@ -1424,6 +1457,10 @@ const ServiceReports: React.FC = () => {
                     setShowForm(true);
                   }}
                 >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
                   새 리포트 작성
                 </button>
               </div>

@@ -7,6 +7,7 @@ interface SparePart {
   id: number;
   part_number: string;
   part_name: string;
+  erp_name?: string;  // ERP명 추가
   stock_quantity: number;
   price: number;
   billing_price?: number;  // 백엔드에서 계산된 청구가
@@ -33,6 +34,7 @@ interface PriceHistory {
   id: number;
   part_number: string;
   price: number;
+  billing_price?: number;  // 백엔드에서 계산된 청구가
   effective_date: string;
   created_at: string;
   created_by: string;
@@ -74,7 +76,6 @@ const SpareParts: React.FC = () => {
   const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([]);
   const [billingPrices, setBillingPrices] = useState<{[key: number]: number}>({});
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
-  const [showPriceHistoryModal, setShowPriceHistoryModal] = useState(false);
   const [showAddPriceModal, setShowAddPriceModal] = useState(false);
   const [newPrice, setNewPrice] = useState({
     price: 0,
@@ -88,12 +89,13 @@ const SpareParts: React.FC = () => {
   const [newPart, setNewPart] = useState({
     part_number: '',
     part_name: '',
-    stock_quantity: 0,
-    price: 0
+    erp_name: '',
+    stock_quantity: 0
   });
   const [stockTransaction, setStockTransaction] = useState({
     part_number: '',
     part_name: '',
+    erp_name: '',
     quantity: 0,
     reference_number: '',
     customer_name: '',
@@ -211,6 +213,7 @@ const SpareParts: React.FC = () => {
     setStockTransaction({
       part_number: '',
       part_name: '',
+      erp_name: '',
       quantity: 0,
       reference_number: '',
       customer_name: '',
@@ -227,6 +230,7 @@ const SpareParts: React.FC = () => {
     setStockTransaction({
       part_number: '',
       part_name: '',
+      erp_name: '',
       quantity: 0,
       reference_number: '',
       customer_name: '',
@@ -412,7 +416,7 @@ const SpareParts: React.FC = () => {
     try {
       await api.post('/api/spare-parts', newPart);
       setShowRegisterModal(false);
-      setNewPart({ part_number: '', part_name: '', stock_quantity: 0, price: 0 });
+      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0 });
       fetchSpareParts();
     } catch (err: any) {
       console.error('Error registering part:', err);
@@ -439,6 +443,7 @@ const SpareParts: React.FC = () => {
         await api.post('/api/spare-parts', {
           part_number: stockTransaction.part_number,
           part_name: stockTransaction.part_name,
+          erp_name: stockTransaction.erp_name,
           stock_quantity: 0,
           price: 0
         });
@@ -458,6 +463,7 @@ const SpareParts: React.FC = () => {
       setStockTransaction({
         part_number: '',
         part_name: '',
+        erp_name: '',
         quantity: 0,
         reference_number: '',
         customer_name: '',
@@ -503,6 +509,7 @@ const SpareParts: React.FC = () => {
       setStockTransaction({
         part_number: '',
         part_name: '',
+        erp_name: '',
         quantity: 0,
         reference_number: '',
         customer_name: '',
@@ -524,13 +531,17 @@ const SpareParts: React.FC = () => {
     if (!selectedPart) return;
     
     try {
-      await api.put(`/api/spare-parts/${selectedPart.id}`, newPart);
+      console.log('Updating part with data:', newPart);
+      console.log('Part number:', selectedPart.part_number);
+      const response = await api.put(`/api/spare-parts/${selectedPart.part_number}`, newPart);
+      console.log('Update response:', response.data);
       setShowEditModal(false);
       setSelectedPart(null);
-      setNewPart({ part_number: '', part_name: '', stock_quantity: 0, price: 0 });
+      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0 });
       fetchSpareParts();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating part:', err);
+      console.error('Error response:', err.response?.data);
       setError('부품 수정에 실패했습니다.');
     }
   };
@@ -577,16 +588,46 @@ const SpareParts: React.FC = () => {
         <div className="container-xl">
           <div className="row g-2 align-items-center">
             <div className="col">
-              <input
-                type="text"
-                className="form-control"
-                placeholder="부품번호 또는 부품명을 검색하세요..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1); // 검색어 변경시 첫 페이지로 이동
-                }}
-              />
+              <div className="position-relative">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="부품번호 또는 부품명을 검색하세요..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1); // 검색어 변경시 첫 페이지로 이동
+                  }}
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    className="btn btn-sm position-absolute"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCurrentPage(1);
+                    }}
+                    style={{
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      border: 'none',
+                      background: 'none',
+                      padding: '4px',
+                      cursor: 'pointer',
+                      opacity: 0.6,
+                      zIndex: 10,
+                      color: '#dc3545'
+                    }}
+                    title="검색어 지우기"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
             <div className="col-auto d-print-none">
               <select
@@ -652,7 +693,11 @@ const SpareParts: React.FC = () => {
                     className="btn btn-primary"
                     onClick={() => setShowRegisterModal(true)}
                   >
-                    새파트등록
+                    <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    새 파트 등록
                   </button>
                 )}
               </div>
@@ -675,6 +720,7 @@ const SpareParts: React.FC = () => {
                 <tr>
                   <th>부품번호</th>
                   <th>부품명</th>
+                  <th>ERP명</th>
                   <th>재고수량</th>
                   <th>청구가(KRW)</th>
                     <th>등록일</th>
@@ -687,6 +733,7 @@ const SpareParts: React.FC = () => {
                       <tr key={part.id}>
                         <td>{part.part_number}</td>
                         <td>{part.part_name}</td>
+                        <td>{part.erp_name || '-'}</td>
                         <td>{part.stock_quantity}</td>
                         <td>₩{partBillingPrices[part.id]?.toLocaleString('ko-KR') || '0'}</td>
                         <td>{new Date(part.created_at).toLocaleDateString('ko-KR')}</td>
@@ -702,9 +749,12 @@ const SpareParts: React.FC = () => {
                                 height: '32px',
                                 padding: '0'
                               }}
-                              onClick={() => {
+                              onClick={async () => {
                                 setSelectedPart(part);
                                 setShowViewModal(true);
+                                // 가격 이력 자동 로드
+                                await fetchPriceHistory(part.id);
+                                setPriceHistoryCurrentPage(1); // 첫 페이지로 초기화
                               }}
                               title="보기"
                             >
@@ -729,8 +779,8 @@ const SpareParts: React.FC = () => {
                                   setNewPart({
                                     part_number: part.part_number,
                                     part_name: part.part_name,
-                                    stock_quantity: part.stock_quantity,
-                                    price: part.price
+                                    erp_name: part.erp_name || '',
+                                    stock_quantity: part.stock_quantity
                                   });
                                   fetchPriceHistory(part.id);
                                   setShowEditModal(true);
@@ -807,11 +857,17 @@ const SpareParts: React.FC = () => {
       </div>
 
       {showHistoryModal && (
-        <>
-          <div className="modal-backdrop fade show"></div>
-          <div className="modal modal-blur fade show" style={{ display: 'block', zIndex: 1055 }}>
-            <div className="modal-dialog modal-xl modal-dialog-centered">
-              <div className="modal-content">
+        <div 
+          className="modal modal-blur fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowHistoryModal(false);
+            }
+          }}
+        >
+          <div className="modal-dialog modal-xl modal-dialog-centered">
+            <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">
                     입출고 내역 
@@ -919,13 +975,10 @@ const SpareParts: React.FC = () => {
                     닫기
                   </button>
                 </div>
-              </div>
             </div>
           </div>
-        </>
-      )}
-
-      {/* 새 부품 등록 모달 */}
+        </div>
+      )}      {/* 새 부품 등록 모달 */}
       {showRegisterModal && (
         <div className="modal modal-blur fade show" style={{ display: 'block' }}>
           <div className="modal-dialog modal-xl modal-dialog-centered">
@@ -959,23 +1012,22 @@ const SpareParts: React.FC = () => {
                 </div>
                 <div className="row mt-3">
                   <div className="col-md-6">
+                    <label className="form-label">ERP명</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={newPart.erp_name}
+                      onChange={(e) => setNewPart({...newPart, erp_name: e.target.value})}
+                      placeholder="ERP명을 입력하세요 (선택사항)"
+                    />
+                  </div>
+                  <div className="col-md-6">
                     <label className="form-label">초기 재고수량</label>
                     <input
                       type="number"
                       className="form-control"
                       value={newPart.stock_quantity}
                       onChange={(e) => setNewPart({...newPart, stock_quantity: parseInt(e.target.value) || 0})}
-                      min="0"
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">가격(EUR)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="form-control"
-                      value={newPart.price}
-                      onChange={(e) => setNewPart({...newPart, price: parseFloat(e.target.value) || 0})}
                       min="0"
                     />
                   </div>
@@ -1057,6 +1109,7 @@ const SpareParts: React.FC = () => {
                                   ...stockTransaction, 
                                   part_number: part.part_number,
                                   part_name: part.part_name,
+                                  erp_name: part.erp_name || '',
                                   is_existing_part: true
                                 });
                                 setShowPartSuggestions(false);
@@ -1089,6 +1142,21 @@ const SpareParts: React.FC = () => {
                       placeholder="부품명을 입력하세요"
                       disabled={stockTransaction.is_existing_part}
                     />
+                  </div>
+                </div>
+                <div className="row mt-3">
+                  <div className="col-md-6">
+                    <label className="form-label">ERP명</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={stockTransaction.erp_name}
+                      onChange={(e) => setStockTransaction({...stockTransaction, erp_name: e.target.value})}
+                      placeholder="ERP명을 입력하세요"
+                      disabled={stockTransaction.is_existing_part}
+                    />
+                  </div>
+                  <div className="col-md-6">
                   </div>
                 </div>
                 <div className="row mt-3">
@@ -1164,7 +1232,7 @@ const SpareParts: React.FC = () => {
                             searchPartByNumber(value);
                             searchPartNumberSuggestions(value);
                           } else {
-                            setStockTransaction({...stockTransaction, part_number: value, part_name: ''});
+                            setStockTransaction({...stockTransaction, part_number: value, part_name: '', erp_name: ''});
                             setShowPartSuggestions(false);
                           }
                         }}
@@ -1202,6 +1270,7 @@ const SpareParts: React.FC = () => {
                                   ...stockTransaction, 
                                   part_number: part.part_number,
                                   part_name: part.part_name,
+                                  erp_name: part.erp_name || '',
                                   is_existing_part: true
                                 });
                                 setShowPartSuggestions(false);
@@ -1233,6 +1302,22 @@ const SpareParts: React.FC = () => {
                       onChange={(e) => setStockTransaction({...stockTransaction, part_name: e.target.value})}
                       placeholder="부품명"
                     />
+                  </div>
+                </div>
+                
+                <div className="row mt-3">
+                  <div className="col-md-6">
+                    <label className="form-label">ERP명</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={stockTransaction.erp_name}
+                      onChange={(e) => setStockTransaction({...stockTransaction, erp_name: e.target.value})}
+                      placeholder="ERP명"
+                      disabled={stockTransaction.is_existing_part}
+                    />
+                  </div>
+                  <div className="col-md-6">
                   </div>
                 </div>
                 
@@ -1367,6 +1452,15 @@ const SpareParts: React.FC = () => {
                 </div>
                 <div className="row mt-3">
                   <div className="col-md-6">
+                    <label className="form-label">ERP명</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={selectedPart.erp_name || '-'}
+                      readOnly
+                    />
+                  </div>
+                  <div className="col-md-6">
                     <label className="form-label">재고수량</label>
                     <input
                       type="number"
@@ -1375,6 +1469,8 @@ const SpareParts: React.FC = () => {
                       readOnly
                     />
                   </div>
+                </div>
+                <div className="row mt-3">
                   <div className="col-md-6">
                     <label className="form-label">현재가격(원화)</label>
                     <input
@@ -1384,8 +1480,6 @@ const SpareParts: React.FC = () => {
                       readOnly
                     />
                   </div>
-                </div>
-                <div className="row mt-3">
                   <div className="col-md-6">
                     <label className="form-label">등록일</label>
                     <input
@@ -1395,7 +1489,9 @@ const SpareParts: React.FC = () => {
                       readOnly
                     />
                   </div>
-                  <div className="col-md-6">
+                </div>
+                <div className="row mt-3">
+                  <div className="col-md-12">
                     <label className="form-label">수정일</label>
                     <input
                       type="text"
@@ -1410,21 +1506,6 @@ const SpareParts: React.FC = () => {
                 <hr className="mt-4 mb-3" />
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h6 className="mb-0">가격 변경 이력</h6>
-                  <button 
-                    type="button" 
-                    className="btn btn-sm btn-outline-primary"
-                    onClick={() => {
-                      fetchPriceHistory(selectedPart.id);
-                      setShowPriceHistoryModal(true);
-                    }}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                      <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/>
-                      <path d="M12 7v5l3 3"/>
-                    </svg>
-                    가격 이력 보기
-                  </button>
                 </div>
                 
                 <div className="table-responsive">
@@ -1432,33 +1513,50 @@ const SpareParts: React.FC = () => {
                     <thead>
                       <tr>
                         <th>적용일</th>
-                        <th>가격</th>
+                        <th>청구가</th>
                         <th>등록자</th>
                         <th>비고</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {priceHistory.length > 0 ? (
-                        priceHistory.slice(0, 3).map((price) => (
-                          <tr key={price.id}>
-                            <td>{new Date(price.effective_date).toLocaleDateString('ko-KR')}</td>
-                            <td><strong>₩{price.price.toLocaleString('ko-KR')}</strong></td>
-                            <td>{price.created_by}</td>
-                            <td>{price.notes || '-'}</td>
+                      {(() => {
+                        // 페이지네이션 계산
+                        const startIndex = (priceHistoryCurrentPage - 1) * priceHistoryItemsPerPage;
+                        const endIndex = startIndex + priceHistoryItemsPerPage;
+                        const currentItems = priceHistory.slice(startIndex, endIndex);
+                        
+                        return currentItems.length > 0 ? (
+                          currentItems.map((price) => (
+                            <tr key={price.id}>
+                              <td>{new Date(price.effective_date).toLocaleDateString('ko-KR')}</td>
+                              <td><strong>₩{(price.billing_price || price.price).toLocaleString('ko-KR')}</strong></td>
+                              <td>{price.created_by}</td>
+                              <td>{price.notes || '-'}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} className="text-center text-muted">
+                              가격 이력이 없습니다.
+                            </td>
                           </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={4} className="text-center text-muted">
-                            가격 이력이 없습니다.
-                          </td>
-                        </tr>
-                      )}
+                        );
+                      })()}
                     </tbody>
                   </table>
-                  {priceHistory.length > 3 && (
-                    <div className="text-center">
-                      <small className="text-muted">최근 3개만 표시. 전체 보기는 "가격 이력 보기" 버튼을 클릭하세요.</small>
+                  
+                  {/* 페이지네이션 */}
+                  {priceHistory.length > priceHistoryItemsPerPage && (
+                    <div className="mt-3">
+                      <Pagination
+                        currentPage={priceHistoryCurrentPage}
+                        totalPages={Math.ceil(priceHistory.length / priceHistoryItemsPerPage)}
+                        totalItems={priceHistory.length}
+                        itemsPerPage={priceHistoryItemsPerPage}
+                        onPageChange={(page) => setPriceHistoryCurrentPage(page)}
+                        onPreviousPage={() => setPriceHistoryCurrentPage(priceHistoryCurrentPage - 1)}
+                        onNextPage={() => setPriceHistoryCurrentPage(priceHistoryCurrentPage + 1)}
+                      />
                     </div>
                   )}
                 </div>
@@ -1485,8 +1583,8 @@ const SpareParts: React.FC = () => {
               </div>
               <div className="modal-body">
                 {/* 기본 정보 */}
-                <div className="row mb-4">
-                  <div className="col-md-4">
+                <div className="row mb-3">
+                  <div className="col-md-6">
                     <label className="form-label">부품번호</label>
                     <input
                       type="text"
@@ -1495,7 +1593,7 @@ const SpareParts: React.FC = () => {
                       onChange={(e) => setNewPart({...newPart, part_number: e.target.value})}
                     />
                   </div>
-                  <div className="col-md-4">
+                  <div className="col-md-6">
                     <label className="form-label">부품명</label>
                     <input
                       type="text"
@@ -1504,7 +1602,19 @@ const SpareParts: React.FC = () => {
                       onChange={(e) => setNewPart({...newPart, part_name: e.target.value})}
                     />
                   </div>
-                  <div className="col-md-4">
+                </div>
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <label className="form-label">ERP명</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={newPart.erp_name}
+                      onChange={(e) => setNewPart({...newPart, erp_name: e.target.value})}
+                      placeholder="ERP명을 입력하세요 (선택사항)"
+                    />
+                  </div>
+                  <div className="col-md-6">
                     <label className="form-label">재고수량</label>
                     <input
                       type="number"
@@ -1650,97 +1760,6 @@ const SpareParts: React.FC = () => {
                 </button>
                 <button type="button" className="btn btn-danger" onClick={handleDeletePart}>
                   삭제
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 가격 히스토리 모달 */}
-      {showPriceHistoryModal && selectedPart && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }}>
-          <div className="modal-backdrop fade show" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1040 }}></div>
-          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">{selectedPart.part_name} - 가격 변경 이력</h5>
-                <button type="button" className="btn-close" onClick={() => setShowPriceHistoryModal(false)}></button>
-              </div>
-              <div className="modal-body">
-                <div className="table-responsive">
-                  <table className="table table-vcenter">
-                    <thead>
-                      <tr>
-                        <th style={{ fontSize: '14px' }}>적용일</th>
-                        <th style={{ fontSize: '14px' }}>가격</th>
-                        <th style={{ fontSize: '14px' }}>등록일시</th>
-                        <th style={{ fontSize: '14px' }}>등록자</th>
-                        <th style={{ fontSize: '14px' }}>비고</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const startIndex = (priceHistoryCurrentPage - 1) * priceHistoryItemsPerPage;
-                        const currentItems = priceHistory.slice(startIndex, startIndex + priceHistoryItemsPerPage);
-                        
-                        return currentItems.length > 0 ? (
-                          currentItems.map((price) => (
-                            <tr key={price.id}>
-                              <td>
-                                <strong style={{ fontSize: '14px' }}>{new Date(price.effective_date).toLocaleDateString('ko-KR')}</strong>
-                              </td>
-                              <td>
-                                <span style={{ fontSize: '14px', color: '#0d6efd', fontWeight: '600' }}>₩{price.price.toLocaleString('ko-KR')}</span>
-                              </td>
-                              <td>
-                                <div style={{ fontSize: '14px' }}>{new Date(price.created_at).toLocaleDateString('ko-KR')}</div>
-                                <small className="text-muted" style={{ fontSize: '12px' }}>
-                                  {new Date(price.created_at).toLocaleTimeString('ko-KR', { 
-                                    hour: '2-digit', 
-                                    minute: '2-digit' 
-                                  })}
-                                </small>
-                              </td>
-                              <td>
-                                <span style={{ fontSize: '14px', color: '#6c757d' }}>{price.created_by}</span>
-                              </td>
-                              <td style={{ fontSize: '14px' }}>{price.notes || '-'}</td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={5} className="text-center text-muted" style={{ fontSize: '14px' }}>
-                              가격 변경 이력이 없습니다.
-                            </td>
-                          </tr>
-                        );
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div className="modal-footer d-flex justify-content-between align-items-center">
-                <div className="d-flex align-items-center">
-                  <span className="text-muted small">
-                    총 {priceHistory.length}개의 이력
-                  </span>
-                </div>
-                
-                {priceHistory.length > priceHistoryItemsPerPage && (
-                  <Pagination
-                    currentPage={priceHistoryCurrentPage}
-                    totalPages={Math.ceil(priceHistory.length / priceHistoryItemsPerPage)}
-                    totalItems={priceHistory.length}
-                    itemsPerPage={priceHistoryItemsPerPage}
-                    onPageChange={(page) => setPriceHistoryCurrentPage(page)}
-                    onPreviousPage={() => setPriceHistoryCurrentPage(prev => Math.max(1, prev - 1))}
-                    onNextPage={() => setPriceHistoryCurrentPage(prev => Math.min(Math.ceil(priceHistory.length / priceHistoryItemsPerPage), prev + 1))}
-                  />
-                )}
-                
-                <button type="button" className="btn btn-secondary" onClick={() => setShowPriceHistoryModal(false)}>
-                  닫기
                 </button>
               </div>
             </div>
