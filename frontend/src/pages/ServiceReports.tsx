@@ -1637,7 +1637,7 @@ const ServiceReports: React.FC = () => {
               setEditingReport(null);
             }}
           ></div>
-          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">{editingReport ? '서비스 리포트 수정' : '서비스 리포트 작성'}</h5>
@@ -2311,7 +2311,7 @@ const ServiceReports: React.FC = () => {
             }}
             onClick={() => setShowCustomerModal(false)}
           ></div>
-          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">고객 선택</h5>
@@ -2413,7 +2413,7 @@ const ServiceReports: React.FC = () => {
             }}
             onClick={() => setShowViewModal(false)}
           ></div>
-          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">서비스 리포트 상세 보기</h5>
@@ -2722,7 +2722,7 @@ const ServiceReports: React.FC = () => {
             }}
             onClick={() => setShowAddResourceModal(false)}
           ></div>
-          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">새 리소스 추가</h5>
@@ -2859,7 +2859,7 @@ const ServiceReports: React.FC = () => {
             }}
             onClick={() => setShowAddCustomerModal(false)}
           ></div>
-          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">새 고객사 추가</h5>

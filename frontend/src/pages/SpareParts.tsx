@@ -859,7 +859,7 @@ const SpareParts: React.FC = () => {
       {showHistoryModal && (
         <div 
           className="modal modal-blur fade show" 
-          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          style={{ display: 'block' }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowHistoryModal(false);
@@ -1098,7 +1098,6 @@ const SpareParts: React.FC = () => {
                           borderTop: 'none',
                           maxHeight: '200px',
                           overflowY: 'auto',
-                          zIndex: 1050,
                           boxShadow: '0 2px 5px rgba(0,0,0,0.15)'
                         }}>
                           {partNumberSuggestions.map((part) => (
@@ -1259,7 +1258,6 @@ const SpareParts: React.FC = () => {
                           borderTop: 'none',
                           maxHeight: '200px',
                           overflowY: 'auto',
-                          zIndex: 1050,
                           boxShadow: '0 2px 5px rgba(0,0,0,0.15)'
                         }}>
                           {partNumberSuggestions.map((part) => (
@@ -1362,8 +1360,7 @@ const SpareParts: React.FC = () => {
                           border: '1px solid #ddd',
                           borderTop: 'none',
                           maxHeight: '200px',
-                          overflowY: 'auto',
-                          zIndex: 1050
+                          overflowY: 'auto'
                         }}>
                           {customerSearchResults.map((customer) => (
                             <div
@@ -1574,8 +1571,7 @@ const SpareParts: React.FC = () => {
       {/* 부품 편집 모달 */}
       {showEditModal && selectedPart && (
         <div className="modal modal-blur fade show" style={{ display: 'block' }}>
-          <div className="modal-backdrop fade show" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1040 }}></div>
-          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">부품 정보 수정</h5>

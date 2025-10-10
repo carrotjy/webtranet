@@ -282,7 +282,7 @@ const UserManagement: React.FC = () => {
       {showForm && (
         <div 
           className="modal-backdrop fade show" 
-          style={{ zIndex: 1055 }}
+          style={{ zIndex: 1040 }}
         ></div>
       )}
 
@@ -290,7 +290,7 @@ const UserManagement: React.FC = () => {
       {showForm && (
         <div 
           className="modal modal-blur fade show" 
-          style={{ display: 'block', zIndex: 1056 }}
+          style={{ display: 'block', zIndex: 1050 }}
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
