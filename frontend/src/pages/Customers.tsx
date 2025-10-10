@@ -567,9 +567,9 @@ const Customers: React.FC = () => {
                       <button 
                         type="button"
                         className="btn btn-info"
-                        onClick={() => {
+                        onClick={async () => {
                           setSelectedCustomer(editingCustomer);
-                          loadCustomerResources(editingCustomer.id);
+                          await loadCustomerResources(editingCustomer.id);
                         }}
                       >
                         장비관리
@@ -591,6 +591,212 @@ const Customers: React.FC = () => {
             </form>
           </div>
         </div>
+
+        {/* 수정 폼에서도 장비관리 모달 표시 */}
+        {selectedCustomer && (
+          <div className="modal modal-blur fade show" style={{display: 'block'}} id="equipmentModalFromForm">
+            <div className="modal-dialog modal-xl modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">{selectedCustomer.company_name} - 보유 장비 관리</h5>
+                  <button 
+                    type="button" 
+                    className="btn-close"
+                    onClick={() => {
+                      setSelectedCustomer(null);
+                      setCustomerResources([]);
+                      setShowResourceForm(false);
+                      setEditingResource(null);
+                    }}
+                  />
+                </div>
+                <div className="modal-body">
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h6>보유 장비 목록</h6>
+                    <button 
+                      className="btn btn-sm btn-primary"
+                      onClick={() => {
+                        setEditingResource(null);
+                        setResourceFormData({
+                          category: 'Pressbrake',
+                          serial_number: '',
+                          product_name: '',
+                          note: ''
+                        });
+                        setShowResourceForm(true);
+                      }}
+                    >
+                      장비 추가
+                    </button>
+                  </div>
+
+                  {customerResources.length === 0 ? (
+                    <div className="text-center py-4">
+                      <div className="text-muted">등록된 장비가 없습니다.</div>
+                      <button 
+                        className="btn btn-primary mt-2"
+                        onClick={() => {
+                          setEditingResource(null);
+                          setResourceFormData({
+                            category: 'Pressbrake',
+                            serial_number: '',
+                            product_name: '',
+                            note: ''
+                          });
+                          setShowResourceForm(true);
+                        }}
+                      >
+                        첫 번째 장비 추가
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="table table-sm">
+                        <thead>
+                          <tr>
+                            <th>카테고리</th>
+                            <th>제품명</th>
+                            <th>시리얼번호</th>
+                            <th>비고</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {customerResources.map((resource) => (
+                            <tr key={resource.id}>
+                              <td>
+                                <span className="badge bg-blue-lt">{resource.category}</span>
+                              </td>
+                              <td>{resource.product_name}</td>
+                              <td>{resource.serial_number}</td>
+                              <td>{resource.note}</td>
+                              <td>
+                                <div className="btn-list">
+                                  <button 
+                                    className="btn btn-sm btn-outline-secondary"
+                                    onClick={() => handleResourceEdit(resource)}
+                                  >
+                                    편집
+                                  </button>
+                                  <button 
+                                    className="btn btn-sm btn-outline-danger"
+                                    onClick={() => resource.id && handleResourceDelete(resource.id)}
+                                  >
+                                    삭제
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* 리소스 추가 폼 */}
+                  {showResourceForm && (
+                    <div className="card mt-3">
+                      <div className="card-header">
+                        <h6>{editingResource ? '장비 수정' : '새 장비 추가'}</h6>
+                      </div>
+                      <div className="card-body">
+                        <form onSubmit={handleResourceSubmit}>
+                          <div className="row">
+                            <div className="col-md-6">
+                              <div className="mb-3">
+                                <label className="form-label">카테고리 *</label>
+                                <select
+                                  className="form-select"
+                                  value={resourceFormData.category}
+                                  onChange={(e) => setResourceFormData({...resourceFormData, category: e.target.value})}
+                                  required
+                                >
+                                  {CATEGORIES.map(category => (
+                                    <option key={category} value={category}>{category}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div className="col-md-6">
+                              <div className="mb-3">
+                                <label className="form-label">시리얼번호 *</label>
+                                <input
+                                  type="text"
+                                  className="form-control"
+                                  value={resourceFormData.serial_number}
+                                  onChange={(e) => setResourceFormData({...resourceFormData, serial_number: e.target.value})}
+                                  required
+                                />
+                              </div>
+                            </div>
+                            <div className="col-md-12">
+                              <div className="mb-3">
+                                <label className="form-label">제품명 *</label>
+                                <input
+                                  type="text"
+                                  className="form-control"
+                                  value={resourceFormData.product_name}
+                                  onChange={(e) => setResourceFormData({...resourceFormData, product_name: e.target.value})}
+                                  required
+                                />
+                              </div>
+                            </div>
+                            <div className="col-md-12">
+                              <div className="mb-3">
+                                <label className="form-label">비고</label>
+                                <textarea
+                                  className="form-control"
+                                  rows={2}
+                                  value={resourceFormData.note}
+                                  onChange={(e) => setResourceFormData({...resourceFormData, note: e.target.value})}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="d-flex gap-2">
+                            <button type="submit" className="btn btn-primary">
+                              {editingResource ? '수정' : '저장'}
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn btn-outline-secondary"
+                              onClick={() => {
+                                setShowResourceForm(false);
+                                setEditingResource(null);
+                                setResourceFormData({
+                                  category: 'Pressbrake',
+                                  serial_number: '',
+                                  product_name: '',
+                                  note: ''
+                                });
+                              }}
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setSelectedCustomer(null);
+                      setCustomerResources([]);
+                      setShowResourceForm(false);
+                      setEditingResource(null);
+                    }}
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -835,10 +1041,10 @@ const Customers: React.FC = () => {
         </div>
       </div>
 
-      {/* 리소스 관리 모달 */}
+      {/* 리소스 관리 모달 - 수정 폼에서도 표시되도록 */}
       {selectedCustomer && (
-        <div className="modal modal-blur fade show" style={{display: 'block'}}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
+        <div className="modal modal-blur fade show" style={{display: 'block'}} id="equipmentModal">
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">{selectedCustomer.company_name} - 보유 장비 관리</h5>
@@ -848,6 +1054,8 @@ const Customers: React.FC = () => {
                   onClick={() => {
                     setSelectedCustomer(null);
                     setCustomerResources([]);
+                    setShowResourceForm(false);
+                    setEditingResource(null);
                   }}
                 />
               </div>

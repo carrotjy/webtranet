@@ -2274,7 +2274,7 @@ const ServiceReports: React.FC = () => {
             }}
             onClick={() => setShowCustomerModal(false)}
           ></div>
-          <div className="modal-dialog modal-lg modal-dialog-centered" style={{ zIndex: 1050 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">고객 선택</h5>
@@ -2685,7 +2685,7 @@ const ServiceReports: React.FC = () => {
             }}
             onClick={() => setShowAddResourceModal(false)}
           ></div>
-          <div className="modal-dialog modal-lg modal-dialog-centered" style={{ zIndex: 1050 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">새 리소스 추가</h5>
@@ -2822,7 +2822,7 @@ const ServiceReports: React.FC = () => {
             }}
             onClick={() => setShowAddCustomerModal(false)}
           ></div>
-          <div className="modal-dialog modal-lg modal-dialog-centered" style={{ zIndex: 1050 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">새 고객사 추가</h5>

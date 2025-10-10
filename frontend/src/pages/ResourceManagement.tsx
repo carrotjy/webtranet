@@ -550,7 +550,7 @@ const ResourceManagement: React.FC = () => {
             setCustomerSearchResults([]);
           }}
         ></div>
-        <div className="modal-dialog modal-lg modal-dialog-centered" style={{ zIndex: 1050 }}>
+        <div className="modal-dialog modal-xl modal-dialog-centered" style={{ zIndex: 1050 }}>
           <div className="modal-content">
             <form onSubmit={handleSubmit}>
               <div className="modal-header">

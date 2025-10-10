@@ -281,7 +281,7 @@ const UserManagement: React.FC = () => {
       {/* 사용자 추가/수정 모달 */}
       {showForm && (
         <div className="modal modal-blur fade show" style={{ display: 'block' }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">{editingUser ? '사용자 수정' : '새 사용자 추가'}</h5>

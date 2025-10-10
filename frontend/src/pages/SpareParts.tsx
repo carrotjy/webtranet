@@ -928,7 +928,7 @@ const SpareParts: React.FC = () => {
       {/* 새 부품 등록 모달 */}
       {showRegisterModal && (
         <div className="modal modal-blur fade show" style={{ display: 'block' }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">새 부품 등록</h5>
@@ -997,7 +997,7 @@ const SpareParts: React.FC = () => {
       {/* 입고 모달 */}
       {showStockInModal && (
         <div className="modal modal-blur fade show" style={{ display: 'block' }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">부품 입고</h5>
@@ -1135,7 +1135,7 @@ const SpareParts: React.FC = () => {
       {/* 출고 모달 */}
       {showStockOutModal && (
         <div className="modal modal-blur fade show" style={{ display: 'block' }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
+          <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">부품 출고</h5>

@@ -125,6 +125,15 @@
   z-index: 1040 !important;
 }
 
+/* 중첩된 모달의 백드롭 z-index 조정 */
+.modal-backdrop:nth-of-type(2) {
+  z-index: 1055 !important;
+}
+
+.modal-backdrop:nth-of-type(3) {
+  z-index: 1065 !important;
+}
+
 /* 모달이 열릴 때 body 스크롤 방지 */
 body.modal-open {
   overflow: hidden !important;
@@ -142,13 +151,54 @@ body.modal-open {
   overflow-y: auto !important;
   outline: 0 !important;
   z-index: 1050 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* 중첩 모달을 위한 더 높은 z-index */
+.modal.show:nth-of-type(2) {
+  z-index: 1060 !important;
+}
+
+.modal.show:nth-of-type(3) {
+  z-index: 1070 !important;
+}
+
+/* 장비관리 모달 전용 z-index (가장 높은 우선순위) */
+.modal[id*="resource"], .modal[id*="Resource"], .modal[id*="equipment"], .modal[id*="Equipment"] {
+  z-index: 1080 !important;
+}
+
+/* 장비관리 모달의 백드롭도 높은 z-index */
+.modal-backdrop.show:last-of-type {
+  z-index: 1075 !important;
 }
 
 .modal-dialog {
   position: relative !important;
   width: auto !important;
-  margin: 1.75rem !important;
+  margin: 1.75rem auto !important;
   pointer-events: none !important;
+  max-width: 500px !important;
+}
+
+/* 큰 모달 (장비관리 등)의 경우 더 넓은 폭 */
+.modal-lg .modal-dialog,
+.modal-dialog.modal-lg {
+  max-width: 800px !important;
+}
+
+/* 모달 다이얼로그 중앙 정렬 강화 */
+.modal-dialog-centered {
+  display: flex !important;
+  align-items: center !important;
+  min-height: calc(100% - 3.5rem) !important;
+}
+
+/* 모달 컨텐츠 중앙 위치 보정 */
+.modal-dialog-centered .modal-content {
+  width: 100% !important;
 }
 
 .modal-content {
@@ -189,6 +239,17 @@ body.modal-open {
   z-index: 1050 !important;
 }
 
+/* 중첩 모달 처리 - 더 나중에 열린 모달이 위에 오도록 */
+.modal.show + .modal.show,
+.modal.show:last-of-type {
+  z-index: 1080 !important;
+}
+
+/* 다중 모달 환경에서 백드롭 순서 관리 */
+.modal-backdrop + .modal-backdrop {
+  z-index: 1075 !important;
+}
+
 /* 반응형 네비게이션 스타일 */
 @media (max-width: 575.98px) {
   /* xs 브레이크포인트 */
@@ -214,6 +275,11 @@ body.modal-open {
     font-size: 0.75rem;
     margin-left: 0.25rem;
   }
+
+  /* 모바일에서 모달 마진 조정 */
+  .modal-dialog {
+    margin: 0.5rem auto !important;
+  }
 }
 
 @media (min-width: 576px) {
@@ -225,6 +291,35 @@ body.modal-open {
   
   .navbar-nav .nav-link-icon {
     margin-right: 0.5rem;
+  }
+}
+
+/* 중간 화면에서 모달 크기 조정 */
+@media (min-width: 768px) and (max-width: 991.98px) {
+  .modal-lg .modal-dialog,
+  .modal-dialog.modal-lg {
+    max-width: 700px !important;
+  }
+}
+
+/* 큰 화면에서 모달 최대 크기 및 최소 크기 */
+@media (min-width: 1200px) {
+  .modal-lg .modal-dialog,
+  .modal-dialog.modal-lg {
+    max-width: 900px !important;
+    min-width: 800px !important; /* 데스크톱에서 최소 크기 보장 */
+  }
+  
+  /* 기본 모달도 데스크톱에서 적절한 최소 크기 설정 */
+  .modal-dialog {
+    min-width: 600px !important;
+  }
+  
+  /* 특히 큰 콘텐츠를 가진 모달들 (리포트, 장비관리 등) */
+  .modal-xl .modal-dialog,
+  .modal-dialog.modal-xl {
+    max-width: 1140px !important;
+    min-width: 1000px !important;
   }
 }
 
