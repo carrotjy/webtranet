@@ -141,6 +141,23 @@ const Customers: React.FC = () => {
     }
   };
 
+  // 팩스 복사 함수
+  const copyFaxToClipboard = async (fax: string) => {
+    try {
+      await navigator.clipboard.writeText(fax);
+      alert('팩스 번호가 클립보드에 복사되었습니다.');
+    } catch (err) {
+      // fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = fax;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('팩스 번호가 클립보드에 복사되었습니다.');
+    }
+  };
+
   // 페이지 네비게이션 함수들
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -893,6 +910,7 @@ const Customers: React.FC = () => {
                           <tr>
                             <th>회사명</th>
                             <th>주소</th>
+                            <th>팩스</th>
                             <th>보유장비</th>
                             <th>업데이트</th>
                             <th></th>
@@ -914,6 +932,31 @@ const Customers: React.FC = () => {
                                       className="btn btn-sm p-1"
                                       onClick={() => copyAddressToClipboard(customer.address)}
                                       title="주소 복사"
+                                      style={{ 
+                                        border: 'none', 
+                                        background: 'none',
+                                        cursor: 'pointer',
+                                        opacity: 0.6
+                                      }}
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <div className="d-flex align-items-center gap-2">
+                                  <div className="text-muted small">
+                                    {customer.fax || '팩스 없음'}
+                                  </div>
+                                  {customer.fax && (
+                                    <button
+                                      className="btn btn-sm p-1"
+                                      onClick={() => copyFaxToClipboard(customer.fax!)}
+                                      title="팩스 번호 복사"
                                       style={{ 
                                         border: 'none', 
                                         background: 'none',
