@@ -57,6 +57,7 @@ const Login: React.FC = () => {
                   placeholder="이메일을 입력하세요"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
                   required
                   disabled={loading}
                 />
@@ -70,6 +71,7 @@ const Login: React.FC = () => {
                   placeholder="비밀번호를 입력하세요"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
                   disabled={loading}
                 />

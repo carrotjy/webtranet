@@ -315,6 +315,7 @@ const UserManagement: React.FC = () => {
                         className="form-control"
                         value={formData.email}
                         onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        autoComplete="email"
                         required
                       />
                     </div>
@@ -325,6 +326,7 @@ const UserManagement: React.FC = () => {
                         className="form-control"
                         value={formData.password}
                         onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        autoComplete="new-password"
                         required={!editingUser}
                       />
                     </div>
