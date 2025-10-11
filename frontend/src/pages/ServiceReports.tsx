@@ -1619,24 +1619,16 @@ const ServiceReports: React.FC = () => {
 
       {/* 서비스 리포트 작성/수정 모달 */}
       {showForm && (
-        <div className="modal modal-blur fade show" style={{display: 'block'}}>
-          {/* 모달 백드롭 */}
-          <div 
-            className="modal-backdrop fade show" 
-            style={{ 
-              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
-              position: 'fixed', 
-              top: 0, 
-              left: 0, 
-              width: '100%', 
-              height: '100%', 
-              zIndex: 1040 
-            }}
-            onClick={() => {
+        <div 
+          className="modal modal-blur fade show" 
+          style={{display: 'block'}}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
               setShowForm(false);
               setEditingReport(null);
-            }}
-          ></div>
+            }
+          }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
@@ -2296,21 +2288,15 @@ const ServiceReports: React.FC = () => {
 
       {/* 고객 선택 모달 */}
       {showCustomerModal && (
-        <div className="modal modal-blur fade show" style={{display: 'block', zIndex: 2000}}>
-          {/* 모달 백드롭 */}
-          <div 
-            className="modal-backdrop fade show" 
-            style={{ 
-              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
-              position: 'fixed', 
-              top: 0, 
-              left: 0, 
-              width: '100%', 
-              height: '100%', 
-              zIndex: 1040 
-            }}
-            onClick={() => setShowCustomerModal(false)}
-          ></div>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{display: 'block', zIndex: 2000}}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCustomerModal(false);
+            }
+          }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
@@ -2398,21 +2384,15 @@ const ServiceReports: React.FC = () => {
 
       {/* 서비스 리포트 보기 모달 */}
       {showViewModal && viewingReport && (
-        <div className="modal modal-blur fade show" style={{display: 'block', zIndex: 2000}}>
-          {/* 모달 백드롭 */}
-          <div 
-            className="modal-backdrop fade show" 
-            style={{ 
-              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
-              position: 'fixed', 
-              top: 0, 
-              left: 0, 
-              width: '100%', 
-              height: '100%', 
-              zIndex: 1040 
-            }}
-            onClick={() => setShowViewModal(false)}
-          ></div>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{display: 'block', zIndex: 2000}}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowViewModal(false);
+            }
+          }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
@@ -2707,21 +2687,15 @@ const ServiceReports: React.FC = () => {
 
       {/* 리소스 추가 모달 */}
       {showAddResourceModal && (
-        <div className="modal modal-blur fade show" style={{display: 'block', zIndex: 2100}}>
-          {/* 모달 백드롭 */}
-          <div 
-            className="modal-backdrop fade show" 
-            style={{ 
-              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
-              position: 'fixed', 
-              top: 0, 
-              left: 0, 
-              width: '100%', 
-              height: '100%', 
-              zIndex: 1040 
-            }}
-            onClick={() => setShowAddResourceModal(false)}
-          ></div>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{display: 'block', zIndex: 2100}}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAddResourceModal(false);
+            }
+          }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
@@ -2844,21 +2818,15 @@ const ServiceReports: React.FC = () => {
 
       {/* 고객사 추가 모달 */}
       {showAddCustomerModal && (
-        <div className="modal modal-blur fade show" style={{display: 'block', zIndex: 2100}}>
-          {/* 모달 백드롭 */}
-          <div 
-            className="modal-backdrop fade show" 
-            style={{ 
-              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
-              position: 'fixed', 
-              top: 0, 
-              left: 0, 
-              width: '100%', 
-              height: '100%', 
-              zIndex: 1040 
-            }}
-            onClick={() => setShowAddCustomerModal(false)}
-          ></div>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{display: 'block', zIndex: 2100}}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAddCustomerModal(false);
+            }
+          }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">

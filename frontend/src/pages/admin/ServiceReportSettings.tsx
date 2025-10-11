@@ -352,7 +352,15 @@ const ServiceReportSettings: React.FC = () => {
 
       {/* Invoice 코드 추가/수정 모달 */}
       {showModal && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }}>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{ display: 'block' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              closeModal();
+            }
+          }}
+        >
           <div className="modal-dialog modal-sm modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">

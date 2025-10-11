@@ -980,7 +980,15 @@ const SpareParts: React.FC = () => {
         </div>
       )}      {/* 새 부품 등록 모달 */}
       {showRegisterModal && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }}>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{ display: 'block' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowRegisterModal(false);
+            }
+          }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
@@ -1048,7 +1056,15 @@ const SpareParts: React.FC = () => {
 
       {/* 입고 모달 */}
       {showStockInModal && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }}>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{ display: 'block' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              closeStockInModal();
+            }
+          }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
@@ -1201,7 +1217,15 @@ const SpareParts: React.FC = () => {
 
       {/* 출고 모달 */}
       {showStockOutModal && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }}>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{ display: 'block' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              closeStockOutModal();
+            }
+          }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
@@ -1419,7 +1443,15 @@ const SpareParts: React.FC = () => {
 
       {/* 부품 보기 모달 */}
       {showViewModal && selectedPart && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }}>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{ display: 'block' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowViewModal(false);
+            }
+          }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
@@ -1570,7 +1602,15 @@ const SpareParts: React.FC = () => {
 
       {/* 부품 편집 모달 */}
       {showEditModal && selectedPart && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }}>
+        <div 
+          className="modal modal-blur fade show" 
+          style={{ display: 'block' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowEditModal(false);
+            }
+          }}
+        >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
                 <div className="modal-header">

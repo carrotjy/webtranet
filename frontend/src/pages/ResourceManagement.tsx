@@ -533,28 +533,20 @@ const ResourceManagement: React.FC = () => {
   // 폼 표시 시
   if (showForm) {
     return (
-      <div className="modal modal-blur show" style={{display: 'block'}}>
-        {/* 모달 백드롭 */}
-        <div 
-          className="modal-backdrop show" 
-          style={{ 
-            backgroundColor: 'rgba(0, 0, 0, 0.5)', 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            width: '100%', 
-            height: '100%', 
-            zIndex: 1040
-          }}
-          onClick={() => {
+      <div 
+        className="modal modal-blur show" 
+        style={{display: 'block'}}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
             setShowForm(false);
             setEditingResource(null);
             setIsViewMode(false);
             setCustomerSearchTerm('');
             setShowCustomerSearch(false);
             setCustomerSearchResults([]);
-          }}
-        ></div>
+          }
+        }}
+      >
         <div className="modal-dialog modal-xl modal-dialog-centered">
           <div className="modal-content">
             <form onSubmit={handleSubmit}>

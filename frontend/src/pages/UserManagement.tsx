@@ -278,19 +278,19 @@ const UserManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* 모달 배경 */}
-      {showForm && (
-        <div 
-          className="modal-backdrop fade show" 
-          style={{ zIndex: 1040 }}
-        ></div>
-      )}
-
       {/* 사용자 추가/수정 모달 */}
       {showForm && (
         <div 
           className="modal modal-blur fade show" 
-          style={{ display: 'block', zIndex: 1050 }}
+          style={{ display: 'block' }}
+          onClick={(e) => {
+            // 모달 배경 클릭시에만 닫기 (모달 내용 클릭시에는 닫지 않음)
+            if (e.target === e.currentTarget) {
+              setShowForm(false);
+              setEditingUser(null);
+              resetForm();
+            }
+          }}
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
