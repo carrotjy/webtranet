@@ -7,11 +7,79 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const [isAdminDropdownOpen, setIsAdminDropdownOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
   const handleLogout = () => {
     logout();
+  };
+
+  const resetPasswordForm = () => {
+    setPasswordForm({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setPasswordError('');
+    setPasswordSuccess('');
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    // 유효성 검사
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setPasswordError('모든 필드를 입력해주세요.');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('새 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('새 비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          current_password: passwordForm.currentPassword,
+          new_password: passwordForm.newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPasswordSuccess('비밀번호가 성공적으로 변경되었습니다.');
+        setTimeout(() => {
+          setShowPasswordModal(false);
+          resetPasswordForm();
+        }, 2000);
+      } else {
+        setPasswordError(data.error || '비밀번호 변경에 실패했습니다.');
+      }
+    } catch (error) {
+      setPasswordError('서버와 통신 중 오류가 발생했습니다.');
+    }
   };
 
   // 드롭다운 외부 클릭 시 닫기
@@ -73,6 +141,21 @@ const Layout: React.FC = () => {
                     <div className="text-muted">{user?.email}</div>
                   </div>
                   <div className="dropdown-divider"></div>
+                  <button 
+                    className="dropdown-item" 
+                    onClick={() => {
+                      setIsUserDropdownOpen(false);
+                      setShowPasswordModal(true);
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="icon me-2" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <path stroke="none" d="m0 0h24v24H0z" fill="none"/>
+                      <rect x="5" y="11" width="14" height="10" rx="2" />
+                      <circle cx="12" cy="16" r="1" />
+                      <path d="M8 11v-4a4 4 0 0 1 8 0v4" />
+                    </svg>
+                    비밀번호 변경
+                  </button>
                   <button 
                     className="dropdown-item" 
                     onClick={() => {
@@ -354,6 +437,106 @@ const Layout: React.FC = () => {
       <main className="page-wrapper">
         <Outlet />
       </main>
+
+      {/* 비밀번호 변경 모달 */}
+      {showPasswordModal && (
+        <div 
+          className="modal modal-blur fade show" 
+          style={{ display: 'block' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowPasswordModal(false);
+              resetPasswordForm();
+            }
+          }}
+        >
+          <div className="modal-dialog modal-sm modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">비밀번호 변경</h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    resetPasswordForm();
+                  }}
+                ></button>
+              </div>
+              <form onSubmit={handlePasswordChange}>
+                <div className="modal-body">
+                  {passwordError && (
+                    <div className="alert alert-danger" role="alert">
+                      {passwordError}
+                    </div>
+                  )}
+                  {passwordSuccess && (
+                    <div className="alert alert-success" role="alert">
+                      {passwordSuccess}
+                    </div>
+                  )}
+                  
+                  <div className="mb-3">
+                    <label className="form-label">현재 비밀번호 <span className="text-danger">*</span></label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                      placeholder="현재 비밀번호를 입력하세요"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="form-label">새 비밀번호 <span className="text-danger">*</span></label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                      placeholder="새 비밀번호를 입력하세요 (최소 6자)"
+                      minLength={6}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="form-label">새 비밀번호 확인 <span className="text-danger">*</span></label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      placeholder="새 비밀번호를 다시 입력하세요"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      resetPasswordForm();
+                    }}
+                  >
+                    취소
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    disabled={!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                  >
+                    비밀번호 변경
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
