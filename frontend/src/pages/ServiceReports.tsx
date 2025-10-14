@@ -98,6 +98,21 @@ interface FormData {
   invoice_code_id?: number;
 }
 
+// 거래명세서 항목 타입
+interface InvoiceLineItem {
+  id: string;
+  month: number;
+  day: number;
+  item_name: string;
+  specification: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  vat: number;
+  isNego?: boolean;
+  dateGroup: string; // 날짜 그룹핑용 (YYYY-MM-DD)
+}
+
 // 시간 계산 유틸리티 함수들
 const parseTime = (timeStr: string): number => {
   if (!timeStr) return 0;
@@ -324,6 +339,19 @@ const ServiceReports: React.FC = () => {
   
   // 권한 확인 (관리자인지)
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // 거래명세서 생성 모달 관련 상태
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [invoiceLineItems, setInvoiceLineItems] = useState<InvoiceLineItem[]>([]);
+  const [sparePartSettings, setSparePartSettings] = useState<{
+    marginRate: number;
+    workTimePrice: number;
+    travelTimePrice: number;
+  }>({
+    marginRate: 20,
+    workTimePrice: 89000,
+    travelTimePrice: 70000
+  });
 
   useEffect(() => {
     loadReports();
@@ -902,38 +930,248 @@ const ServiceReports: React.FC = () => {
     });
   };
 
-  // 거래명세표 생성 함수
+  // 스페어파트 설정 로드
+  const loadSparePartSettings = async () => {
+    try {
+      const response = await api.get('/api/admin/spare-part-settings');
+      if (response.data.success) {
+        setSparePartSettings({
+          marginRate: response.data.data.marginRate || 20,
+          workTimePrice: response.data.data.workTimePrice || 89000,
+          travelTimePrice: response.data.data.travelTimePrice || 70000
+        });
+      }
+    } catch (error) {
+      console.error('스페어파트 설정 로드 실패:', error);
+    }
+  };
+
+  // 거래명세서 생성 모달 열기
   const handleCreateInvoice = async (serviceReportId: number) => {
     try {
       setLoading(true);
-      
-      const response = await api.post(`/invoices/from-service-report/${serviceReportId}`);
-      
-      if (response.data.invoice_id) {
-        alert('거래명세표가 성공적으로 생성되었습니다.');
-        // 새 탭에서 거래명세표 상세보기 열기
-        window.open(`/invoices/${response.data.invoice_id}`, '_blank');
-      } else if (response.data.message) {
-        // 이미 존재하는 경우
-        alert(response.data.message);
-        if (response.data.invoice_id) {
-          window.open(`/invoices/${response.data.invoice_id}`, '_blank');
-        }
+
+      // 스페어파트 설정 로드
+      await loadSparePartSettings();
+
+      // viewingReport에서 데이터 추출
+      if (!viewingReport) {
+        alert('리포트 정보를 불러올 수 없습니다.');
+        return;
       }
+
+      // 거래명세서 항목 생성
+      const lineItems = await generateInvoiceLineItems(viewingReport);
+      setInvoiceLineItems(lineItems);
+
+      // 모달 표시
+      setShowInvoiceModal(true);
+      setShowViewModal(false);
+
     } catch (error: any) {
-      console.error('거래명세표 생성 실패:', error);
-      
-      let errorMessage = '거래명세표 생성에 실패했습니다.';
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.message) {
-        errorMessage = `오류: ${error.message}`;
-      }
-      
-      alert(errorMessage);
+      console.error('거래명세서 생성 준비 실패:', error);
+      alert('거래명세서 생성 준비에 실패했습니다.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // 거래명세서 항목 생성 로직
+  const generateInvoiceLineItems = async (report: ServiceReport): Promise<InvoiceLineItem[]> => {
+    const items: InvoiceLineItem[] = [];
+
+    // 시간 기록에서 일자별 항목 생성
+    const timeRecords = (report as any).time_records || [];
+    const dateGroups = new Map<string, {workHours: number, travelHours: number}>();
+
+    // 일자별로 시간 집계
+    timeRecords.forEach((record: TimeRecord) => {
+      const date = record.date;
+      if (!date) return;
+
+      const workHours = record.calculated_work_time ? parseFloat(record.calculated_work_time) : 0;
+      const travelHours = record.calculated_travel_time ? parseFloat(record.calculated_travel_time) : 0;
+
+      if (dateGroups.has(date)) {
+        const existing = dateGroups.get(date)!;
+        existing.workHours += workHours;
+        existing.travelHours += travelHours;
+      } else {
+        dateGroups.set(date, { workHours, travelHours });
+      }
+    });
+
+    // 날짜별로 정렬
+    const sortedDates = Array.from(dateGroups.keys()).sort();
+
+    // 각 날짜별로 작업시간, 이동시간 항목 생성
+    sortedDates.forEach(dateStr => {
+      const dateObj = new Date(dateStr);
+      const month = dateObj.getMonth() + 1;
+      const day = dateObj.getDate();
+      const timeData = dateGroups.get(dateStr)!;
+
+      // 작업시간 항목
+      if (timeData.workHours > 0) {
+        const quantity = Math.round(timeData.workHours * 10) / 10; // 소수점 1자리
+        const unitPrice = sparePartSettings.workTimePrice;
+        const totalPrice = Math.round(quantity * unitPrice);
+        const vat = Math.round(totalPrice * 0.1);
+
+        items.push({
+          id: `work-${dateStr}`,
+          month,
+          day,
+          item_name: '작업시간',
+          specification: '1인 1시간',
+          quantity,
+          unit_price: unitPrice,
+          total_price: totalPrice,
+          vat,
+          dateGroup: dateStr
+        });
+      }
+
+      // 이동시간 항목
+      if (timeData.travelHours > 0) {
+        const quantity = Math.round(timeData.travelHours * 10) / 10;
+        const unitPrice = sparePartSettings.travelTimePrice;
+        const totalPrice = Math.round(quantity * unitPrice);
+        const vat = Math.round(totalPrice * 0.1);
+
+        items.push({
+          id: `travel-${dateStr}`,
+          month,
+          day,
+          item_name: '이동시간',
+          specification: '1시간',
+          quantity,
+          unit_price: unitPrice,
+          total_price: totalPrice,
+          vat,
+          dateGroup: dateStr
+        });
+      }
+    });
+
+    // 부품 항목 추가 (마지막 날짜에 추가)
+    const lastDate = sortedDates[sortedDates.length - 1];
+    if (lastDate && report.used_parts && report.used_parts.length > 0) {
+      const lastDateObj = new Date(lastDate);
+      const month = lastDateObj.getMonth() + 1;
+      const day = lastDateObj.getDate();
+
+      for (const part of report.used_parts) {
+        let unitPrice = 0;
+
+        // 파트번호가 있는 경우 스페어파트에서 청구가 조회
+        if (part.part_number) {
+          try {
+            const response = await sparePartsAPI.getByPartNumber(part.part_number);
+            if (response.data && response.data.billing_price_krw) {
+              unitPrice = response.data.billing_price_krw;
+            } else {
+              // 청구가가 없으면 가격이력 입력 필요 (추후 모달로 처리)
+              console.warn(`파트번호 ${part.part_number}의 청구가가 없습니다.`);
+            }
+          } catch (error) {
+            console.error('스페어파트 조회 실패:', error);
+          }
+        }
+
+        // 파트번호가 없거나 청구가를 못찾은 경우, FSE가 입력한 구매가 + 마진율로 계산
+        if (unitPrice === 0 && part.unit_price > 0) {
+          unitPrice = Math.round(part.unit_price * (1 + sparePartSettings.marginRate / 100));
+        }
+
+        const totalPrice = Math.round(unitPrice * part.quantity);
+        const vat = Math.round(totalPrice * 0.1);
+
+        items.push({
+          id: `part-${part.id || Math.random()}`,
+          month,
+          day,
+          item_name: part.part_name,
+          specification: part.part_number || '',
+          quantity: part.quantity,
+          unit_price: unitPrice,
+          total_price: totalPrice,
+          vat,
+          dateGroup: lastDate
+        });
+      }
+    }
+
+    return items;
+  };
+
+  // 항목 업데이트 함수
+  const updateLineItem = (id: string, field: keyof InvoiceLineItem, value: any) => {
+    setInvoiceLineItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const updated = { ...item, [field]: value };
+
+        // 수량이나 단가가 변경되면 합계와 부가세 자동 계산
+        if (field === 'quantity' || field === 'unit_price') {
+          const qty = field === 'quantity' ? parseFloat(value) || 0 : item.quantity;
+          const price = field === 'unit_price' ? parseInt(value) || 0 : item.unit_price;
+          updated.total_price = Math.round(qty * price);
+          updated.vat = Math.round(updated.total_price * 0.1);
+        }
+
+        return updated;
+      }
+      return item;
+    }));
+  };
+
+  // 네고 항목 추가
+  const addNegoItem = (afterDateGroup: string) => {
+    const targetDate = new Date(afterDateGroup);
+    const month = targetDate.getMonth() + 1;
+    const day = targetDate.getDate();
+
+    const negoItem: InvoiceLineItem = {
+      id: `nego-${Date.now()}`,
+      month,
+      day,
+      item_name: 'NEGO',
+      specification: '',
+      quantity: 0,
+      unit_price: 0,
+      total_price: 0,
+      vat: 0,
+      isNego: true,
+      dateGroup: afterDateGroup
+    };
+
+    // 해당 날짜 그룹 뒤에 삽입
+    setInvoiceLineItems(prev => {
+      const newItems = [...prev];
+      const lastIndexOfGroup = newItems.map((item, idx) =>
+        item.dateGroup === afterDateGroup ? idx : -1
+      ).filter(idx => idx !== -1).pop();
+
+      if (lastIndexOfGroup !== undefined) {
+        newItems.splice(lastIndexOfGroup + 1, 0, negoItem);
+      } else {
+        newItems.push(negoItem);
+      }
+
+      return newItems;
+    });
+  };
+
+  // 네고 항목 삭제
+  const removeNegoItem = (id: string) => {
+    setInvoiceLineItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  // 최종 거래명세서 생성 (추후 구현)
+  const handleFinalizeInvoice = () => {
+    console.log('거래명세서 항목:', invoiceLineItems);
+    // TODO: 백엔드 API 호출하여 실제 거래명세서 생성
+    alert('거래명세서 생성 기능은 추후 구현 예정입니다.');
   };
 
   // 정렬 함수
@@ -2951,6 +3189,202 @@ const ServiceReports: React.FC = () => {
                   onClick={() => setShowAddCustomerModal(false)}
                 >
                   취소
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 거래명세서 생성 모달 */}
+      {showInvoiceModal && (
+        <div
+          className="modal modal-blur fade show"
+          style={{display: 'block'}}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowInvoiceModal(false);
+              setShowViewModal(true);
+            }
+          }}
+        >
+          <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">거래명세서 항목 생성</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => {
+                    setShowInvoiceModal(false);
+                    setShowViewModal(true);
+                  }}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="alert alert-info mb-3">
+                  <strong>안내:</strong> 리포트의 시간 및 부품 정보를 기반으로 거래명세서 항목이 자동으로 생성되었습니다.
+                  필요에 따라 수정하거나 네고 항목을 추가할 수 있습니다.
+                </div>
+
+                <div className="table-responsive">
+                  <table className="table table-bordered">
+                    <thead>
+                      <tr>
+                        <th style={{width: '60px'}}>월</th>
+                        <th style={{width: '60px'}}>일</th>
+                        <th style={{width: '150px'}}>품목</th>
+                        <th style={{width: '150px'}}>규격</th>
+                        <th style={{width: '100px'}}>수량</th>
+                        <th style={{width: '120px'}}>단가</th>
+                        <th style={{width: '120px'}}>합계</th>
+                        <th style={{width: '120px'}}>부가세</th>
+                        <th style={{width: '80px'}}>액션</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        // 날짜 그룹별로 항목 묶기
+                        const dateGroups = new Map<string, InvoiceLineItem[]>();
+                        invoiceLineItems.forEach(item => {
+                          if (!dateGroups.has(item.dateGroup)) {
+                            dateGroups.set(item.dateGroup, []);
+                          }
+                          dateGroups.get(item.dateGroup)!.push(item);
+                        });
+
+                        const sortedDateGroups = Array.from(dateGroups.keys()).sort();
+
+                        return sortedDateGroups.map((dateGroup, groupIdx) => {
+                          const items = dateGroups.get(dateGroup)!;
+
+                          return (
+                            <React.Fragment key={dateGroup}>
+                              {items.map((item, itemIdx) => (
+                                <tr key={item.id} style={{backgroundColor: item.isNego ? '#fff3cd' : 'white'}}>
+                                  <td className="text-center">{item.month}</td>
+                                  <td className="text-center">{item.day}</td>
+                                  <td>
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      value={item.item_name}
+                                      onChange={(e) => updateLineItem(item.id, 'item_name', e.target.value)}
+                                      readOnly={!item.isNego && item.item_name !== 'NEGO'}
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      value={item.specification}
+                                      onChange={(e) => updateLineItem(item.id, 'specification', e.target.value)}
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      className="form-control form-control-sm"
+                                      value={item.quantity}
+                                      onChange={(e) => updateLineItem(item.id, 'quantity', e.target.value)}
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      className="form-control form-control-sm"
+                                      value={item.unit_price}
+                                      onChange={(e) => updateLineItem(item.id, 'unit_price', e.target.value)}
+                                    />
+                                  </td>
+                                  <td className="text-end">{item.total_price.toLocaleString()}</td>
+                                  <td className="text-end">{item.vat.toLocaleString()}</td>
+                                  <td className="text-center">
+                                    {item.isNego && (
+                                      <button
+                                        className="btn btn-sm btn-outline-danger"
+                                        onClick={() => removeNegoItem(item.id)}
+                                        title="네고 삭제"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <line x1="18" y1="6" x2="6" y2="18"/>
+                                          <line x1="6" y1="6" x2="18" y2="18"/>
+                                        </svg>
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+
+                              {/* 날짜 그룹 사이에 네고 추가 버튼 */}
+                              <tr>
+                                <td colSpan={9} className="text-center py-2" style={{backgroundColor: '#f8f9fa'}}>
+                                  <button
+                                    className="btn btn-sm btn-outline-primary"
+                                    onClick={() => addNegoItem(dateGroup)}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                      <line x1="12" y1="5" x2="12" y2="19"/>
+                                      <line x1="5" y1="12" x2="19" y2="12"/>
+                                    </svg>
+                                    {new Date(dateGroup).toLocaleDateString('ko-KR')} 네고 추가
+                                  </button>
+                                </td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        });
+                      })()}
+
+                      {/* 합계 행 */}
+                      {invoiceLineItems.length > 0 && (
+                        <tr style={{backgroundColor: '#e7f5ff', fontWeight: 'bold'}}>
+                          <td colSpan={6} className="text-end">합계</td>
+                          <td className="text-end">
+                            {invoiceLineItems.reduce((sum, item) => sum + item.total_price, 0).toLocaleString()}
+                          </td>
+                          <td className="text-end">
+                            {invoiceLineItems.reduce((sum, item) => sum + item.vat, 0).toLocaleString()}
+                          </td>
+                          <td></td>
+                        </tr>
+                      )}
+
+                      {invoiceLineItems.length === 0 && (
+                        <tr>
+                          <td colSpan={9} className="text-center text-muted py-4">
+                            생성된 항목이 없습니다. 리포트에 시간 정보나 부품 정보를 추가해주세요.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowInvoiceModal(false);
+                    setShowViewModal(true);
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  onClick={handleFinalizeInvoice}
+                  disabled={invoiceLineItems.length === 0}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M5 12l5 5l10 -10"/>
+                  </svg>
+                  거래명세서 생성
                 </button>
               </div>
             </div>

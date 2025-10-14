@@ -51,14 +51,36 @@ def get_spare_part_settings():
         # 마진율 설정 조회 (conn.close() 전에 수행)
         try:
             margin_setting = conn.execute(
-                '''SELECT setting_value FROM spare_part_settings 
+                '''SELECT setting_value FROM spare_part_settings
                    WHERE setting_key = "margin_rate"'''
             ).fetchone()
-            
+
             margin_rate = int(margin_setting['setting_value']) if margin_setting else 20
         except Exception as margin_error:
             print(f"마진율 조회 오류: {margin_error}")
             margin_rate = 20  # 기본값
+
+        # 작업시간 단가 조회
+        try:
+            work_time_price_setting = conn.execute(
+                '''SELECT setting_value FROM spare_part_settings
+                   WHERE setting_key = "work_time_price"'''
+            ).fetchone()
+
+            work_time_price = int(work_time_price_setting['setting_value']) if work_time_price_setting else 89000
+        except Exception:
+            work_time_price = 89000  # 기본값
+
+        # 이동시간 단가 조회
+        try:
+            travel_time_price_setting = conn.execute(
+                '''SELECT setting_value FROM spare_part_settings
+                   WHERE setting_key = "travel_time_price"'''
+            ).fetchone()
+
+            travel_time_price = int(travel_time_price_setting['setting_value']) if travel_time_price_setting else 70000
+        except Exception:
+            travel_time_price = 70000  # 기본값
         
         conn.close()
         
@@ -112,7 +134,9 @@ def get_spare_part_settings():
         
         # 미리 조회한 마진율 설정
         settings['marginRate'] = margin_rate
-        
+        settings['workTimePrice'] = work_time_price
+        settings['travelTimePrice'] = travel_time_price
+
         return jsonify({
             'success': True,
             'data': settings
@@ -186,11 +210,11 @@ def update_spare_part_settings():
             existing = conn.execute(
                 '''SELECT id FROM spare_part_settings WHERE setting_key = "margin_rate"'''
             ).fetchone()
-            
+
             if existing:
                 # 업데이트
                 conn.execute(
-                    '''UPDATE spare_part_settings 
+                    '''UPDATE spare_part_settings
                        SET setting_value = ?, updated_at = ?
                        WHERE setting_key = "margin_rate"''',
                     (str(margin_rate), datetime.now())
@@ -202,8 +226,50 @@ def update_spare_part_settings():
                        VALUES ("margin_rate", ?, ?, ?)''',
                     (str(margin_rate), datetime.now(), datetime.now())
                 )
-            
+
             print(f"마진율 저장: {margin_rate}%")  # 디버깅용 로그
+
+        # 작업시간 단가 설정 업데이트
+        if 'workTimePrice' in data:
+            work_time_price = data['workTimePrice']
+            existing = conn.execute(
+                '''SELECT id FROM spare_part_settings WHERE setting_key = "work_time_price"'''
+            ).fetchone()
+
+            if existing:
+                conn.execute(
+                    '''UPDATE spare_part_settings
+                       SET setting_value = ?, updated_at = ?
+                       WHERE setting_key = "work_time_price"''',
+                    (str(work_time_price), datetime.now())
+                )
+            else:
+                conn.execute(
+                    '''INSERT INTO spare_part_settings (setting_key, setting_value, created_at, updated_at)
+                       VALUES ("work_time_price", ?, ?, ?)''',
+                    (str(work_time_price), datetime.now(), datetime.now())
+                )
+
+        # 이동시간 단가 설정 업데이트
+        if 'travelTimePrice' in data:
+            travel_time_price = data['travelTimePrice']
+            existing = conn.execute(
+                '''SELECT id FROM spare_part_settings WHERE setting_key = "travel_time_price"'''
+            ).fetchone()
+
+            if existing:
+                conn.execute(
+                    '''UPDATE spare_part_settings
+                       SET setting_value = ?, updated_at = ?
+                       WHERE setting_key = "travel_time_price"''',
+                    (str(travel_time_price), datetime.now())
+                )
+            else:
+                conn.execute(
+                    '''INSERT INTO spare_part_settings (setting_key, setting_value, created_at, updated_at)
+                       VALUES ("travel_time_price", ?, ?, ?)''',
+                    (str(travel_time_price), datetime.now(), datetime.now())
+                )
         
         conn.commit()
         conn.close()
