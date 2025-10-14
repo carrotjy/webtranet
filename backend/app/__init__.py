@@ -20,12 +20,10 @@ def create_app():
     
     # CORS 설정 - 개발환경에서 더 관대하게 설정
     CORS(app, 
-         origins=['http://localhost:3000', 'http://127.0.0.1:3000'],  # React 개발 서버 주소
-         allow_headers=['Content-Type', 'Authorization', 'Access-Control-Allow-Headers', 'Access-Control-Allow-Origin'],
-         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
-         supports_credentials=True,
-         expose_headers=['Content-Type', 'Authorization'],
-         max_age=600)
+         origins=['http://localhost:3000', 'http://127.0.0.1:3000'],
+         allow_headers=['Content-Type', 'Authorization'],
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+         supports_credentials=True)
     
     # JWT 설정
     jwt = JWTManager(app)
@@ -53,6 +51,7 @@ def create_app():
     from app.blueprints.invoice import invoice_bp
     from app.blueprints.invoice_rate import invoice_rate_bp
     from app.blueprints.spare_part_settings import spare_part_settings_bp
+    from app.blueprints.tatoeba import tatoeba_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(user_mgmt_bp, url_prefix='/users')
@@ -65,6 +64,7 @@ def create_app():
     app.register_blueprint(invoice_bp)
     app.register_blueprint(invoice_rate_bp)
     app.register_blueprint(spare_part_settings_bp, url_prefix='/api')
+    app.register_blueprint(tatoeba_bp)
     
     # JWT 에러 핸들러 추가
     from flask_jwt_extended.exceptions import JWTExtendedException

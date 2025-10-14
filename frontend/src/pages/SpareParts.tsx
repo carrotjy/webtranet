@@ -44,7 +44,7 @@ interface PriceHistory {
 }
 
 const SpareParts: React.FC = () => {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [spareParts, setSpareParts] = useState<SparePart[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -658,7 +658,7 @@ const SpareParts: React.FC = () => {
                     입출고내역
                   </button>
                 )}
-                {(user?.spare_parts_stock_in ?? false) && (
+                {hasPermission('customer_update') && (
                   <button 
                     className="btn btn-outline-primary"
                     onClick={() => setShowStockInModal(true)}
@@ -673,7 +673,7 @@ const SpareParts: React.FC = () => {
                     입고
                   </button>
                 )}
-                {(user?.spare_parts_stock_out ?? false) && (
+                {hasPermission('customer_update') && (
                   <button 
                     className="btn btn-outline-warning"
                     onClick={() => setShowStockOutModal(true)}
@@ -688,7 +688,7 @@ const SpareParts: React.FC = () => {
                     출고
                   </button>
                 )}
-                {user?.spare_parts_access && (
+                {hasPermission('customer_create') && (
                   <button 
                     className="btn btn-primary"
                     onClick={() => setShowRegisterModal(true)}
@@ -739,6 +739,7 @@ const SpareParts: React.FC = () => {
                         <td>{new Date(part.created_at).toLocaleDateString('ko-KR')}</td>
                         <td>
                           <div className="d-flex gap-1">
+                            {hasPermission('customer_read') && (
                             <button
                               className="btn btn-sm btn-outline-primary"
                               style={{ 
@@ -763,7 +764,8 @@ const SpareParts: React.FC = () => {
                                 <circle cx="12" cy="12" r="3"/>
                               </svg>
                             </button>
-                            {(user?.spare_parts_edit ?? false) && (
+                            )}
+                            {hasPermission('customer_update') && (
                               <button
                                 className="btn btn-sm btn-outline-secondary"
                                 style={{ 
@@ -793,7 +795,7 @@ const SpareParts: React.FC = () => {
                                 </svg>
                               </button>
                             )}
-                            {(user?.spare_parts_delete ?? false) && (
+                            {hasPermission('customer_delete') && (
                               <button
                                 className="btn btn-sm btn-outline-danger"
                                 style={{ 

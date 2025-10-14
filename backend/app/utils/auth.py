@@ -51,6 +51,52 @@ def permission_required(permission_type):
         return decorated_function
     return decorator
 
+def service_report_update_required(f):
+    """서비스 리포트 수정 권한 체크 데코레이터
+    - service_report_update 권한이 있으면 모든 리포트 수정 가능
+    - 권한이 없어도 본인이 작성한 리포트는 수정 가능
+    """
+    @wraps(f)
+    @jwt_required()
+    def decorated_function(*args, **kwargs):
+        from app.models.service_report import ServiceReport
+        
+        current_user_id = get_jwt_identity()
+        user = User.get_by_id(int(current_user_id))
+        
+        if not user:
+            return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+        
+        # 관리자는 모든 권한 허용
+        if user.is_admin:
+            return f(*args, **kwargs)
+        
+        # 서비스 리포트 기본 접근 권한 확인
+        if not user.service_report_access:
+            return jsonify({'error': '서비스 리포트 페이지에 접근할 권한이 없습니다.'}), 403
+        
+        # report_id 파라미터 추출
+        report_id = kwargs.get('report_id')
+        if not report_id:
+            return jsonify({'error': '리포트 ID가 필요합니다.'}), 400
+        
+        # 서비스 리포트 수정(update) 권한이 있으면 모든 리포트 수정 가능
+        if user.service_report_update:
+            return f(*args, **kwargs)
+        
+        # 수정 권한이 없어도 본인이 작성한 리포트는 수정 가능
+        report = ServiceReport.get_by_id(report_id)
+        if not report:
+            return jsonify({'error': '서비스 리포트를 찾을 수 없습니다.'}), 404
+        
+        # 작성자(technician_id)가 본인인지 확인
+        if report.technician_id == user.id:
+            return f(*args, **kwargs)
+        
+        return jsonify({'error': '이 서비스 리포트를 수정할 권한이 없습니다. 본인이 작성한 리포트만 수정할 수 있습니다.'}), 403
+    
+    return decorated_function
+
 def get_current_user():
     """현재 로그인한 사용자 정보를 반환"""
     try:

@@ -38,7 +38,7 @@ interface Customer {
 const CATEGORIES = ['Pressbrake', 'Laser', 'Software'];
 
 const ResourceManagement: React.FC = () => {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [resources, setResources] = useState<Resource[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -935,6 +935,7 @@ const ResourceManagement: React.FC = () => {
           </div>
           <div className="col-auto ms-auto d-print-none">
             <div className="btn-list">
+              {hasPermission('resource_create') && (
               <button 
                 className="btn btn-primary"
                 onClick={() => {
@@ -961,6 +962,7 @@ const ResourceManagement: React.FC = () => {
                 </svg>
                 리소스 추가
               </button>
+              )}
             </div>
           </div>
         </div>
@@ -1013,6 +1015,7 @@ const ResourceManagement: React.FC = () => {
                       <td>{getWarrantyExpirationDate(resource.management_history || [])}</td>
                       <td>
                         <div className="d-flex gap-1">
+                          {hasPermission('resource_read') && (
                           <button
                             className="btn btn-sm btn-outline-primary"
                             style={{ 
@@ -1031,7 +1034,8 @@ const ResourceManagement: React.FC = () => {
                               <circle cx="12" cy="12" r="3"/>
                             </svg>
                           </button>
-                          {user?.is_admin && (
+                          )}
+                          {hasPermission('resource_update') && (
                             <button
                               className="btn btn-sm btn-outline-secondary"
                               style={{ 
@@ -1051,7 +1055,7 @@ const ResourceManagement: React.FC = () => {
                               </svg>
                             </button>
                           )}
-                          {user?.is_admin && (
+                          {hasPermission('resource_delete') && (
                             <button
                               className="btn btn-sm btn-outline-danger"
                               style={{ 

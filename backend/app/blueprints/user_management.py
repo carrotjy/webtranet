@@ -53,7 +53,33 @@ def create_user():
             transaction_access=data.get('transaction_access', False),
             customer_access=data.get('customer_access', False),
             spare_parts_access=data.get('spare_parts_access', False),
-            is_admin=data.get('is_admin', False)
+            resource_access=data.get('resource_access', False),
+            is_admin=data.get('is_admin', False),
+            # 서비스 리포트 CRUD 권한
+            service_report_create=data.get('service_report_create', False),
+            service_report_read=data.get('service_report_read', False),
+            service_report_update=data.get('service_report_update', False),
+            service_report_delete=data.get('service_report_delete', False),
+            # 리소스 CRUD 권한
+            resource_create=data.get('resource_create', False),
+            resource_read=data.get('resource_read', False),
+            resource_update=data.get('resource_update', False),
+            resource_delete=data.get('resource_delete', False),
+            # 고객정보 CRUD 권한
+            customer_create=data.get('customer_create', False),
+            customer_read=data.get('customer_read', False),
+            customer_update=data.get('customer_update', False),
+            customer_delete=data.get('customer_delete', False),
+            # 거래명세서 CRUD 권한
+            transaction_create=data.get('transaction_create', False),
+            transaction_read=data.get('transaction_read', False),
+            transaction_update=data.get('transaction_update', False),
+            transaction_delete=data.get('transaction_delete', False),
+            # 부품 CRUD 권한
+            spare_parts_create=data.get('spare_parts_create', False),
+            spare_parts_read=data.get('spare_parts_read', False),
+            spare_parts_update=data.get('spare_parts_update', False),
+            spare_parts_delete_crud=data.get('spare_parts_delete_crud', False)
         )
         
         user_id = user.save()
@@ -66,7 +92,10 @@ def create_user():
             return jsonify({'error': '사용자 생성에 실패했습니다.'}), 500
             
     except Exception as e:
-        return jsonify({'error': '사용자 생성 중 오류가 발생했습니다.'}), 500
+        print(f"사용자 생성 오류: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'사용자 생성 중 오류가 발생했습니다: {str(e)}'}), 500
 
 @user_mgmt_bp.route('/<int:user_id>', methods=['PUT'])
 @admin_required
@@ -90,11 +119,47 @@ def update_user(user_id):
         user.email = data.get('email', user.email)
         user.contact = data.get('contact', user.contact)
         user.department = data.get('department', user.department)
+        
+        # 비밀번호 업데이트 (입력된 경우에만)
+        if data.get('password') and data['password'].strip():
+            user.password = data['password']  # User 모델에서 해싱 처리
+            
         user.service_report_access = data.get('service_report_access', user.service_report_access)
         user.transaction_access = data.get('transaction_access', user.transaction_access)
         user.customer_access = data.get('customer_access', user.customer_access)
         user.spare_parts_access = data.get('spare_parts_access', user.spare_parts_access)
+        user.resource_access = data.get('resource_access', getattr(user, 'resource_access', False))
         user.is_admin = data.get('is_admin', user.is_admin)
+        
+        # 서비스 리포트 CRUD 권한 업데이트
+        user.service_report_create = data.get('service_report_create', getattr(user, 'service_report_create', False))
+        user.service_report_read = data.get('service_report_read', getattr(user, 'service_report_read', False))
+        user.service_report_update = data.get('service_report_update', getattr(user, 'service_report_update', False))
+        user.service_report_delete = data.get('service_report_delete', getattr(user, 'service_report_delete', False))
+        
+        # 리소스 CRUD 권한 업데이트
+        user.resource_create = data.get('resource_create', getattr(user, 'resource_create', False))
+        user.resource_read = data.get('resource_read', getattr(user, 'resource_read', False))
+        user.resource_update = data.get('resource_update', getattr(user, 'resource_update', False))
+        user.resource_delete = data.get('resource_delete', getattr(user, 'resource_delete', False))
+        
+        # 고객정보 CRUD 권한 업데이트
+        user.customer_create = data.get('customer_create', getattr(user, 'customer_create', False))
+        user.customer_read = data.get('customer_read', getattr(user, 'customer_read', False))
+        user.customer_update = data.get('customer_update', getattr(user, 'customer_update', False))
+        user.customer_delete = data.get('customer_delete', getattr(user, 'customer_delete', False))
+        
+        # 거래명세서 CRUD 권한 업데이트
+        user.transaction_create = data.get('transaction_create', getattr(user, 'transaction_create', False))
+        user.transaction_read = data.get('transaction_read', getattr(user, 'transaction_read', False))
+        user.transaction_update = data.get('transaction_update', getattr(user, 'transaction_update', False))
+        user.transaction_delete = data.get('transaction_delete', getattr(user, 'transaction_delete', False))
+        
+        # 부품 CRUD 권한 업데이트
+        user.spare_parts_create = data.get('spare_parts_create', getattr(user, 'spare_parts_create', False))
+        user.spare_parts_read = data.get('spare_parts_read', getattr(user, 'spare_parts_read', False))
+        user.spare_parts_update = data.get('spare_parts_update', getattr(user, 'spare_parts_update', False))
+        user.spare_parts_delete_crud = data.get('spare_parts_delete_crud', getattr(user, 'spare_parts_delete_crud', False))
         
         if user.save():
             return jsonify({

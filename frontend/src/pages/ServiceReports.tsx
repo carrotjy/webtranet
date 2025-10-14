@@ -234,7 +234,7 @@ const calculateTravelTime = (departureTime: string, workStartTime: string, workE
 };
 
 const ServiceReports: React.FC = () => {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [reports, setReports] = useState<ServiceReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -1424,6 +1424,7 @@ const ServiceReports: React.FC = () => {
             </div>
             <div className="col-auto ms-auto d-print-none">
               <div className="btn-list">
+                {hasPermission('service_report_create') && (
                 <button 
                   className="btn btn-primary"
                   onClick={() => {
@@ -1463,6 +1464,7 @@ const ServiceReports: React.FC = () => {
                   </svg>
                   새 리포트 작성
                 </button>
+                )}
               </div>
             </div>
           </div>
@@ -1518,7 +1520,7 @@ const ServiceReports: React.FC = () => {
                       </td>
                       <td className="bg-white text-center">
                         <div className="d-flex gap-1">
-                          {user?.service_report_access && (
+                          {hasPermission('service_report_read') && (
                             <button 
                               className="btn btn-sm btn-outline-primary"
                               style={{ 
@@ -1538,7 +1540,7 @@ const ServiceReports: React.FC = () => {
                               </svg>
                             </button>
                           )}
-                          {(user?.service_report_access && (user?.is_admin || user?.name === report.technician_name)) && (
+                          {(user?.is_admin || hasPermission('service_report_update') || user?.name === report.technician_name) && (
                             <button 
                               className="btn btn-sm btn-outline-secondary"
                               style={{ 
@@ -1558,7 +1560,7 @@ const ServiceReports: React.FC = () => {
                               </svg>
                             </button>
                           )}
-                          {(user?.is_admin || user?.name === report.technician_name) && (
+                          {(hasPermission('service_report_delete') && (user?.is_admin || user?.name === report.technician_name)) && (
                             <button 
                               className="btn btn-sm btn-outline-danger"
                               style={{ 
@@ -2637,36 +2639,40 @@ const ServiceReports: React.FC = () => {
 
                 <div className="row mt-4">
                   <div className="col-12 d-flex gap-2 justify-content-end">
-                    <button
-                      type="button"
-                      className="btn btn-success"
-                      onClick={() => {
-                        if (viewingReport?.id) {
-                          handleCreateInvoice(viewingReport.id);
-                        }
-                      }}
-                      disabled={loading}
-                      title="이 서비스 리포트를 기반으로 거래명세표를 생성합니다"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                        <rect x="3" y="4" width="18" height="16" rx="3"/>
-                        <line x1="7" y1="8" x2="17" y2="8"/>
-                        <line x1="7" y1="12" x2="17" y2="12"/>
-                        <line x1="7" y1="16" x2="9" y2="16"/>
-                      </svg>
-                      {loading ? '생성 중...' : '거래명세표 생성'}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={() => {
-                        setShowViewModal(false);
-                        handleEdit(viewingReport);
-                      }}
-                    >
-                      수정하기
-                    </button>
+                    {hasPermission('transaction_create') && (
+                      <button
+                        type="button"
+                        className="btn btn-success"
+                        onClick={() => {
+                          if (viewingReport?.id) {
+                            handleCreateInvoice(viewingReport.id);
+                          }
+                        }}
+                        disabled={loading}
+                        title="이 서비스 리포트를 기반으로 거래명세표를 생성합니다"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                          <rect x="3" y="4" width="18" height="16" rx="3"/>
+                          <line x1="7" y1="8" x2="17" y2="8"/>
+                          <line x1="7" y1="12" x2="17" y2="12"/>
+                          <line x1="7" y1="16" x2="9" y2="16"/>
+                        </svg>
+                        {loading ? '생성 중...' : '거래명세표 생성'}
+                      </button>
+                    )}
+                    {hasPermission('service_report_update') && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => {
+                          setShowViewModal(false);
+                          handleEdit(viewingReport);
+                        }}
+                      >
+                        수정하기
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn-secondary"

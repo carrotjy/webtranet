@@ -46,7 +46,7 @@ function App() {
                 </ProtectedRoute>
               } />
               <Route path="resource-management" element={
-                <ProtectedRoute requiredPermission="customer">
+                <ProtectedRoute requiredPermission="resource">
                   <ResourceManagement />
                 </ProtectedRoute>
               } />
@@ -61,22 +61,22 @@ function App() {
                 </ProtectedRoute>
               } />
               <Route path="invoices/:invoiceId" element={
-                <ProtectedRoute requiredPermission="invoice">
+                <ProtectedRoute requiredPermission="transaction">
                   <InvoiceView />
                 </ProtectedRoute>
               } />
               <Route path="invoices/new" element={
-                <ProtectedRoute requiredPermission="invoice">
+                <ProtectedRoute requiredPermission="transaction">
                   <InvoiceForm />
                 </ProtectedRoute>
               } />
               <Route path="invoices/:invoiceId/edit" element={
-                <ProtectedRoute requiredPermission="invoice">
+                <ProtectedRoute requiredPermission="transaction">
                   <InvoiceForm />
                 </ProtectedRoute>
               } />
               <Route path="invoices/from-service-report/:serviceReportId" element={
-                <ProtectedRoute requiredPermission="invoice">
+                <ProtectedRoute requiredPermission="transaction">
                   <InvoiceForm />
                 </ProtectedRoute>
               } />

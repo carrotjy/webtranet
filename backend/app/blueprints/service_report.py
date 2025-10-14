@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.utils.auth import permission_required, get_current_user
+from app.utils.auth import permission_required, get_current_user, service_report_update_required
 from app.models.service_report import ServiceReport
 
 service_report_bp = Blueprint('service_report', __name__)
@@ -150,7 +150,7 @@ def create_service_report():
         return jsonify({'error': f'서비스 리포트 생성 중 오류가 발생했습니다: {str(e)}'}), 500
 
 @service_report_bp.route('/<int:report_id>', methods=['PUT'])
-@permission_required('service_report')
+@service_report_update_required
 def update_service_report(report_id):
     """서비스 리포트 수정"""
     try:

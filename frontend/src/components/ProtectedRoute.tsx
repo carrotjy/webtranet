@@ -51,6 +51,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           return user.customer_access;
         case 'spare_parts':
           return user.spare_parts_access;
+        case 'resource':
+          return user.resource_access;
         default:
           return false;
       }

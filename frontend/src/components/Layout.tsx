@@ -122,10 +122,7 @@ const Layout: React.FC = () => {
                 className="nav-link d-flex lh-1 text-reset p-0 btn btn-link border-0"
                 onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
               >
-                <span className="avatar avatar-sm" style={{ backgroundColor: '#0054a6' }}>
-                  {user?.name?.charAt(0) || 'U'}
-                </span>
-                <div className="d-none d-xl-block ps-2">
+                <div className="d-xl-block">
                   <div>{user?.is_admin ? 'admin' : user?.name}</div>
                   <div className="mt-1 small text-muted">{user?.department}</div>
                 </div>
@@ -240,7 +237,7 @@ const Layout: React.FC = () => {
                   </li>
                 )}
                 
-                {hasPermission('customer_access') && (
+                {hasPermission('resource_access') && (
                   <li className="nav-item">
                     <Link 
                       className={`nav-link ${isActive('/resource-management') ? 'active' : ''}`} 
@@ -261,7 +258,7 @@ const Layout: React.FC = () => {
                   </li>
                 )}
                 
-                {hasPermission('invoice_access') && (
+                {hasPermission('transaction_access') && (
                   <li className="nav-item">
                     <Link 
                       className={`nav-link ${isActive('/invoices') ? 'active' : ''}`} 

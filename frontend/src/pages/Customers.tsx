@@ -37,7 +37,6 @@ interface CustomerForm {
   phone: string;
   address: string;
   postal_code: string;
-  tel: string;
   fax: string;
   president: string;
   mobile: string;
@@ -47,12 +46,13 @@ interface CustomerForm {
 const CATEGORIES = ['Pressbrake', 'Laser', 'Software'];
 
 const Customers: React.FC = () => {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
   const [showResourceForm, setShowResourceForm] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   
   // 페이징 관련 상태
@@ -63,8 +63,7 @@ const Customers: React.FC = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerResources, setCustomerResources] = useState<Resource[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [formData, setFormData] = useState<CustomerForm>({
     company_name: '',
@@ -73,7 +72,6 @@ const Customers: React.FC = () => {
     phone: '',
     address: '',
     postal_code: '',
-    tel: '',
     fax: '',
     president: '',
     mobile: '',
@@ -93,6 +91,7 @@ const Customers: React.FC = () => {
 
   const loadCustomers = async (page: number = currentPage, keyword: string = searchTerm) => {
     try {
+      setIsLoading(true);
       const params: any = {
         include_resources: true,
         page: page,
@@ -112,6 +111,8 @@ const Customers: React.FC = () => {
       setCurrentPage(data.page || 1);
     } catch (error) {
       console.error('고객 정보 로딩 실패:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -208,7 +209,6 @@ const Customers: React.FC = () => {
         phone: '',
         address: '',
         postal_code: '',
-        tel: '',
         fax: '',
         president: '',
         mobile: '',
@@ -290,7 +290,6 @@ const Customers: React.FC = () => {
       phone: customer.phone || '',
       address: customer.address || '',
       postal_code: customer.postal_code || '',
-      tel: customer.tel || '',
       fax: customer.fax || '',
       president: customer.president || '',
       mobile: customer.mobile || '',
@@ -299,23 +298,27 @@ const Customers: React.FC = () => {
     setShowForm(true);
   };
 
-  const handleView = (customer: Customer) => {
-    // 보기 모드로 설정 (편집 불가)
-    setEditingCustomer(customer);
+  const handleAddNew = () => {
+    setEditingCustomer(null);
     setFormData({
-      company_name: customer.company_name,
-      contact_person: customer.contact_person,
-      email: customer.email || '',
-      phone: customer.phone || '',
-      address: customer.address || '',
-      postal_code: customer.postal_code || '',
-      tel: customer.tel || '',
-      fax: customer.fax || '',
-      president: customer.president || '',
-      mobile: customer.mobile || '',
-      contact: customer.contact || ''
+      company_name: '',
+      contact_person: '',
+      email: '',
+      phone: '',
+      address: '',
+      postal_code: '',
+      fax: '',
+      president: '',
+      mobile: '',
+      contact: ''
     });
     setShowForm(true);
+  };
+
+  const handleView = (customer: Customer) => {
+    // 보기 전용 모달 표시
+    setViewingCustomer(customer);
+    setShowViewModal(true);
   };
 
   const handleDelete = async (customerId: number) => {
@@ -345,61 +348,6 @@ const Customers: React.FC = () => {
         console.error('리소스 삭제 실패:', error);
         alert('리소스 삭제 중 오류가 발생했습니다.');
       }
-    }
-  };
-
-  const handleImportClick = () => {
-    if (window.confirm('기존 고객 정보가 엑셀 파일의 데이터로 덮어씌워질 수 있습니다. 계속하시겠습니까?')) {
-      setShowImportModal(true);
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // 파일 타입 확인
-      if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
-        alert('엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.');
-        return;
-      }
-      setSelectedFile(file);
-    }
-  };
-
-  const handleImportSubmit = async () => {
-    if (!selectedFile) {
-      alert('파일을 선택해 주세요.');
-      return;
-    }
-
-    setIsImporting(true);
-    try {
-      const response = await customerAPI.importFromExcel(selectedFile);
-      const result = response.data;
-      
-      let message = `엑셀 임포트가 완료되었습니다.\n성공: ${result.success_count}건\n실패: ${result.error_count}건`;
-      
-      if (result.errors && result.errors.length > 0) {
-        message += '\n\n오류 내역:\n' + result.errors.join('\n');
-      }
-      
-      alert(message);
-      
-      // 성공한 경우 고객 목록 새로고침
-      if (result.success_count > 0) {
-        loadCustomers();
-      }
-      
-      // 모달 닫기 및 초기화
-      setShowImportModal(false);
-      setSelectedFile(null);
-      
-    } catch (error: any) {
-      console.error('엑셀 임포트 실패:', error);
-      const errorMessage = error.response?.data?.error || '엑셀 임포트 중 오류가 발생했습니다.';
-      alert(errorMessage);
-    } finally {
-      setIsImporting(false);
     }
   };
 
@@ -446,7 +394,7 @@ const Customers: React.FC = () => {
               <div className="card">
                 <div className="card-body">
                   <div className="row">
-                    {/* 기본 정보 */}
+                    {/* 첫 번째 줄: 회사명, 이메일 */}
                     <div className="col-md-6">
                       <div className="mb-3">
                         <label className="form-label">회사명 *</label>
@@ -455,19 +403,6 @@ const Customers: React.FC = () => {
                           className="form-control"
                           value={formData.company_name}
                           onChange={(e) => setFormData({...formData, company_name: e.target.value})}
-                          required
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">담당자 *</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          value={formData.contact_person}
-                          onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
                           required
                         />
                       </div>
@@ -485,6 +420,33 @@ const Customers: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* 두 번째 줄: 담당자, 담당자 연락처 */}
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">담당자 *</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={formData.contact_person}
+                          onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">담당자 연락처</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={formData.contact}
+                          onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 전화번호, 팩스번호 */}
                     <div className="col-md-6">
                       <div className="mb-3">
                         <label className="form-label">전화번호</label>
@@ -497,7 +459,20 @@ const Customers: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="col-md-12">
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">팩스번호</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={formData.fax}
+                          onChange={(e) => setFormData({...formData, fax: e.target.value})}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 주소, 우편번호 (7:3 비율) */}
+                    <div className="col-md-8">
                       <div className="mb-3">
                         <label className="form-label">주소</label>
                         <input
@@ -509,7 +484,7 @@ const Customers: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="col-md-6">
+                    <div className="col-md-4">
                       <div className="mb-3">
                         <label className="form-label">우편번호</label>
                         <input
@@ -521,30 +496,7 @@ const Customers: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">전화</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          value={formData.tel}
-                          onChange={(e) => setFormData({...formData, tel: e.target.value})}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">팩스</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          value={formData.fax}
-                          onChange={(e) => setFormData({...formData, fax: e.target.value})}
-                        />
-                      </div>
-                    </div>
-
+                    {/* 대표자, 대표자 휴대폰 */}
                     <div className="col-md-6">
                       <div className="mb-3">
                         <label className="form-label">대표자</label>
@@ -559,24 +511,12 @@ const Customers: React.FC = () => {
 
                     <div className="col-md-6">
                       <div className="mb-3">
-                        <label className="form-label">휴대폰</label>
+                        <label className="form-label">대표자 휴대폰</label>
                         <input
                           type="text"
                           className="form-control"
                           value={formData.mobile}
                           onChange={(e) => setFormData({...formData, mobile: e.target.value})}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">연락처</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          value={formData.contact}
-                          onChange={(e) => setFormData({...formData, contact: e.target.value})}
                         />
                       </div>
                     </div>
@@ -824,6 +764,181 @@ const Customers: React.FC = () => {
     );
   }
 
+  // 보기 전용 모달
+  if (showViewModal && viewingCustomer) {
+    return (
+      <div className="modal modal-blur fade show" style={{display: 'block'}}>
+        <div className="modal-dialog modal-lg modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">고객 정보 조회</h5>
+              <button 
+                type="button" 
+                className="btn-close"
+                onClick={() => {
+                  setShowViewModal(false);
+                  setViewingCustomer(null);
+                }}
+              />
+            </div>
+            <div className="modal-body">
+              <div className="row">
+                {/* 첫 번째 줄: 회사명, 이메일 */}
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">회사명</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={viewingCustomer.company_name}
+                      readOnly
+                    />
+                  </div>
+                </div>
+
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">이메일</label>
+                    <input
+                      type="email"
+                      className="form-control"
+                      value={viewingCustomer.email || ''}
+                      readOnly
+                    />
+                  </div>
+                </div>
+
+                {/* 두 번째 줄: 담당자, 담당자 연락처 */}
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">담당자</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={viewingCustomer.contact_person}
+                      readOnly
+                    />
+                  </div>
+                </div>
+                
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">담당자 연락처</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={viewingCustomer.contact || ''}
+                      readOnly
+                    />
+                  </div>
+                </div>
+
+                {/* 세 번째 줄: 전화번호, 팩스번호 */}
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">전화번호</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={viewingCustomer.phone || ''}
+                      readOnly
+                    />
+                  </div>
+                </div>
+
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">팩스번호</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={viewingCustomer.fax || ''}
+                      readOnly
+                    />
+                  </div>
+                </div>
+
+                {/* 네 번째 줄: 주소, 우편번호 (7:3 비율) */}
+                <div className="col-md-8">
+                  <div className="mb-3">
+                    <label className="form-label">주소</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={viewingCustomer.address || ''}
+                      readOnly
+                    />
+                  </div>
+                </div>
+
+                <div className="col-md-4">
+                  <div className="mb-3">
+                    <label className="form-label">우편번호</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={viewingCustomer.postal_code || ''}
+                      readOnly
+                    />
+                  </div>
+                </div>
+
+                {/* 다섯 번째 줄: 대표자, 대표자 휴대폰 */}
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">대표자</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={viewingCustomer.president || ''}
+                      readOnly
+                    />
+                  </div>
+                </div>
+
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">대표자 휴대폰</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={viewingCustomer.mobile || ''}
+                      readOnly
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowViewModal(false);
+                  setViewingCustomer(null);
+                }}
+              >
+                닫기
+              </button>
+              {hasPermission('customer_update') && (
+                <button 
+                  type="button" 
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setShowViewModal(false);
+                    handleEdit(viewingCustomer);
+                  }}
+                >
+                  편집
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-header d-print-none">
       <div className="container-xl">
@@ -881,29 +996,18 @@ const Customers: React.FC = () => {
           </div>
           <div className="col-auto ms-auto d-print-none">
             <div className="btn-list">
-              <button 
-                className="btn btn-outline-primary"
-                onClick={handleImportClick}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14,2 14,8 20,8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10,9 9,9 8,9"></polyline>
-                </svg>
-                고객정보 가져오기
-              </button>
-              <button 
-                className="btn btn-primary"
-                onClick={() => setShowForm(true)}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                새 고객 추가
-              </button>
+              {hasPermission('customer_create') && (
+                <button 
+                  className="btn btn-primary"
+                  onClick={handleAddNew}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  새 고객 추가
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -911,7 +1015,16 @@ const Customers: React.FC = () => {
       
       <div className="page-body">
         <div className="container-xl">
-          {customers.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-5">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">로딩 중...</span>
+              </div>
+              <div className="mt-3">
+                <p className="text-muted">고객 정보를 불러오는 중입니다...</p>
+              </div>
+            </div>
+          ) : customers.length === 0 ? (
             <div className="text-center py-5">
               <div className="empty">
                 <div className="empty-img">
@@ -922,16 +1035,18 @@ const Customers: React.FC = () => {
                   첫 번째 고객을 추가해보세요.
                 </p>
                 <div className="empty-action">
-                  <button 
-                    className="btn btn-primary"
-                    onClick={() => setShowForm(true)}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19"></line>
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    새 고객 추가
-                  </button>
+                  {hasPermission('customer_create') && (
+                    <button 
+                      className="btn btn-primary"
+                      onClick={handleAddNew}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                      </svg>
+                      새 고객 추가
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1035,7 +1150,7 @@ const Customers: React.FC = () => {
                               </td>
                               <td>
                                 <div className="d-flex gap-1">
-                                  {user?.customer_access && (
+                                  {hasPermission('customer_read') && (
                                     <button 
                                       className="btn btn-sm btn-outline-primary"
                                       style={{ 
@@ -1055,7 +1170,7 @@ const Customers: React.FC = () => {
                                       </svg>
                                     </button>
                                   )}
-                                  {(user?.customer_access && user?.is_admin) && (
+                                  {hasPermission('customer_update') && (
                                     <button 
                                       className="btn btn-sm btn-outline-secondary"
                                       style={{ 
@@ -1075,7 +1190,7 @@ const Customers: React.FC = () => {
                                       </svg>
                                     </button>
                                   )}
-                                  {user?.is_admin && (
+                                  {hasPermission('customer_delete') && (
                                     <button 
                                       className="btn btn-sm btn-outline-danger"
                                       style={{ 
@@ -1316,103 +1431,6 @@ const Customers: React.FC = () => {
                   }}
                 >
                   닫기
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 엑셀 임포트 모달 */}
-      {showImportModal && (
-        <div className="modal modal-blur fade show" style={{display: 'block'}}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">엑셀에서 고객정보 가져오기</h5>
-                <button 
-                  type="button" 
-                  className="btn-close"
-                  onClick={() => {
-                    setShowImportModal(false);
-                    setSelectedFile(null);
-                  }}
-                />
-              </div>
-              <div className="modal-body">
-                <div className="mb-3">
-                  <label className="form-label">엑셀 파일 선택</label>
-                  <div className="input-group">
-                    <input
-                      type="file"
-                      className="form-control"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileSelect}
-                      disabled={isImporting}
-                    />
-                    <button 
-                      className="btn btn-outline-secondary" 
-                      type="button"
-                      onClick={() => (document.querySelector('input[type="file"]') as HTMLInputElement)?.click()}
-                      disabled={isImporting}
-                    >
-                      Browse
-                    </button>
-                  </div>
-                  {selectedFile && (
-                    <div className="form-hint mt-2">
-                      선택된 파일: {selectedFile.name}
-                    </div>
-                  )}
-                </div>
-
-                <div className="alert alert-info">
-                  <h5>엑셀 파일 형식 안내</h5>
-                  <p className="mb-2">엑셀 파일에는 다음 컬럼이 포함되어야 합니다:</p>
-                  <ul className="mb-2">
-                    <li><strong>company_name</strong> (필수): 회사명</li>
-                    <li><strong>contact_person</strong> (필수): 담당자명</li>
-                    <li><strong>email</strong> (선택): 이메일</li>
-                    <li><strong>phone</strong> (선택): 전화번호</li>
-                    <li><strong>address</strong> (선택): 주소</li>
-                    <li><strong>postal_code</strong> (선택): 우편번호</li>
-                    <li><strong>tel</strong> (선택): 전화</li>
-                    <li><strong>fax</strong> (선택): 팩스</li>
-                    <li><strong>president</strong> (선택): 대표자</li>
-                    <li><strong>mobile</strong> (선택): 휴대폰</li>
-                    <li><strong>contact</strong> (선택): 연락처</li>
-                  </ul>
-                  <p className="mb-0">
-                    <strong>주의:</strong> 동일한 회사명이 있는 경우 기존 정보가 덮어씌워집니다.
-                  </p>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button 
-                  type="button" 
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setShowImportModal(false);
-                    setSelectedFile(null);
-                  }}
-                  disabled={isImporting}
-                >
-                  취소
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-primary"
-                  onClick={handleImportSubmit}
-                  disabled={!selectedFile || isImporting}
-                >
-                  {isImporting ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                      가져오는 중...
-                    </>
-                  ) : (
-                    '불러오기'
-                  )}
                 </button>
               </div>
             </div>

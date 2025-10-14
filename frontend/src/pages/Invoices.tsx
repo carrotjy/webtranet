@@ -246,7 +246,7 @@ const Invoices: React.FC = () => {
                               </td>
                               <td>
                                 <div className="d-flex gap-1">
-                                  {user?.transaction_access && (
+                                  {(user?.transaction_access && (user?.transaction_read || user?.is_admin)) && (
                                     <Link
                                       to={`/invoices/${invoice.id}`}
                                       className="btn btn-sm btn-outline-primary"
@@ -266,7 +266,7 @@ const Invoices: React.FC = () => {
                                       </svg>
                                     </Link>
                                   )}
-                                  {(user?.transaction_access && user?.is_admin) && (
+                                  {(user?.transaction_access && (user?.transaction_update || user?.is_admin)) && (
                                     <Link
                                       to={`/invoices/${invoice.id}/edit`}
                                       className="btn btn-sm btn-outline-secondary"
@@ -286,7 +286,7 @@ const Invoices: React.FC = () => {
                                       </svg>
                                     </Link>
                                   )}
-                                  {user?.is_admin && (
+                                  {(user?.transaction_access && (user?.transaction_delete || user?.is_admin)) && (
                                     <button
                                       className="btn btn-sm btn-outline-danger"
                                       style={{ 

@@ -148,6 +148,12 @@ def update_customer(customer_id):
         customer.email = data.get('email', customer.email)
         customer.phone = data.get('phone', customer.phone)
         customer.address = data.get('address', customer.address)
+        customer.postal_code = data.get('postal_code', customer.postal_code)
+        customer.tel = data.get('tel', customer.tel)
+        customer.fax = data.get('fax', customer.fax)
+        customer.president = data.get('president', customer.president)
+        customer.mobile = data.get('mobile', customer.mobile)
+        customer.contact = data.get('contact', customer.contact)
         customer.notes = data.get('notes', customer.notes)
         
         if customer.save():

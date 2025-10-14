@@ -12,7 +12,33 @@ interface User {
   transaction_access: boolean;
   customer_access: boolean;
   spare_parts_access: boolean;
+  resource_access: boolean;  // 리소스 접근 권한 추가
   created_at: string;
+  // 서비스 리포트 CRUD 권한
+  service_report_create: boolean;
+  service_report_read: boolean;
+  service_report_update: boolean;
+  service_report_delete: boolean;
+  // 리소스 CRUD 권한
+  resource_create: boolean;
+  resource_read: boolean;
+  resource_update: boolean;
+  resource_delete: boolean;
+  // 고객정보 CRUD 권한
+  customer_create: boolean;
+  customer_read: boolean;
+  customer_update: boolean;
+  customer_delete: boolean;
+  // 거래명세서 CRUD 권한
+  transaction_create: boolean;
+  transaction_read: boolean;
+  transaction_update: boolean;
+  transaction_delete: boolean;
+  // 부품 CRUD 권한
+  spare_parts_create: boolean;
+  spare_parts_read: boolean;
+  spare_parts_update: boolean;
+  spare_parts_delete_crud: boolean;
 }
 
 interface UserFormData {
@@ -26,6 +52,32 @@ interface UserFormData {
   transaction_access: boolean;
   customer_access: boolean;
   spare_parts_access: boolean;
+  resource_access: boolean;  // 리소스 접근 권한 추가
+  // 서비스 리포트 CRUD 권한
+  service_report_create: boolean;
+  service_report_read: boolean;
+  service_report_update: boolean;
+  service_report_delete: boolean;
+  // 리소스 CRUD 권한
+  resource_create: boolean;
+  resource_read: boolean;
+  resource_update: boolean;
+  resource_delete: boolean;
+  // 고객정보 CRUD 권한
+  customer_create: boolean;
+  customer_read: boolean;
+  customer_update: boolean;
+  customer_delete: boolean;
+  // 거래명세서 CRUD 권한
+  transaction_create: boolean;
+  transaction_read: boolean;
+  transaction_update: boolean;
+  transaction_delete: boolean;
+  // 부품 CRUD 권한
+  spare_parts_create: boolean;
+  spare_parts_read: boolean;
+  spare_parts_update: boolean;
+  spare_parts_delete_crud: boolean;
 }
 
 const UserManagement: React.FC = () => {
@@ -33,6 +85,39 @@ const UserManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  // 날짜 포맷팅 함수
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    
+    try {
+      // 다양한 날짜 형식을 처리
+      let date: Date;
+      
+      // ISO 형식이나 일반적인 날짜 문자열 처리
+      if (dateString.includes('T')) {
+        date = new Date(dateString);
+      } else {
+        // 만약 단순 문자열이라면 Date 객체로 변환
+        date = new Date(dateString);
+      }
+      
+      // 유효하지 않은 날짜인 경우
+      if (isNaN(date.getTime())) {
+        return '-';
+      }
+      
+      // 연-월-일 형식으로 반환
+      return date.toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return '-';
+    }
+  };
   const [formData, setFormData] = useState<UserFormData>({
     name: '',
     email: '',
@@ -43,7 +128,33 @@ const UserManagement: React.FC = () => {
     service_report_access: false,
     transaction_access: false,
     customer_access: false,
-    spare_parts_access: false
+    spare_parts_access: false,
+    resource_access: false,
+    // 서비스 리포트 CRUD 권한
+    service_report_create: false,
+    service_report_read: false,
+    service_report_update: false,
+    service_report_delete: false,
+    // 리소스 CRUD 권한
+    resource_create: false,
+    resource_read: false,
+    resource_update: false,
+    resource_delete: false,
+    // 고객정보 CRUD 권한
+    customer_create: false,
+    customer_read: false,
+    customer_update: false,
+    customer_delete: false,
+    // 거래명세서 CRUD 권한
+    transaction_create: false,
+    transaction_read: false,
+    transaction_update: false,
+    transaction_delete: false,
+    // 부품 CRUD 권한
+    spare_parts_create: false,
+    spare_parts_read: false,
+    spare_parts_update: false,
+    spare_parts_delete_crud: false
   });
 
   useEffect(() => {
@@ -56,9 +167,15 @@ const UserManagement: React.FC = () => {
       const response = await userAPI.getUsers();
       const userData = response.data?.users || [];
       setUsers(Array.isArray(userData) ? userData : []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('사용자 목록 로딩 실패:', error);
-      alert('사용자 목록을 불러오는데 실패했습니다.');
+      let errorMessage = '사용자 목록을 불러오는데 실패했습니다.';
+      
+      if (error.code === 'ERR_NETWORK') {
+        errorMessage = '백엔드 서버에 연결할 수 없습니다. 서버가 실행되고 있는지 확인해주세요.';
+      }
+      
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -79,9 +196,17 @@ const UserManagement: React.FC = () => {
       setEditingUser(null);
       resetForm();
       loadUsers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('사용자 저장 실패:', error);
-      alert('사용자 저장에 실패했습니다.');
+      let errorMessage = '사용자 저장에 실패했습니다.';
+      
+      if (error.code === 'ERR_NETWORK') {
+        errorMessage = '백엔드 서버에 연결할 수 없습니다. 서버가 실행되고 있는지 확인해주세요.';
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      alert(errorMessage);
     }
   };
 
@@ -97,20 +222,61 @@ const UserManagement: React.FC = () => {
       service_report_access: user.service_report_access,
       transaction_access: user.transaction_access,
       customer_access: user.customer_access,
-      spare_parts_access: user.spare_parts_access
+      spare_parts_access: user.spare_parts_access,
+      resource_access: user.resource_access || false,
+      // 서비스 리포트 CRUD 권한
+      service_report_create: user.service_report_create || false,
+      service_report_read: user.service_report_read || false,
+      service_report_update: user.service_report_update || false,
+      service_report_delete: user.service_report_delete || false,
+      // 리소스 CRUD 권한
+      resource_create: user.resource_create || false,
+      resource_read: user.resource_read || false,
+      resource_update: user.resource_update || false,
+      resource_delete: user.resource_delete || false,
+      // 고객정보 CRUD 권한
+      customer_create: user.customer_create || false,
+      customer_read: user.customer_read || false,
+      customer_update: user.customer_update || false,
+      customer_delete: user.customer_delete || false,
+      // 거래명세서 CRUD 권한
+      transaction_create: user.transaction_create || false,
+      transaction_read: user.transaction_read || false,
+      transaction_update: user.transaction_update || false,
+      transaction_delete: user.transaction_delete || false,
+      // 부품 CRUD 권한
+      spare_parts_create: user.spare_parts_create || false,
+      spare_parts_read: user.spare_parts_read || false,
+      spare_parts_update: user.spare_parts_update || false,
+      spare_parts_delete_crud: user.spare_parts_delete_crud || false
     });
     setShowForm(true);
   };
 
   const handleDelete = async (userId: number) => {
+    // userId 유효성 검사 추가
+    if (!userId) {
+      console.error('유효하지 않은 사용자 ID:', userId);
+      alert('유효하지 않은 사용자 ID입니다.');
+      return;
+    }
+    
     if (window.confirm('정말로 이 사용자를 삭제하시겠습니까?')) {
       try {
         await userAPI.deleteUser(userId);
         alert('사용자가 삭제되었습니다.');
         loadUsers();
-      } catch (error) {
+      } catch (error: any) {
         console.error('사용자 삭제 실패:', error);
-        alert('사용자 삭제에 실패했습니다.');
+        let errorMessage = '사용자 삭제에 실패했습니다.';
+        
+        if (error.code === 'ERR_NETWORK') {
+          errorMessage = '백엔드 서버에 연결할 수 없습니다. 서버가 실행되고 있는지 확인해주세요.';
+        } else if (error?.response?.data?.error) {
+          errorMessage = error.response.data.error;
+        }
+        
+        alert(errorMessage);
       }
     }
   };
@@ -126,7 +292,33 @@ const UserManagement: React.FC = () => {
       service_report_access: false,
       transaction_access: false,
       customer_access: false,
-      spare_parts_access: false
+      spare_parts_access: false,
+      resource_access: false,
+      // 서비스 리포트 CRUD 권한
+      service_report_create: false,
+      service_report_read: false,
+      service_report_update: false,
+      service_report_delete: false,
+      // 리소스 CRUD 권한
+      resource_create: false,
+      resource_read: false,
+      resource_update: false,
+      resource_delete: false,
+      // 고객정보 CRUD 권한
+      customer_create: false,
+      customer_read: false,
+      customer_update: false,
+      customer_delete: false,
+      // 거래명세서 CRUD 권한
+      transaction_create: false,
+      transaction_read: false,
+      transaction_update: false,
+      transaction_delete: false,
+      // 부품 CRUD 권한
+      spare_parts_create: false,
+      spare_parts_read: false,
+      spare_parts_update: false,
+      spare_parts_delete_crud: false
     });
   };
 
@@ -220,35 +412,100 @@ const UserManagement: React.FC = () => {
                             <tr key={user.id}>
                               <td>
                                 <div className="d-flex align-items-center">
-                                  <span className="avatar avatar-sm me-2 avatar-rounded" style={{ backgroundColor: user.is_admin ? '#206bc4' : '#74788d' }}>
-                                    {user.name.charAt(0)}
-                                  </span>
                                   {user.name}
                                 </div>
                               </td>
                               <td>{user.email}</td>
                               <td>
-                                <span className={`badge ${user.department === '기술부' ? 'bg-blue' : 'bg-gray'}`}>
+                                <span className="badge" style={{ 
+                                  backgroundColor: 'white', 
+                                  border: '1px solid #4299e1', 
+                                  color: '#4299e1' 
+                                }}>
                                   {user.department}
                                 </span>
                               </td>
                               <td>{user.contact || '-'}</td>
                               <td>
                                 {user.is_admin ? (
-                                  <span className="badge bg-red">관리자</span>
+                                  <span className="badge" style={{ 
+                                    backgroundColor: 'white', 
+                                    border: '1px solid #e53e3e', 
+                                    color: '#e53e3e' 
+                                  }}>관리자</span>
                                 ) : (
-                                  <span className="badge bg-secondary">일반</span>
+                                  <span className="badge" style={{ 
+                                    backgroundColor: 'white', 
+                                    border: '1px solid #718096', 
+                                    color: '#718096' 
+                                  }}>일반</span>
                                 )}
                               </td>
                               <td>
-                                <div className="d-flex gap-1">
-                                  {user.service_report_access && <span className="badge badge-outline text-blue">서비스리포트</span>}
-                                  {user.transaction_access && <span className="badge badge-outline text-green">거래관리</span>}
-                                  {user.customer_access && <span className="badge badge-outline text-orange">고객관리</span>}
-                                  {user.spare_parts_access && <span className="badge badge-outline text-purple">부품관리</span>}
+                                <div className="d-flex gap-1 flex-wrap">
+                                  <span 
+                                    className="badge" 
+                                    style={{ 
+                                      backgroundColor: 'white', 
+                                      border: '1px solid #4299e1', 
+                                      color: '#4299e1',
+                                      filter: user.service_report_access ? 'none' : 'blur(1.5px)',
+                                      opacity: user.service_report_access ? 1 : 0.5
+                                    }}
+                                  >
+                                    리포트
+                                  </span>
+                                  <span 
+                                    className="badge" 
+                                    style={{ 
+                                      backgroundColor: 'white', 
+                                      border: '1px solid #dd6b20', 
+                                      color: '#dd6b20',
+                                      filter: user.customer_access ? 'none' : 'blur(1.5px)',
+                                      opacity: user.customer_access ? 1 : 0.5
+                                    }}
+                                  >
+                                    고객
+                                  </span>
+                                  <span 
+                                    className="badge" 
+                                    style={{ 
+                                      backgroundColor: 'white', 
+                                      border: '1px solid #d53f8c', 
+                                      color: '#d53f8c',
+                                      filter: user.resource_access ? 'none' : 'blur(1.5px)',
+                                      opacity: user.resource_access ? 1 : 0.5
+                                    }}
+                                  >
+                                    리소스
+                                  </span>
+                                  <span 
+                                    className="badge" 
+                                    style={{ 
+                                      backgroundColor: 'white', 
+                                      border: '1px solid #38a169', 
+                                      color: '#38a169',
+                                      filter: user.transaction_access ? 'none' : 'blur(1.5px)',
+                                      opacity: user.transaction_access ? 1 : 0.5
+                                    }}
+                                  >
+                                    거래
+                                  </span>
+                                  <span 
+                                    className="badge" 
+                                    style={{ 
+                                      backgroundColor: 'white', 
+                                      border: '1px solid #805ad5', 
+                                      color: '#805ad5',
+                                      filter: user.spare_parts_access ? 'none' : 'blur(1.5px)',
+                                      opacity: user.spare_parts_access ? 1 : 0.5
+                                    }}
+                                  >
+                                    부품
+                                  </span>
                                 </div>
                               </td>
-                              <td>{new Date(user.created_at).toLocaleDateString('ko-KR')}</td>
+                              <td>{formatDate(user.created_at)}</td>
                               <td>
                                 <div className="btn-list">
                                   <button 
@@ -426,6 +683,282 @@ const UserManagement: React.FC = () => {
                             />
                             <span className="form-check-label">부품 관리</span>
                           </label>
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-check">
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={formData.resource_access}
+                              onChange={(e) => setFormData({...formData, resource_access: e.target.checked})}
+                            />
+                            <span className="form-check-label">리소스 관리</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CRUD 상세 권한 */}
+                    <div className="col-12 mt-4">
+                      <label className="form-label">상세 권한 설정</label>
+                      <div className="card">
+                        <div className="card-body">
+                          
+                          {/* 서비스 리포트 CRUD 권한 */}
+                          <div className="mb-3">
+                            <h5 className="card-title">서비스 리포트 권한</h5>
+                            <div className="row">
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.service_report_create}
+                                    onChange={(e) => setFormData({...formData, service_report_create: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">생성</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.service_report_read}
+                                    onChange={(e) => setFormData({...formData, service_report_read: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">조회</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.service_report_update}
+                                    onChange={(e) => setFormData({...formData, service_report_update: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">수정</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.service_report_delete}
+                                    onChange={(e) => setFormData({...formData, service_report_delete: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">삭제</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 리소스 CRUD 권한 */}
+                          <div className="mb-3">
+                            <h5 className="card-title">리소스 권한</h5>
+                            <div className="row">
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.resource_create}
+                                    onChange={(e) => setFormData({...formData, resource_create: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">생성</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.resource_read}
+                                    onChange={(e) => setFormData({...formData, resource_read: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">조회</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.resource_update}
+                                    onChange={(e) => setFormData({...formData, resource_update: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">수정</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.resource_delete}
+                                    onChange={(e) => setFormData({...formData, resource_delete: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">삭제</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 고객정보 CRUD 권한 */}
+                          <div className="mb-0">
+                            <h5 className="card-title">고객정보 권한</h5>
+                            <div className="row">
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.customer_create}
+                                    onChange={(e) => setFormData({...formData, customer_create: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">생성</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.customer_read}
+                                    onChange={(e) => setFormData({...formData, customer_read: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">조회</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.customer_update}
+                                    onChange={(e) => setFormData({...formData, customer_update: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">수정</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.customer_delete}
+                                    onChange={(e) => setFormData({...formData, customer_delete: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">삭제</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 거래명세서 CRUD 권한 */}
+                          <div className="mb-3">
+                            <h5 className="card-title">거래명세서 권한</h5>
+                            <div className="row">
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.transaction_create}
+                                    onChange={(e) => setFormData({...formData, transaction_create: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">생성</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.transaction_read}
+                                    onChange={(e) => setFormData({...formData, transaction_read: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">조회</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.transaction_update}
+                                    onChange={(e) => setFormData({...formData, transaction_update: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">수정</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.transaction_delete}
+                                    onChange={(e) => setFormData({...formData, transaction_delete: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">삭제</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 부품 CRUD 권한 */}
+                          <div className="mb-3">
+                            <h5 className="card-title">부품 권한</h5>
+                            <div className="row">
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.spare_parts_create}
+                                    onChange={(e) => setFormData({...formData, spare_parts_create: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">생성</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.spare_parts_read}
+                                    onChange={(e) => setFormData({...formData, spare_parts_read: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">조회</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.spare_parts_update}
+                                    onChange={(e) => setFormData({...formData, spare_parts_update: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">수정</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.spare_parts_delete_crud}
+                                    onChange={(e) => setFormData({...formData, spare_parts_delete_crud: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">삭제</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+
                         </div>
                       </div>
                     </div>

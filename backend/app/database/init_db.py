@@ -15,6 +15,17 @@ def init_database():
     """데이터베이스와 테이블을 초기화합니다."""
     conn = get_db_connection()
     
+    # users 테이블이 이미 존재하는지 확인
+    table_exists = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+    ).fetchone()
+    
+    if table_exists:
+        # 초기 데이터만 확인
+        create_initial_data(conn)
+        conn.close()
+        return
+    
     # 사용자 테이블 생성
     conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -331,6 +342,13 @@ def init_database():
 def create_initial_data(conn):
     """초기 관리자 계정과 샘플 데이터를 생성합니다."""
     
+    # 사용자가 이미 존재하는지 확인
+    users_exist = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+    
+    if users_exist > 0:
+        # 이미 사용자가 있으면 초기 데이터 생성을 건너뜀
+        return
+    
     # admin 계정이 이미 존재하는지 확인
     admin_exists = conn.execute(
         'SELECT id FROM users WHERE email = ?', ('admin@webtranet.com',)
@@ -340,38 +358,15 @@ def create_initial_data(conn):
         # admin 계정 생성
         admin_password = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt())
         conn.execute('''
-            INSERT INTO users (name, username, email, password, contact, department, role,
-                             service_report_access, invoice_access, 
-                             customer_access, spare_parts_access, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', ('관리자', 'admin', 'admin@webtranet.com', admin_password.decode('utf-8'),
-              '02-1234-5678', '관리부', '관리자', 1, 1, 1, 1, 1))
+            INSERT INTO users (name, email, password, contact, department,
+                             service_report_access, transaction_access, 
+                             customer_access, spare_parts_access, resource_access, is_admin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', ('관리자', 'admin@webtranet.com', admin_password.decode('utf-8'),
+              '02-1234-5678', '관리부', 1, 1, 1, 1, 1, 1))
         
-        # 테스트용 일반 사용자들 생성
-        user_password = bcrypt.hashpw('password123'.encode('utf-8'), bcrypt.gensalt())
-        conn.execute('''
-            INSERT INTO users (name, username, email, password, contact, department, role,
-                             service_report_access, invoice_access,
-                             customer_access, spare_parts_access, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', ('운영자1', 'operator1', 'operator1@webtranet.com', user_password.decode('utf-8'),
-              '010-1234-5679', '운영부', '운영자', 1, 1, 1, 1, 0))
-        
-        conn.execute('''
-            INSERT INTO users (name, username, email, password, contact, department, role,
-                             service_report_access, invoice_access,
-                             customer_access, spare_parts_access, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', ('기술자1', 'technician1', 'tech1@webtranet.com', user_password.decode('utf-8'),
-              '010-1234-5680', '기술부', '기술자', 1, 0, 1, 1, 0))
-        
-        conn.execute('''
-            INSERT INTO users (name, username, email, password, contact, department, role,
-                             service_report_access, invoice_access,
-                             customer_access, spare_parts_access, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', ('조회자1', 'viewer1', 'viewer1@webtranet.com', user_password.decode('utf-8'),
-              '010-1234-5681', '조회부', '조회자', 1, 0, 1, 1, 0))
+        # 테스트용 일반 사용자들 생성 (기존 사용자가 있으므로 생략)
+        # 기존 사용자들이 이미 있으므로 추가 생성하지 않음
         
         # 샘플 고객 데이터
         conn.execute('''
