@@ -1011,47 +1011,43 @@ const ServiceReports: React.FC = () => {
       const day = dateObj.getDate();
       const timeData = dateGroups.get(dateStr)!;
 
-      // 작업시간 항목
-      if (timeData.workHours > 0) {
-        const quantity = Math.round(timeData.workHours * 10) / 10; // 소수점 1자리
-        const unitPrice = sparePartSettings.workTimePrice;
-        const totalPrice = Math.round(quantity * unitPrice);
-        const vat = Math.round(totalPrice * 0.1);
+      // 작업시간 항목 (0시간이어도 표시)
+      const workQuantity = Math.round(timeData.workHours * 10) / 10; // 소수점 1자리
+      const workUnitPrice = sparePartSettings.workTimePrice;
+      const workTotalPrice = Math.round(workQuantity * workUnitPrice);
+      const workVat = Math.round(workTotalPrice * 0.1);
 
-        items.push({
-          id: `work-${dateStr}`,
-          month,
-          day,
-          item_name: '작업시간',
-          specification: '1인 1시간',
-          quantity,
-          unit_price: unitPrice,
-          total_price: totalPrice,
-          vat,
-          dateGroup: dateStr
-        });
-      }
+      items.push({
+        id: `work-${dateStr}`,
+        month,
+        day,
+        item_name: '작업시간',
+        specification: '1인 1시간',
+        quantity: workQuantity,
+        unit_price: workUnitPrice,
+        total_price: workTotalPrice,
+        vat: workVat,
+        dateGroup: dateStr
+      });
 
-      // 이동시간 항목
-      if (timeData.travelHours > 0) {
-        const quantity = Math.round(timeData.travelHours * 10) / 10;
-        const unitPrice = sparePartSettings.travelTimePrice;
-        const totalPrice = Math.round(quantity * unitPrice);
-        const vat = Math.round(totalPrice * 0.1);
+      // 이동시간 항목 (0시간이어도 표시)
+      const travelQuantity = Math.round(timeData.travelHours * 10) / 10;
+      const travelUnitPrice = sparePartSettings.travelTimePrice;
+      const travelTotalPrice = Math.round(travelQuantity * travelUnitPrice);
+      const travelVat = Math.round(travelTotalPrice * 0.1);
 
-        items.push({
-          id: `travel-${dateStr}`,
-          month,
-          day,
-          item_name: '이동시간',
-          specification: '1시간',
-          quantity,
-          unit_price: unitPrice,
-          total_price: totalPrice,
-          vat,
-          dateGroup: dateStr
-        });
-      }
+      items.push({
+        id: `travel-${dateStr}`,
+        month,
+        day,
+        item_name: '이동시간',
+        specification: '1시간',
+        quantity: travelQuantity,
+        unit_price: travelUnitPrice,
+        total_price: travelTotalPrice,
+        vat: travelVat,
+        dateGroup: dateStr
+      });
     });
 
     // 부품 항목 추가 (마지막 날짜에 추가)
