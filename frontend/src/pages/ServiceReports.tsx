@@ -1067,7 +1067,7 @@ const ServiceReports: React.FC = () => {
         // 파트번호가 있는 경우 스페어파트에서 청구가 조회
         if (part.part_number) {
           try {
-            const response = await sparePartsAPI.getByPartNumber(part.part_number);
+            const response = await sparePartsAPI.searchPartByNumber(part.part_number);
             if (response.data && response.data.billing_price_krw) {
               unitPrice = response.data.billing_price_krw;
             } else {
