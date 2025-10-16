@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authAPI } from '../services/api';
@@ -8,47 +8,87 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+  const [loginAttempted, setLoginAttempted] = useState(false);
+
   const { user, login } = useAuth();
+  const navigate = useNavigate();
 
-  // 이미 로그인된 사용자는 대시보드로 리다이렉트
-  if (user) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // 로그인 성공 시에만 대시보드로 이동 (에러가 없고, 로그인 시도 후에만)
+  useEffect(() => {
+    if (user && !error && loginAttempted) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate, error, loginAttempted]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handleLogin = async () => {
+    if (loading) {
+      return;
+    }
+
+    // 에러 초기화
     setError('');
+    setLoading(true);
+    setLoginAttempted(true);
 
     try {
       await login(email, password);
+      // 성공하면 useEffect에서 자동으로 navigate됨
     } catch (err: any) {
-      setError(err.message);
-    } finally {
+      const errorMessage = err.message || '로그인에 실패했습니다.';
+      setError(errorMessage);
       setLoading(false);
+      // 로그인 실패했으므로 loginAttempted를 false로 설정하여 navigate 방지
+      setLoginAttempted(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleLogin();
   };
 
   return (
     <div className="page page-center">
       <div className="container-tight py-4">
         <div className="text-center mb-4">
-          <h1 className="h2 text-primary">Webtranet</h1>
-          <p className="text-muted">산업용 공작기계 서비스 관리 시스템</p>
+          <h1 className="h2 text-primary">LVD Korea Webtranet</h1>
+          <p className="text-muted">v1.0 BETA</p>
         </div>
         
         <div className="card card-md">
           <div className="card-body">
             <h2 className="h2 text-center mb-4">로그인</h2>
             
-            {error && (
-              <div className="alert alert-danger" role="alert">
-                {error}
+            {error && error.trim() !== '' && (
+              <div className="alert alert-danger alert-dismissible mb-3" role="alert" style={{ position: 'relative' }}>
+                <div className="d-flex align-items-start">
+                  <div className="me-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <circle cx="12" cy="12" r="9"/>
+                      <line x1="12" y1="8" x2="12" y2="12"/>
+                      <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                  </div>
+                  <div className="flex-grow-1">
+                    <strong>{error}</strong>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setError('');
+                  }}
+                  aria-label="Close"
+                  style={{ position: 'absolute', right: '10px', top: '10px' }}
+                ></button>
               </div>
             )}
             
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="mb-3">
                 <label className="form-label">이메일</label>
                 <input
@@ -58,11 +98,10 @@ const Login: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="username"
-                  required
                   disabled={loading}
                 />
               </div>
-              
+
               <div className="mb-2">
                 <label className="form-label">비밀번호</label>
                 <input
@@ -72,14 +111,13 @@ const Login: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
-                  required
                   disabled={loading}
                 />
               </div>
-              
+
               <div className="form-footer">
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="btn btn-primary w-100"
                   disabled={loading}
                 >
@@ -95,13 +133,6 @@ const Login: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
-        
-        <div className="text-center text-muted mt-3">
-          <small>
-            테스트 계정: admin@webtranet.com / admin<br />
-            일반 계정: technician@webtranet.com / password123
-          </small>
         </div>
       </div>
     </div>

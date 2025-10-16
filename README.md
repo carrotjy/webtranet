@@ -84,15 +84,6 @@ python run.py
 
 서버는 http://localhost:5000 에서 실행됩니다.
 
-## 초기 계정 정보
-- **관리자 계정**
-  - 이메일: admin@webtranet.com
-  - 비밀번호: admin
-
-- **테스트 계정**
-  - 이메일: technician@webtranet.com
-  - 비밀번호: password123
-
 ## API 엔드포인트
 
 ### 인증 API

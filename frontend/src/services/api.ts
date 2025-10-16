@@ -28,7 +28,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // 로그인 요청 자체는 제외 (로그인 실패 시 리다이렉트하지 않음)
+    const isLoginRequest = error.config?.url?.includes('/auth/login');
+
+    if (error.response?.status === 401 && !isLoginRequest) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -143,6 +146,14 @@ export const serviceReportAPI = {
     console.log(`API: 서비스 리포트 삭제 시작, ID: ${id}`);
     return api.delete(`/service-reports/${id}`);
   },
+  lockServiceReport: (id: number) => {
+    console.log(`API: 서비스 리포트 잠금, ID: ${id}`);
+    return api.post(`/service-reports/${id}/lock`);
+  },
+  unlockServiceReport: (id: number) => {
+    console.log(`API: 서비스 리포트 잠금 해제, ID: ${id}`);
+    return api.post(`/service-reports/${id}/unlock`);
+  },
 };
 
 // Spare Parts API
@@ -168,6 +179,26 @@ export const sparePartsAPI = {
       unit_price: number;
     }>;
   }) => api.post('/api/spare-parts/process-service-parts', data),
+};
+
+// Invoice API
+export const invoiceAPI = {
+  getInvoices: (params?: { page?: number; per_page?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.per_page) searchParams.append('per_page', params.per_page.toString());
+
+    const queryString = searchParams.toString();
+    return api.get(`/api/invoices${queryString ? `?${queryString}` : ''}`);
+  },
+  getInvoiceById: (id: number) => api.get(`/api/invoices/${id}`),
+  createInvoice: (invoiceData: any) => {
+    console.log('API: 거래명세서 생성 시작');
+    console.log('API: 생성 데이터:', invoiceData);
+    return api.post('/api/invoices', invoiceData);
+  },
+  updateInvoice: (id: number, invoiceData: any) => api.put(`/api/invoices/${id}`, invoiceData),
+  deleteInvoice: (id: number) => api.delete(`/api/invoices/${id}`),
 };
 
 // Transaction API

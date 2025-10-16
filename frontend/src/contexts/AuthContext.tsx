@@ -101,19 +101,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await authAPI.login({ 
-        username: email, // API service expects username field, map email to it
-        password 
+      const response = await authAPI.login({
+        username: email,
+        password
       });
 
       const { access_token, user: userData } = response.data;
-      
+
       localStorage.setItem('token', access_token);
       localStorage.setItem('user', JSON.stringify(userData));
       setToken(access_token);
       setUser(userData);
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || '로그인에 실패했습니다.');
+      const errorMessage = error.response?.data?.error || '로그인에 실패했습니다.';
+      throw new Error(errorMessage);
     }
   };
 

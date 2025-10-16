@@ -1013,62 +1013,56 @@ def add_price_history(part_id):
 
 @spare_parts_bp.route('/spare-parts/service-search', methods=['POST'])
 def search_part_for_service_report():
-    """파트번호로 부품 검색 (서비스 리포트용)"""
+    """부품번호 또는 부품명으로 부품 검색 (서비스 리포트용 - 부분 일치)"""
     try:
         data = request.get_json()
-        part_number = data.get('part_number', '').strip() if data else ''
-        print(f"[DEBUG] 부품 검색 요청: part_number={part_number}")
-        
-        if not part_number:
+        search_term = data.get('part_number', '').strip() if data else ''
+
+        if not search_term:
             return jsonify({
-                'success': False,
-                'error': '파트번호를 입력해주세요.'
-            }), 400
-        
+                'success': True,
+                'spare_parts': []
+            }), 200
+
         conn = get_db_connection()
-        
-        # 정확한 파트번호로 검색
-        part = conn.execute('''
-            SELECT * FROM spare_parts 
-            WHERE part_number = ?
-        ''', (part_number,)).fetchone()
-        
-        if part:
-            # Row 객체를 dict로 변환
+
+        # 부품번호 또는 부품명으로 부분 일치 검색 (최대 10개)
+        parts = conn.execute('''
+            SELECT * FROM spare_parts
+            WHERE part_number LIKE ? OR part_name LIKE ?
+            LIMIT 10
+        ''', (f'%{search_term}%', f'%{search_term}%')).fetchall()
+
+        spare_parts = []
+        for part in parts:
             part_dict = dict(part)
-            
+
             # 최신 청구가 조회
             latest_billing_price = conn.execute('''
-                SELECT billing_price 
-                FROM price_history 
-                WHERE spare_part_id = ? 
-                ORDER BY effective_date DESC, created_at DESC 
+                SELECT billing_price
+                FROM price_history
+                WHERE spare_part_id = ?
+                ORDER BY effective_date DESC, created_at DESC
                 LIMIT 1
             ''', (part_dict['id'],)).fetchone()
-            
-            billing_price = latest_billing_price['billing_price'] if latest_billing_price else 0
-            
-            print(f"[DEBUG] 부품 찾음: {part_dict['part_name']}, 청구가: {billing_price}")
-            
-            return jsonify({
-                'success': True,
-                'found': True,
-                'part': {
-                    'id': part_dict['id'],
-                    'part_number': part_dict['part_number'],
-                    'part_name': part_dict['part_name'],
-                    'billing_price': billing_price,
-                    'current_stock': part_dict['stock_quantity']
-                }
+
+            charge_price = latest_billing_price['billing_price'] if latest_billing_price else 0
+
+            spare_parts.append({
+                'id': part_dict['id'],
+                'part_number': part_dict['part_number'],
+                'part_name': part_dict['part_name'],
+                'charge_price': charge_price,
+                'stock_quantity': part_dict['stock_quantity']
             })
-        else:
-            print(f"[DEBUG] 부품 없음: {part_number}")
-            return jsonify({
-                'success': True,
-                'found': False,
-                'message': '해당 파트는 등록되어 있지 않습니다. 파트명을 직접 입력하세요.'
-            })
-            
+
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'spare_parts': spare_parts
+        })
+
     except Exception as e:
         return jsonify({
             'success': False,

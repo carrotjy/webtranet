@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../services/api';
+import { invoiceAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Invoice {
@@ -29,8 +29,8 @@ const Invoices: React.FC = () => {
   const fetchInvoices = async (page: number) => {
     try {
       setLoading(true);
-      const response = await api.get(`/invoices?page=${page}&per_page=${perPage}`);
-      
+      const response = await invoiceAPI.getInvoices({ page, per_page: perPage });
+
       setInvoices(response.data.invoices || []);
       setTotal(response.data.total || 0);
       setTotalPages(response.data.pages || 0);
@@ -60,7 +60,7 @@ const Invoices: React.FC = () => {
     }
 
     try {
-      await api.delete(`/invoices/${invoiceId}`);
+      await invoiceAPI.deleteInvoice(invoiceId);
       alert('거래명세표가 삭제되었습니다.');
       fetchInvoices(currentPage);
     } catch (error) {

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Read(//c/Users/JHI/Downloads/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

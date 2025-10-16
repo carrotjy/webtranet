@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
-from app.utils.auth import permission_required, get_current_user, service_report_update_required
+from app.utils.auth import permission_required, get_current_user, service_report_update_required, admin_required
 from app.models.service_report import ServiceReport
+from app.database.init_db import get_db_connection
 
 service_report_bp = Blueprint('service_report', __name__)
 
@@ -157,7 +158,11 @@ def update_service_report(report_id):
         report = ServiceReport.get_by_id(report_id)
         if not report:
             return jsonify({'error': '서비스 리포트를 찾을 수 없습니다.'}), 404
-        
+
+        # 잠금 상태 확인
+        if report.is_locked:
+            return jsonify({'error': '이 리포트는 잠금 처리되어 수정할 수 없습니다. 관리자에게 문의하세요.'}), 403
+
         data = request.get_json()
         
         # 필드 업데이트
@@ -239,11 +244,77 @@ def delete_service_report(report_id):
         report = ServiceReport.get_by_id(report_id)
         if not report:
             return jsonify({'error': '서비스 리포트를 찾을 수 없습니다.'}), 404
-        
+
         if report.delete():
             return jsonify({'message': '서비스 리포트가 성공적으로 삭제되었습니다.'}), 200
         else:
             return jsonify({'error': '서비스 리포트 삭제에 실패했습니다.'}), 500
-            
+
     except Exception as e:
         return jsonify({'error': f'서비스 리포트 삭제 중 오류가 발생했습니다: {str(e)}'}), 500
+
+@service_report_bp.route('/<int:report_id>/lock', methods=['POST'])
+@admin_required
+def lock_service_report(report_id):
+    """서비스 리포트 잠금 (관리자만 가능)"""
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': '사용자 인증이 필요합니다.'}), 401
+
+        report = ServiceReport.get_by_id(report_id)
+        if not report:
+            return jsonify({'error': '서비스 리포트를 찾을 수 없습니다.'}), 404
+
+        if report.is_locked:
+            return jsonify({'error': '이미 잠금 처리된 리포트입니다.'}), 400
+
+        # 잠금 처리
+        conn = get_db_connection()
+        conn.execute('''
+            UPDATE service_reports
+            SET is_locked = 1, locked_by = ?, locked_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (current_user.id, report_id))
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'message': '서비스 리포트가 잠금 처리되었습니다.',
+            'is_locked': True,
+            'locked_by': current_user.id,
+            'locked_by_name': current_user.name
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': f'리포트 잠금 중 오류가 발생했습니다: {str(e)}'}), 500
+
+@service_report_bp.route('/<int:report_id>/unlock', methods=['POST'])
+@admin_required
+def unlock_service_report(report_id):
+    """서비스 리포트 잠금 해제 (관리자만 가능)"""
+    try:
+        report = ServiceReport.get_by_id(report_id)
+        if not report:
+            return jsonify({'error': '서비스 리포트를 찾을 수 없습니다.'}), 404
+
+        if not report.is_locked:
+            return jsonify({'error': '잠금 처리되지 않은 리포트입니다.'}), 400
+
+        # 잠금 해제
+        conn = get_db_connection()
+        conn.execute('''
+            UPDATE service_reports
+            SET is_locked = 0, locked_by = NULL, locked_at = NULL
+            WHERE id = ?
+        ''', (report_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'message': '서비스 리포트 잠금이 해제되었습니다.',
+            'is_locked': False
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': f'리포트 잠금 해제 중 오류가 발생했습니다: {str(e)}'}), 500

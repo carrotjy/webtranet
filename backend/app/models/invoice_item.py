@@ -2,17 +2,22 @@ from app.database.init_db import get_db_connection
 
 class InvoiceItem:
     """거래명세표 항목 모델"""
-    
-    def __init__(self, id=None, invoice_id=None, item_type=None, 
-                 description=None, quantity=None, unit_price=None, 
-                 total_price=None, created_at=None, updated_at=None):
+
+    def __init__(self, id=None, invoice_id=None, item_type=None,
+                 description=None, quantity=None, unit_price=None,
+                 total_price=None, month=None, day=None, item_name=None,
+                 part_number=None, created_at=None, updated_at=None):
         self.id = id
         self.invoice_id = invoice_id
-        self.item_type = item_type  # 'work', 'travel', 'parts'
+        self.item_type = item_type  # 'work', 'travel', 'parts', 'nego'
         self.description = description
         self.quantity = quantity
         self.unit_price = unit_price
         self.total_price = total_price
+        self.month = month
+        self.day = day
+        self.item_name = item_name
+        self.part_number = part_number
         self.created_at = created_at
         self.updated_at = updated_at
     
@@ -118,22 +123,25 @@ class InvoiceItem:
             if self.id:
                 # 수정
                 conn.execute('''
-                    UPDATE invoice_items SET 
-                    item_type=?, description=?, quantity=?, unit_price=?, 
-                    total_price=?, updated_at=CURRENT_TIMESTAMP
+                    UPDATE invoice_items SET
+                    item_type=?, description=?, quantity=?, unit_price=?,
+                    total_price=?, month=?, day=?, item_name=?, part_number=?,
+                    updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
-                ''', (self.item_type, self.description, self.quantity, 
-                     self.unit_price, self.total_price, self.id))
+                ''', (self.item_type, self.description, self.quantity,
+                     self.unit_price, self.total_price, self.month, self.day,
+                     self.item_name, self.part_number, self.id))
             else:
                 # 신규 생성
                 cursor = conn.execute('''
                     INSERT INTO invoice_items (invoice_id, item_type, description,
-                    quantity, unit_price, total_price)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    quantity, unit_price, total_price, month, day, item_name, part_number)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (self.invoice_id, self.item_type, self.description,
-                     self.quantity, self.unit_price, self.total_price))
+                     self.quantity, self.unit_price, self.total_price,
+                     self.month, self.day, self.item_name, self.part_number))
                 self.id = cursor.lastrowid
-            
+
             conn.commit()
             return self.id
         except Exception as e:
@@ -184,10 +192,14 @@ class InvoiceItem:
             quantity=row['quantity'],
             unit_price=row['unit_price'],
             total_price=row['total_price'],
+            month=row['month'] if 'month' in row.keys() else None,
+            day=row['day'] if 'day' in row.keys() else None,
+            item_name=row['item_name'] if 'item_name' in row.keys() else None,
+            part_number=row['part_number'] if 'part_number' in row.keys() else None,
             created_at=row['created_at'],
             updated_at=row['updated_at']
         )
-    
+
     def to_dict(self):
         """딕셔너리로 변환"""
         return {
@@ -198,6 +210,10 @@ class InvoiceItem:
             'quantity': self.quantity,
             'unit_price': self.unit_price,
             'total_price': self.total_price,
+            'month': self.month,
+            'day': self.day,
+            'item_name': self.item_name,
+            'part_number': self.part_number,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

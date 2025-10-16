@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, make_response
 from flask_jwt_extended import jwt_required
 from app.models.invoice_rate import InvoiceRate
 from app.utils.auth import admin_required
@@ -9,7 +9,11 @@ invoice_rate_bp = Blueprint('invoice_rate', __name__)
 @invoice_rate_bp.route('/admin/invoice-rates', methods=['OPTIONS'])
 def handle_preflight():
     """Invoice 요율 경로에 대한 CORS preflight 처리"""
-    return '', 200
+    response = make_response('', 200)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
 
 @invoice_rate_bp.route('/admin/invoice-rates', methods=['GET'])
 @admin_required

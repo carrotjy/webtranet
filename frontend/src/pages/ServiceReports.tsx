@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api, { customerAPI, serviceReportAPI, resourceAPI, authAPI, userAPI, sparePartsAPI } from '../services/api';
+import api, { customerAPI, serviceReportAPI, resourceAPI, authAPI, userAPI, sparePartsAPI, invoiceAPI } from '../services/api';
 import Pagination from '../components/Pagination';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -73,6 +73,9 @@ interface ServiceReport {
   status?: string;
   work_hours?: number;
   parts_used?: string;
+  is_locked?: boolean;
+  locked_by?: number;
+  locked_at?: string;
   created_at?: string;
   updated_at?: string;
   used_parts?: UsedPart[];
@@ -110,6 +113,8 @@ interface InvoiceLineItem {
   total_price: number;
   vat: number;
   isNego?: boolean;
+  isHeader?: boolean;  // 헤더 행 구분
+  isBlank?: boolean;   // 빈 행 구분
   dateGroup: string; // 날짜 그룹핑용 (YYYY-MM-DD)
 }
 
@@ -353,6 +358,13 @@ const ServiceReports: React.FC = () => {
     travelTimePrice: 70000
   });
 
+  // 리포트 상세보기 모달에서 청구가 표시용 상태
+  const [partsWithBillingPrice, setPartsWithBillingPrice] = useState<any[]>([]);
+
+  // 드래그 앤 드롭 관련 상태
+  const [draggedItem, setDraggedItem] = useState<InvoiceLineItem | null>(null);
+  const [dragOverDateGroup, setDragOverDateGroup] = useState<string | null>(null);
+
   useEffect(() => {
     loadReports();
     loadCustomers();
@@ -361,6 +373,83 @@ const ServiceReports: React.FC = () => {
     loadInvoiceCodes();
     checkAdminPermission();
   }, []);
+
+  // viewingReport가 변경되면 청구가 계산
+  useEffect(() => {
+    const calculateBillingPrices = async () => {
+      if (!viewingReport) {
+        setPartsWithBillingPrice([]);
+        return;
+      }
+
+      // used_parts 데이터 추출
+      let partsData: any[] = [];
+      const usedParts = viewingReport.used_parts as any;
+      const partsUsed = (viewingReport as any).parts_used;
+
+      if (Array.isArray(usedParts)) {
+        partsData = usedParts;
+      } else if (typeof usedParts === 'string' && usedParts.trim()) {
+        partsData = [{
+          part_name: usedParts,
+          part_number: '-',
+          quantity: '-',
+          unit_price: 0,
+          total_price: 0
+        }];
+      } else if (partsUsed && typeof partsUsed === 'string' && partsUsed.trim()) {
+        partsData = [{
+          part_name: partsUsed,
+          part_number: '-',
+          quantity: '-',
+          unit_price: 0,
+          total_price: 0
+        }];
+      }
+
+      if (partsData.length === 0) {
+        setPartsWithBillingPrice([]);
+        return;
+      }
+
+      // 각 부품의 청구가 계산
+      const updatedParts = await Promise.all(
+        partsData.map(async (part) => {
+          let billingPrice = 0;
+
+          // 1. 부품번호가 있으면 스페어파트 DB에서 청구가 조회
+          if (part.part_number && part.part_number !== '-') {
+            try {
+              const response = await sparePartsAPI.searchPartByNumber(part.part_number);
+              if (response.data && response.data.billing_price_krw) {
+                billingPrice = response.data.billing_price_krw;
+              }
+            } catch (error) {
+              console.error('스페어파트 조회 실패:', error);
+            }
+          }
+
+          // 2. 청구가가 없으면 구매가에 마진율 적용
+          if (billingPrice === 0 && part.unit_price > 0) {
+            billingPrice = Math.round(part.unit_price * (1 + sparePartSettings.marginRate / 100));
+          }
+
+          const quantity = typeof part.quantity === 'number' ? part.quantity : parseFloat(part.quantity) || 0;
+          const totalBillingPrice = Math.round(billingPrice * quantity);
+
+          return {
+            ...part,
+            billing_unit_price: billingPrice,
+            billing_total_price: totalBillingPrice
+          };
+        })
+      );
+
+      setPartsWithBillingPrice(updatedParts);
+    };
+
+    calculateBillingPrices();
+  }, [viewingReport, sparePartSettings.marginRate]);
 
   // 인보이스 코드 로드 후 기본값 업데이트
   useEffect(() => {
@@ -1004,23 +1093,55 @@ const ServiceReports: React.FC = () => {
     // 날짜별로 정렬
     const sortedDates = Array.from(dateGroups.keys()).sort();
 
-    // 각 날짜별로 작업시간, 이동시간 항목 생성
-    sortedDates.forEach(dateStr => {
+    // 각 날짜별로 항목 생성
+    sortedDates.forEach((dateStr, dateIndex) => {
       const dateObj = new Date(dateStr);
       const month = dateObj.getMonth() + 1;
       const day = dateObj.getDate();
       const timeData = dateGroups.get(dateStr)!;
 
-      // 작업시간 항목 (0시간이어도 표시)
-      const workQuantity = Math.round(timeData.workHours * 10) / 10; // 소수점 1자리
+      // 이전 날짜와 다르면 빈 행 추가
+      if (dateIndex > 0) {
+        items.push({
+          id: `blank-${dateStr}`,
+          month: 0,
+          day: 0,
+          item_name: '',
+          specification: '',
+          quantity: 0,
+          unit_price: 0,
+          total_price: 0,
+          vat: 0,
+          isBlank: true,
+          dateGroup: dateStr
+        });
+      }
+
+      // 헤더 행: 1. 서비스 비용
+      items.push({
+        id: `header-service-${dateStr}`,
+        month,
+        day,
+        item_name: '1. 서비스 비용',
+        specification: '',
+        quantity: 0,
+        unit_price: 0,
+        total_price: 0,
+        vat: 0,
+        isHeader: true,
+        dateGroup: dateStr
+      });
+
+      // 작업시간 항목
+      const workQuantity = Math.round(timeData.workHours * 10) / 10;
       const workUnitPrice = sparePartSettings.workTimePrice;
       const workTotalPrice = Math.round(workQuantity * workUnitPrice);
       const workVat = Math.round(workTotalPrice * 0.1);
 
       items.push({
         id: `work-${dateStr}`,
-        month,
-        day,
+        month: 0,  // 헤더 다음 행은 월/일 표시 안 함
+        day: 0,
         item_name: '작업시간',
         specification: '1인 1시간',
         quantity: workQuantity,
@@ -1030,7 +1151,7 @@ const ServiceReports: React.FC = () => {
         dateGroup: dateStr
       });
 
-      // 이동시간 항목 (0시간이어도 표시)
+      // 이동시간 항목
       const travelQuantity = Math.round(timeData.travelHours * 10) / 10;
       const travelUnitPrice = sparePartSettings.travelTimePrice;
       const travelTotalPrice = Math.round(travelQuantity * travelUnitPrice);
@@ -1038,8 +1159,8 @@ const ServiceReports: React.FC = () => {
 
       items.push({
         id: `travel-${dateStr}`,
-        month,
-        day,
+        month: 0,
+        day: 0,
         item_name: '이동시간',
         specification: '1시간',
         quantity: travelQuantity,
@@ -1050,12 +1171,23 @@ const ServiceReports: React.FC = () => {
       });
     });
 
-    // 부품 항목 추가 (마지막 날짜에 추가)
-    const lastDate = sortedDates[sortedDates.length - 1];
-    if (lastDate && report.used_parts && report.used_parts.length > 0) {
-      const lastDateObj = new Date(lastDate);
-      const month = lastDateObj.getMonth() + 1;
-      const day = lastDateObj.getDate();
+    // 부품 항목 추가
+    if (report.used_parts && report.used_parts.length > 0) {
+      // 헤더 행: 2. 부품 비용
+      const lastDate = sortedDates[sortedDates.length - 1] || '';
+      items.push({
+        id: `header-parts`,
+        month: 0,
+        day: 0,
+        item_name: '2. 부품 비용',
+        specification: '',
+        quantity: 0,
+        unit_price: 0,
+        total_price: 0,
+        vat: 0,
+        isHeader: true,
+        dateGroup: lastDate ? `${lastDate}-header-parts` : 'header-parts'
+      });
 
       for (const part of report.used_parts) {
         let unitPrice = 0;
@@ -1067,7 +1199,6 @@ const ServiceReports: React.FC = () => {
             if (response.data && response.data.billing_price_krw) {
               unitPrice = response.data.billing_price_krw;
             } else {
-              // 청구가가 없으면 가격이력 입력 필요 (추후 모달로 처리)
               console.warn(`파트번호 ${part.part_number}의 청구가가 없습니다.`);
             }
           } catch (error) {
@@ -1085,15 +1216,15 @@ const ServiceReports: React.FC = () => {
 
         items.push({
           id: `part-${part.id || Math.random()}`,
-          month,
-          day,
+          month: 0,
+          day: 0,
           item_name: part.part_name,
           specification: part.part_number || '',
           quantity: part.quantity,
           unit_price: unitPrice,
           total_price: totalPrice,
           vat,
-          dateGroup: lastDate
+          dateGroup: lastDate ? `${lastDate}-header-parts` : 'header-parts'
         });
       }
     }
@@ -1123,16 +1254,12 @@ const ServiceReports: React.FC = () => {
 
   // 네고 항목 추가
   const addNegoItem = (afterDateGroup: string) => {
-    const targetDate = new Date(afterDateGroup);
-    const month = targetDate.getMonth() + 1;
-    const day = targetDate.getDate();
-
     const negoItem: InvoiceLineItem = {
       id: `nego-${Date.now()}`,
-      month,
-      day,
+      month: 0,  // 같은 dateGroup 내에서는 월/일 표시 안 함
+      day: 0,
       item_name: 'NEGO',
-      specification: '',
+      specification: '1시간',
       quantity: 0,
       unit_price: 0,
       total_price: 0,
@@ -1163,11 +1290,272 @@ const ServiceReports: React.FC = () => {
     setInvoiceLineItems(prev => prev.filter(item => item.id !== id));
   };
 
-  // 최종 거래명세서 생성 (추후 구현)
-  const handleFinalizeInvoice = () => {
-    console.log('거래명세서 항목:', invoiceLineItems);
-    // TODO: 백엔드 API 호출하여 실제 거래명세서 생성
-    alert('거래명세서 생성 기능은 추후 구현 예정입니다.');
+  // 드래그 시작 (부품 비용 헤더를 드래그)
+  const handleDragStart = (e: React.DragEvent, item: InvoiceLineItem) => {
+    console.log('=== DRAG START ===');
+    console.log('드래그 시작 항목:', item);
+
+    // "2. 부품 비용" 헤더만 드래그 가능
+    if (!item.isHeader || item.item_name !== '2. 부품 비용') {
+      console.log('드래그 불가: 부품 비용 헤더가 아님');
+      e.preventDefault();
+      return;
+    }
+
+    console.log('드래그 가능: 부품 비용 헤더');
+    setDraggedItem(item);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // 드래그 오버 (날짜 그룹 위로 드래그)
+  const handleDragOver = (e: React.DragEvent, dateGroup: string) => {
+    e.preventDefault();
+
+    // 부품 헤더 그룹이 아닌 경우에만 드롭 영역으로 설정
+    if (!dateGroup.includes('header-parts')) {
+      e.dataTransfer.dropEffect = 'move';
+      setDragOverDateGroup(dateGroup);
+    }
+  };
+
+  // 드래그 떠남
+  const handleDragLeave = () => {
+    setDragOverDateGroup(null);
+  };
+
+  // 드롭 (부품 비용 헤더와 그 아래 모든 부품들을 다른 날짜 그룹으로 이동)
+  const handleDrop = (e: React.DragEvent, targetDateGroup: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    console.log('=== DROP 이벤트 발생 ===');
+    console.log('draggedItem:', draggedItem);
+    console.log('targetDateGroup:', targetDateGroup);
+
+    if (!draggedItem || !targetDateGroup || targetDateGroup.includes('header-parts')) {
+      console.log('드롭 취소: 조건 미충족');
+      setDraggedItem(null);
+      setDragOverDateGroup(null);
+      return;
+    }
+
+    // 부품 비용 헤더와 그 아래 모든 부품 항목들을 새로운 날짜 그룹으로 이동
+    setInvoiceLineItems(prev => {
+      const newItems = [...prev];
+
+      // 드래그된 부품 헤더의 dateGroup (반드시 header-parts를 포함해야 함)
+      let draggedHeaderGroup = draggedItem.dateGroup;
+      console.log('원본 draggedHeaderGroup:', draggedHeaderGroup);
+
+      // dateGroup이 header-parts를 포함하지 않으면 추가
+      if (draggedHeaderGroup && !draggedHeaderGroup.includes('header-parts')) {
+        draggedHeaderGroup = `${draggedHeaderGroup}-header-parts`;
+        console.log('수정된 draggedHeaderGroup:', draggedHeaderGroup);
+      }
+
+      if (!draggedHeaderGroup) {
+        console.log('드래그된 헤더 그룹 없음');
+        return prev;
+      }
+
+      // 해당 헤더 그룹에 속한 모든 항목들 찾기 (헤더 + 부품들)
+      const itemsToMove = newItems.filter(item => item.dateGroup === draggedHeaderGroup);
+      console.log('이동할 항목 수:', itemsToMove.length);
+      console.log('이동할 항목들:', itemsToMove.map(i => i.item_name));
+
+      if (itemsToMove.length === 0) {
+        console.log('이동할 항목 없음');
+        return prev;
+      }
+
+      // 원본 위치에서 제거
+      const filteredItems = newItems.filter(item => item.dateGroup !== draggedHeaderGroup);
+      console.log('제거 후 항목 수:', filteredItems.length);
+
+      // 타겟 날짜 그룹의 마지막 위치 찾기
+      const targetDateIndices = filteredItems
+        .map((item, idx) => item.dateGroup === targetDateGroup ? idx : -1)
+        .filter(idx => idx !== -1);
+
+      const insertPosition = targetDateIndices.length > 0
+        ? Math.max(...targetDateIndices) + 1
+        : filteredItems.length;
+
+      console.log('삽입 위치:', insertPosition);
+
+      // 새로운 dateGroup 설정
+      const newPartsHeaderGroup = `${targetDateGroup}-header-parts`;
+      console.log('새로운 부품 헤더 그룹:', newPartsHeaderGroup);
+
+      // 모든 항목의 dateGroup 업데이트
+      const updatedItemsToMove = itemsToMove.map(item => ({
+        ...item,
+        dateGroup: newPartsHeaderGroup
+      }));
+
+      // 타겟 위치에 삽입
+      filteredItems.splice(insertPosition, 0, ...updatedItemsToMove);
+      console.log('최종 항목 수:', filteredItems.length);
+
+      return filteredItems;
+    });
+
+    setDraggedItem(null);
+    setDragOverDateGroup(null);
+  };
+
+  // 드래그 끝
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverDateGroup(null);
+  };
+
+  // 최종 거래명세서 생성
+  const handleFinalizeInvoice = async () => {
+    try {
+      if (!viewingReport) {
+        alert('리포트 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      setLoading(true);
+
+      // 고객사 정보 찾기
+      const customer = customers.find(c => c.company_name === viewingReport.customer_name);
+      const customerAny = customer as any; // 타입 확장을 위해 any로 캐스팅
+
+      // 1. Excel/PDF 파일 생성 (기존 로직)
+      const response = await api.post('/api/generate-invoice', {
+        customer_name: viewingReport.customer_name,
+        service_date: viewingReport.service_date,
+        customer_info: {
+          company_name: viewingReport.customer_name,
+          address: customer?.address || viewingReport.customer_address || '',
+          phone: customerAny?.phone || '',
+          fax: customerAny?.fax || ''
+        },
+        items: invoiceLineItems.map(item => ({
+          month: item.month,
+          day: item.day,
+          item_name: item.item_name,
+          specification: item.specification,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+          vat: item.vat
+        }))
+      });
+
+      // 2. DB에 거래명세서 저장 (신규 기능)
+      try {
+        // 거래명세서 항목별 소계 계산
+        let work_subtotal = 0;
+        let travel_subtotal = 0;
+        let parts_subtotal = 0;
+
+        // 거래명세서 항목을 DB 형식으로 변환
+        const dbItems = invoiceLineItems
+          .filter(item => !item.isHeader && !item.isBlank) // 헤더와 빈 행 제외
+          .map(item => {
+            let item_type = 'parts'; // 기본값을 parts로 변경
+
+            // nego 항목 확인 (isNego 필드 또는 마이너스 금액)
+            const isNego = item.isNego || item.total_price < 0;
+
+            // 항목명으로 타입 구분
+            if (isNego) {
+              item_type = 'nego';
+              // nego는 원래 마이너스 금액이므로 그대로 더함 (마이너스 효과)
+              if (item.item_name.includes('작업')) {
+                work_subtotal += item.total_price;
+              } else if (item.item_name.includes('출장') || item.item_name.includes('이동')) {
+                travel_subtotal += item.total_price;
+              } else {
+                parts_subtotal += item.total_price;
+              }
+            } else if (item.item_name.includes('작업')) {
+              item_type = 'work';
+              work_subtotal += item.total_price;
+            } else if (item.item_name.includes('출장') || item.item_name.includes('이동')) {
+              item_type = 'travel';
+              travel_subtotal += item.total_price;
+            } else {
+              item_type = 'parts';
+              parts_subtotal += item.total_price;
+            }
+
+            return {
+              item_type,
+              description: item.specification || item.item_name,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              total_price: item.total_price,
+              month: item.month,
+              day: item.day,
+              item_name: item.item_name,
+              part_number: '' // 서비스 리포트에서는 부품번호가 없음
+            };
+          });
+
+        const total_amount = work_subtotal + travel_subtotal + parts_subtotal;
+        const vat_amount = total_amount * 0.1;
+        const grand_total = total_amount + vat_amount;
+
+        const invoiceData = {
+          service_report_id: viewingReport.id,
+          customer_id: customer?.id,
+          customer_name: viewingReport.customer_name,
+          customer_address: customer?.address || viewingReport.customer_address || '',
+          issue_date: new Date().toISOString().split('T')[0],
+          work_subtotal,
+          travel_subtotal,
+          parts_subtotal,
+          total_amount,
+          vat_amount,
+          grand_total,
+          items: dbItems
+        };
+
+        await invoiceAPI.createInvoice(invoiceData);
+        console.log('거래명세서가 DB에 저장되었습니다.');
+      } catch (dbError: any) {
+        console.error('DB 저장 실패:', dbError);
+        // DB 저장 실패는 경고만 하고 계속 진행
+        console.warn('거래명세서 DB 저장에 실패했지만 파일 생성은 계속 진행합니다.');
+      }
+
+      if (response.data.success) {
+        // PDF가 성공적으로 생성되었으면 새 창에서 열기
+        if (response.data.pdf_url) {
+          const pdfUrl = `${window.location.origin}${response.data.pdf_url}`;
+          window.open(pdfUrl, '_blank');
+        } else if (response.data.excel_url) {
+          // PDF가 없으면 Excel 파일 다운로드
+          const excelUrl = `${window.location.origin}${response.data.excel_url}`;
+          window.open(excelUrl, '_blank');
+          alert('거래명세표가 Excel 파일로 생성되었습니다.\n\n(서버에 LibreOffice가 설치되지 않아 PDF 변환은 지원되지 않습니다)');
+        } else {
+          alert(`거래명세표가 생성되었으나 파일을 찾을 수 없습니다.\n\nExcel: ${response.data.excel_path}`);
+        }
+
+        setShowInvoiceModal(false);
+        setShowViewModal(true);
+      } else {
+        alert(`거래명세표 생성에 실패했습니다: ${response.data.error}`);
+      }
+    } catch (error: any) {
+      console.error('거래명세서 생성 실패:', error);
+      const errorMessage = error.response?.data?.error || error.message;
+      const errorDetails = error.response?.data?.details || '';
+
+      if (errorDetails) {
+        console.error('상세 에러:', errorDetails);
+      }
+
+      alert(`거래명세서 생성에 실패했습니다:\n\n${errorMessage}\n\n콘솔에서 상세 정보를 확인하세요.`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 정렬 함수
@@ -1578,6 +1966,32 @@ const ServiceReports: React.FC = () => {
     }
   };
 
+  const handleLock = async (reportId: number) => {
+    if (window.confirm('이 서비스 리포트를 잠금 처리하시겠습니까?\n잠금 후에는 일반 사용자가 수정할 수 없습니다.')) {
+      try {
+        await serviceReportAPI.lockServiceReport(reportId);
+        alert('서비스 리포트가 잠금 처리되었습니다.');
+        loadReports(); // 목록 새로고침
+      } catch (error: any) {
+        console.error('잠금 실패:', error);
+        alert(error.response?.data?.error || '잠금 처리에 실패했습니다.');
+      }
+    }
+  };
+
+  const handleUnlock = async (reportId: number) => {
+    if (window.confirm('이 서비스 리포트의 잠금을 해제하시겠습니까?')) {
+      try {
+        await serviceReportAPI.unlockServiceReport(reportId);
+        alert('서비스 리포트의 잠금이 해제되었습니다.');
+        loadReports(); // 목록 새로고침
+      } catch (error: any) {
+        console.error('잠금 해제 실패:', error);
+        alert(error.response?.data?.error || '잠금 해제에 실패했습니다.');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{height: '200px'}}>
@@ -1794,12 +2208,53 @@ const ServiceReports: React.FC = () => {
                               </svg>
                             </button>
                           )}
+                          {user?.is_admin && (
+                            report.is_locked ? (
+                              <button
+                                className="btn btn-sm btn-outline-success"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  padding: '0'
+                                }}
+                                onClick={() => handleUnlock(report.id)}
+                                title="잠금 해제"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                  <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                                </svg>
+                              </button>
+                            ) : (
+                              <button
+                                className="btn btn-sm btn-outline-warning"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  padding: '0'
+                                }}
+                                onClick={() => handleLock(report.id)}
+                                title="잠금"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                </svg>
+                              </button>
+                            )
+                          )}
                           {(hasPermission('service_report_delete') && (user?.is_admin || user?.name === report.technician_name)) && (
-                            <button 
+                            <button
                               className="btn btn-sm btn-outline-danger"
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
                                 justifyContent: 'center',
                                 width: '32px',
                                 height: '32px',
@@ -1868,7 +2323,15 @@ const ServiceReports: React.FC = () => {
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">{editingReport ? '서비스 리포트 수정' : '서비스 리포트 작성'}</h5>
+                <h5 className="modal-title">
+                  {editingReport ? '서비스 리포트 수정' : '서비스 리포트 작성'}
+                  {editingReport?.is_locked ? (
+                    <span className="badge bg-warning text-dark ms-2">
+                      <i className="bi bi-lock-fill me-1"></i>
+                      읽기전용 (잠금됨)
+                    </span>
+                  ) : null}
+                </h5>
                 <div className="ms-auto">
                   <button
                     type="button"
@@ -1900,6 +2363,7 @@ const ServiceReports: React.FC = () => {
               </div>
               <div className="modal-body">
                 <form onSubmit={handleSubmit}>
+                  <fieldset disabled={editingReport?.is_locked}>
                   {/* 첫 번째 행: 서비스일자, 서비스담당, 서비스 동행/지원 */}
                   <div className="row mb-3">
                     <div className="col-md-4">
@@ -1939,24 +2403,25 @@ const ServiceReports: React.FC = () => {
                     <div className="col-md-4">
                       <label className="form-label">서비스 동행/지원</label>
                       <div className="position-relative">
-                        <div 
+                        <div
                           className="form-control d-flex flex-wrap gap-1 align-items-center"
-                          style={{ 
-                            minHeight: '38px', 
+                          style={{
+                            minHeight: '38px',
                             height: '38px',
-                            cursor: 'pointer',
+                            cursor: editingReport?.is_locked ? 'not-allowed' : 'pointer',
+                            opacity: editingReport?.is_locked ? 0.6 : 1,
                             overflow: 'visible'
                           }}
-                          onClick={() => setShowSupportTechnicianDropdown(!showSupportTechnicianDropdown)}
+                          onClick={() => !editingReport?.is_locked && setShowSupportTechnicianDropdown(!showSupportTechnicianDropdown)}
                         >
                           {formData.support_technician_names.length === 0 ? (
                             <span className="text-muted">동행/지원 FSE를 선택하세요 (선택사항)</span>
                           ) : (
                             formData.support_technician_names.map((name, index) => (
-                              <span 
-                                key={formData.support_technician_ids[index]} 
+                              <span
+                                key={formData.support_technician_ids[index]}
                                 className="d-flex align-items-center gap-1"
-                                style={{ 
+                                style={{
                                   backgroundColor: 'white',
                                   color: 'black',
                                   border: '1px solid #6c757d',
@@ -1967,18 +2432,20 @@ const ServiceReports: React.FC = () => {
                                 }}
                               >
                                 {name}
-                                <button
-                                  type="button"
-                                  className="btn-close"
-                                  style={{ 
-                                    fontSize: '0.6em',
-                                    filter: 'invert(18%) sepia(93%) saturate(7499%) hue-rotate(357deg) brightness(91%) contrast(135%)'
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRemoveSupportTechnician(formData.support_technician_ids[index]);
-                                  }}
-                                />
+                                {!editingReport?.is_locked && (
+                                  <button
+                                    type="button"
+                                    className="btn-close"
+                                    style={{
+                                      fontSize: '0.6em',
+                                      filter: 'invert(18%) sepia(93%) saturate(7499%) hue-rotate(357deg) brightness(91%) contrast(135%)'
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveSupportTechnician(formData.support_technician_ids[index]);
+                                    }}
+                                  />
+                                )}
                               </span>
                             ))
                           )}
@@ -2494,12 +2961,15 @@ const ServiceReports: React.FC = () => {
                       </div>
                     </div>
                   )}
+                  </fieldset>
 
                   <div className="row mt-4">
                     <div className="col-12 d-flex gap-2 justify-content-end">
-                      <button type="submit" className="btn btn-primary">
-                        {editingReport ? '수정' : '저장'}
-                      </button>
+                      {!editingReport?.is_locked && (
+                        <button type="submit" className="btn btn-primary">
+                          {editingReport ? '수정' : '저장'}
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn btn-secondary"
@@ -2734,64 +3204,35 @@ const ServiceReports: React.FC = () => {
                 </div>
 
                 {/* 사용부품 내역 */}
-                {(() => {
-                  // used_parts가 배열인지 문자열인지 확인하고 처리
-                  let partsData: any[] = [];
-                  const usedParts = viewingReport.used_parts as any;
-                  const partsUsed = (viewingReport as any).parts_used;
-                  
-                  if (Array.isArray(usedParts)) {
-                    partsData = usedParts;
-                  } else if (typeof usedParts === 'string' && usedParts.trim()) {
-                    // 문자열 형태의 used_parts를 파싱
-                    partsData = [{
-                      part_name: usedParts,
-                      part_number: '-',
-                      quantity: '-',
-                      unit_price: 0,
-                      total_price: 0
-                    }];
-                  } else if (partsUsed && typeof partsUsed === 'string' && partsUsed.trim()) {
-                    // backend의 parts_used 필드 확인
-                    partsData = [{
-                      part_name: partsUsed,
-                      part_number: '-',
-                      quantity: '-',
-                      unit_price: 0,
-                      total_price: 0
-                    }];
-                  }
-                  
-                  return partsData.length > 0 && (
-                    <div className="mb-4">
-                      <h5 className="mb-3">사용부품 내역</h5>
-                      <div className="table-responsive">
-                        <table className="table table-sm table-bordered">
-                          <thead className="table-light">
-                            <tr>
-                              <th>부품명</th>
-                              <th>부품번호</th>
-                              <th>수량</th>
-                              <th>단가</th>
-                              <th>총액</th>
+                {partsWithBillingPrice.length > 0 && (
+                  <div className="mb-4">
+                    <h5 className="mb-3">사용부품 내역</h5>
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered">
+                        <thead className="table-light">
+                          <tr>
+                            <th>부품명</th>
+                            <th>부품번호</th>
+                            <th>수량</th>
+                            <th>단가 (청구가)</th>
+                            <th>총액</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {partsWithBillingPrice.map((part: any, index: number) => (
+                            <tr key={index}>
+                              <td className="bg-white">{part.part_name || '-'}</td>
+                              <td className="bg-white">{part.part_number || '-'}</td>
+                              <td className="bg-white text-center">{part.quantity || '-'}</td>
+                              <td className="bg-white text-end">{typeof part.billing_unit_price === 'number' ? part.billing_unit_price.toLocaleString() : '0'}</td>
+                              <td className="bg-white text-end fw-bold">{typeof part.billing_total_price === 'number' ? part.billing_total_price.toLocaleString() : '0'}</td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {partsData.map((part: any, index: number) => (
-                              <tr key={index}>
-                                <td className="bg-white">{part.part_name || '-'}</td>
-                                <td className="bg-white">{part.part_number || '-'}</td>
-                                <td className="bg-white text-center">{part.quantity || '-'}</td>
-                                <td className="bg-white text-end">{typeof part.unit_price === 'number' ? part.unit_price.toLocaleString() : (part.unit_price || '0')}</td>
-                                <td className="bg-white text-end fw-bold">{typeof part.total_price === 'number' ? part.total_price.toLocaleString() : (part.total_price || '0')}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  );
-                })()}
+                  </div>
+                )}
 
                 {/* 시간 기록부 (테이블 형태) */}
                 {(() => {
@@ -2892,10 +3333,10 @@ const ServiceReports: React.FC = () => {
                           <line x1="7" y1="12" x2="17" y2="12"/>
                           <line x1="7" y1="16" x2="9" y2="16"/>
                         </svg>
-                        {loading ? '생성 중...' : '거래명세표 생성'}
+                        {loading ? '생성 중...' : '거래명세표 항목 입력'}
                       </button>
                     )}
-                    {hasPermission('service_report_update') && (
+                    {/* {hasPermission('service_report_update') && (
                       <button
                         type="button"
                         className="btn btn-primary"
@@ -2906,7 +3347,7 @@ const ServiceReports: React.FC = () => {
                       >
                         수정하기
                       </button>
-                    )}
+                    )} */}
                     <button
                       type="button"
                       className="btn btn-secondary"
@@ -3192,7 +3633,7 @@ const ServiceReports: React.FC = () => {
         </div>
       )}
 
-      {/* 거래명세서 생성 모달 */}
+      {/* 거래명세서 항목 입력 모달 */}
       {showInvoiceModal && (
         <div
           className="modal modal-blur fade show"
@@ -3207,7 +3648,7 @@ const ServiceReports: React.FC = () => {
           <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">거래명세서 항목 생성</h5>
+                <h5 className="modal-title">거래명세표 항목 입력</h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -3240,30 +3681,115 @@ const ServiceReports: React.FC = () => {
                     </thead>
                     <tbody>
                       {(() => {
-                        // 날짜 그룹별로 항목 묶기
-                        const dateGroups = new Map<string, InvoiceLineItem[]>();
-                        invoiceLineItems.forEach(item => {
-                          if (!dateGroups.has(item.dateGroup)) {
-                            dateGroups.set(item.dateGroup, []);
+                        return invoiceLineItems.map((item, idx) => {
+                          // 빈 행 렌더링
+                          if (item.isBlank) {
+                            return (
+                              <tr key={item.id} style={{height: '20px'}}>
+                                <td colSpan={9}></td>
+                              </tr>
+                            );
                           }
-                          dateGroups.get(item.dateGroup)!.push(item);
-                        });
 
-                        const sortedDateGroups = Array.from(dateGroups.keys()).sort();
+                          // 헤더 행 렌더링
+                          if (item.isHeader) {
+                            const isPartsHeader = item.item_name === '2. 부품 비용';
 
-                        return sortedDateGroups.map((dateGroup, groupIdx) => {
-                          const items = dateGroups.get(dateGroup)!;
+                            return (
+                              <tr
+                                key={item.id}
+                                draggable={isPartsHeader}
+                                onDragStart={(e) => handleDragStart(e, item)}
+                                onDragEnd={handleDragEnd}
+                                style={{
+                                  backgroundColor: '#e7f5ff',
+                                  fontWeight: 'bold',
+                                  cursor: isPartsHeader ? 'move' : 'default'
+                                }}
+                              >
+                                <td className="text-center">{item.month || ''}</td>
+                                <td className="text-center">{item.day || ''}</td>
+                                <td colSpan={7}>
+                                  <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                    {item.item_name}
+                                    {isPartsHeader && (
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        style={{
+                                          flexShrink: 0,
+                                          opacity: 0.6,
+                                          cursor: 'move'
+                                        }}
+                                      >
+                                        <title>드래그하여 다른 날짜로 이동</title>
+                                        <line x1="3" y1="12" x2="21" y2="12"/>
+                                        <line x1="3" y1="6" x2="21" y2="6"/>
+                                        <line x1="3" y1="18" x2="21" y2="18"/>
+                                      </svg>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          // 현재 항목이 dateGroup의 마지막인지 확인
+                          // 부품 헤더는 제외하고, 실제 날짜 그룹의 마지막만 체크
+                          const isLastOfDateGroup = item.dateGroup &&
+                            !item.dateGroup.includes('header-parts') &&
+                            (idx === invoiceLineItems.length - 1 ||
+                             invoiceLineItems[idx + 1]?.dateGroup !== item.dateGroup ||
+                             invoiceLineItems[idx + 1]?.isBlank ||
+                             invoiceLineItems[idx + 1]?.item_name === '2. 부품 비용');
+
+                          // 일반 데이터 행 렌더링
+                          // 드롭 타겟: 부품 항목이 아니고, 빈 행이나 헤더가 아닌 경우
+                          const isDropTarget = !item.dateGroup?.includes('header-parts') && !item.isBlank && !item.isHeader;
 
                           return (
-                            <React.Fragment key={dateGroup}>
-                              {items.map((item, itemIdx) => (
-                                <tr key={item.id} style={{backgroundColor: item.isNego ? '#fff3cd' : 'white'}}>
-                                  <td className="text-center">{item.month}</td>
-                                  <td className="text-center">{item.day}</td>
+                            <tr
+                              key={item.id}
+                              onDragOver={(e) => {
+                                if (isDropTarget && draggedItem) {
+                                  handleDragOver(e, item.dateGroup || '');
+                                }
+                              }}
+                              onDragLeave={(e) => {
+                                if (isDropTarget) {
+                                  handleDragLeave();
+                                }
+                              }}
+                              onDrop={(e) => {
+                                if (isDropTarget && draggedItem) {
+                                  handleDrop(e, item.dateGroup || '');
+                                }
+                              }}
+                              style={{
+                                backgroundColor: item.isNego ? '#fff3cd' :
+                                               dragOverDateGroup === item.dateGroup ? '#d1ecf1' :
+                                               'white',
+                                color: item.isNego ? '#dc3545' : 'inherit',
+                                transition: 'background-color 0.2s'
+                              }}>
+                              <td className="text-center" style={{color: item.isNego ? '#dc3545' : 'inherit'}}>
+                                {item.month || ''}
+                              </td>
+                              <td className="text-center" style={{color: item.isNego ? '#dc3545' : 'inherit'}}>
+                                {item.day || ''}
+                              </td>
                                   <td>
                                     <input
                                       type="text"
                                       className="form-control form-control-sm"
+                                      style={{color: item.isNego ? '#dc3545' : 'inherit'}}
                                       value={item.item_name}
                                       onChange={(e) => updateLineItem(item.id, 'item_name', e.target.value)}
                                       readOnly={!item.isNego && item.item_name !== 'NEGO'}
@@ -3273,6 +3799,7 @@ const ServiceReports: React.FC = () => {
                                     <input
                                       type="text"
                                       className="form-control form-control-sm"
+                                      style={{color: item.isNego ? '#dc3545' : 'inherit'}}
                                       value={item.specification}
                                       onChange={(e) => updateLineItem(item.id, 'specification', e.target.value)}
                                     />
@@ -3282,22 +3809,31 @@ const ServiceReports: React.FC = () => {
                                       type="number"
                                       step="0.1"
                                       className="form-control form-control-sm"
+                                      style={{color: item.isNego ? '#dc3545' : 'inherit'}}
                                       value={item.quantity}
                                       onChange={(e) => updateLineItem(item.id, 'quantity', e.target.value)}
                                     />
                                   </td>
                                   <td>
                                     <input
-                                      type="number"
+                                      type="text"
                                       className="form-control form-control-sm"
-                                      value={item.unit_price}
-                                      onChange={(e) => updateLineItem(item.id, 'unit_price', e.target.value)}
+                                      style={{color: item.isNego ? '#dc3545' : 'inherit'}}
+                                      value={item.unit_price.toLocaleString()}
+                                      onChange={(e) => {
+                                        const value = e.target.value.replace(/,/g, '');
+                                        updateLineItem(item.id, 'unit_price', value);
+                                      }}
                                     />
                                   </td>
-                                  <td className="text-end">{item.total_price.toLocaleString()}</td>
-                                  <td className="text-end">{item.vat.toLocaleString()}</td>
+                                  <td className="text-end" style={{color: item.isNego ? '#dc3545' : 'inherit'}}>
+                                    {item.isNego && item.total_price > 0 ? '-' : ''}{Math.abs(item.total_price).toLocaleString()}
+                                  </td>
+                                  <td className="text-end" style={{color: item.isNego ? '#dc3545' : 'inherit'}}>
+                                    {item.isNego && item.vat > 0 ? '-' : ''}{Math.abs(item.vat).toLocaleString()}
+                                  </td>
                                   <td className="text-center">
-                                    {item.isNego && (
+                                    {item.isNego ? (
                                       <button
                                         className="btn btn-sm btn-outline-danger"
                                         onClick={() => removeNegoItem(item.id)}
@@ -3308,28 +3844,20 @@ const ServiceReports: React.FC = () => {
                                           <line x1="6" y1="6" x2="18" y2="18"/>
                                         </svg>
                                       </button>
+                                    ) : isLastOfDateGroup && (
+                                      <button
+                                        className="btn btn-sm btn-outline-success"
+                                        onClick={() => addNegoItem(item.dateGroup)}
+                                        title="네고 추가"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <line x1="12" y1="5" x2="12" y2="19"/>
+                                          <line x1="5" y1="12" x2="19" y2="12"/>
+                                        </svg>
+                                      </button>
                                     )}
                                   </td>
                                 </tr>
-                              ))}
-
-                              {/* 날짜 그룹 사이에 네고 추가 버튼 */}
-                              <tr>
-                                <td colSpan={9} className="text-center py-2" style={{backgroundColor: '#f8f9fa'}}>
-                                  <button
-                                    className="btn btn-sm btn-outline-primary"
-                                    onClick={() => addNegoItem(dateGroup)}
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                      <line x1="12" y1="5" x2="12" y2="19"/>
-                                      <line x1="5" y1="12" x2="19" y2="12"/>
-                                    </svg>
-                                    {new Date(dateGroup).toLocaleDateString('ko-KR')} 네고 추가
-                                  </button>
-                                </td>
-                              </tr>
-                            </React.Fragment>
                           );
                         });
                       })()}
@@ -3339,10 +3867,22 @@ const ServiceReports: React.FC = () => {
                         <tr style={{backgroundColor: '#e7f5ff', fontWeight: 'bold'}}>
                           <td colSpan={6} className="text-end">합계</td>
                           <td className="text-end">
-                            {invoiceLineItems.reduce((sum, item) => sum + item.total_price, 0).toLocaleString()}
+                            {invoiceLineItems
+                              .filter(item => !item.isHeader && !item.isBlank) // 헤더와 빈 행 제외
+                              .reduce((sum, item) => {
+                                // NEGO 항목은 마이너스로 계산
+                                const amount = item.isNego ? -item.total_price : item.total_price;
+                                return sum + amount;
+                              }, 0).toLocaleString()}
                           </td>
                           <td className="text-end">
-                            {invoiceLineItems.reduce((sum, item) => sum + item.vat, 0).toLocaleString()}
+                            {invoiceLineItems
+                              .filter(item => !item.isHeader && !item.isBlank) // 헤더와 빈 행 제외
+                              .reduce((sum, item) => {
+                                // NEGO 항목은 마이너스로 계산
+                                const amount = item.isNego ? -item.vat : item.vat;
+                                return sum + amount;
+                              }, 0).toLocaleString()}
                           </td>
                           <td></td>
                         </tr>

@@ -143,7 +143,28 @@ def init_database():
         conn.execute('ALTER TABLE service_reports ADD COLUMN invoice_code_id INTEGER REFERENCES invoice_codes(id)')
     except sqlite3.OperationalError:
         pass  # 컬럼이 이미 존재함
-    
+
+    # service_reports 테이블에 is_locked 컬럼 추가 (마이그레이션)
+    try:
+        conn.execute('ALTER TABLE service_reports ADD COLUMN is_locked BOOLEAN DEFAULT 0')
+        print("Added is_locked column to service_reports table")
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+
+    # service_reports 테이블에 locked_by 컬럼 추가 (마이그레이션)
+    try:
+        conn.execute('ALTER TABLE service_reports ADD COLUMN locked_by INTEGER')
+        print("Added locked_by column to service_reports table")
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+
+    # service_reports 테이블에 locked_at 컬럼 추가 (마이그레이션)
+    try:
+        conn.execute('ALTER TABLE service_reports ADD COLUMN locked_at TIMESTAMP')
+        print("Added locked_at column to service_reports table")
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+
     # invoice_codes 테이블에 category 컬럼 추가 (마이그레이션)
     try:
         conn.execute('ALTER TABLE invoice_codes ADD COLUMN category TEXT DEFAULT NULL')

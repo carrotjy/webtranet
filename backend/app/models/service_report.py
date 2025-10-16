@@ -4,11 +4,12 @@ from app.models.service_report_part import ServiceReportPart
 from app.models.service_report_time_record import ServiceReportTimeRecord
 
 class ServiceReport:
-    def __init__(self, id=None, report_number=None, customer_id=None, 
+    def __init__(self, id=None, report_number=None, customer_id=None,
                  technician_id=None, machine_model=None, machine_serial=None,
-                 service_date=None, problem_description=None, 
+                 service_date=None, problem_description=None,
                  solution_description=None, parts_used=None, work_hours=None,
                  status='completed', invoice_code_id=None, support_technician_ids=None,
+                 is_locked=False, locked_by=None, locked_at=None,
                  created_at=None, updated_at=None):
         self.id = id
         self.report_number = report_number
@@ -24,6 +25,9 @@ class ServiceReport:
         self.status = status
         self.invoice_code_id = invoice_code_id
         self.support_technician_ids = support_technician_ids  # JSON 문자열로 저장
+        self.is_locked = is_locked
+        self.locked_by = locked_by
+        self.locked_at = locked_at
         self.created_at = created_at
         self.updated_at = updated_at
     
@@ -271,6 +275,9 @@ class ServiceReport:
             status=row['status'],
             invoice_code_id=row['invoice_code_id'] if 'invoice_code_id' in row.keys() else None,
             support_technician_ids=row['support_technician_ids'] if 'support_technician_ids' in row.keys() else None,
+            is_locked=row['is_locked'] if 'is_locked' in row.keys() else False,
+            locked_by=row['locked_by'] if 'locked_by' in row.keys() else None,
+            locked_at=row['locked_at'] if 'locked_at' in row.keys() else None,
             created_at=row['created_at'],
             updated_at=row['updated_at']
         )
@@ -350,7 +357,7 @@ class ServiceReport:
     def to_dict(self):
         """딕셔너리로 변환"""
         import json
-        
+
         result = {
             'id': self.id,
             'report_number': self.report_number,
@@ -366,6 +373,9 @@ class ServiceReport:
             'status': self.status,
             'invoice_code_id': self.invoice_code_id,
             'support_technician_ids': json.loads(self.support_technician_ids) if self.support_technician_ids else [],
+            'is_locked': self.is_locked,
+            'locked_by': self.locked_by,
+            'locked_at': self.locked_at,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

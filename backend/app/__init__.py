@@ -52,7 +52,9 @@ def create_app():
     from app.blueprints.invoice_rate import invoice_rate_bp
     from app.blueprints.spare_part_settings import spare_part_settings_bp
     from app.blueprints.tatoeba import tatoeba_bp
-    
+    from app.blueprints.invoice_generator import invoice_generator_bp
+    from app.blueprints.supplier_info import supplier_info_bp
+
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(user_mgmt_bp, url_prefix='/users')
     app.register_blueprint(service_report_bp, url_prefix='/service-reports')
@@ -60,11 +62,13 @@ def create_app():
     app.register_blueprint(spare_parts_bp, url_prefix='/api')
     app.register_blueprint(user_permissions_bp, url_prefix='/api')
     app.register_blueprint(resource_bp, url_prefix='/resources')
-    app.register_blueprint(invoice_code_bp)
-    app.register_blueprint(invoice_bp)
-    app.register_blueprint(invoice_rate_bp)
+    app.register_blueprint(invoice_code_bp, url_prefix='/api')
+    app.register_blueprint(invoice_bp, url_prefix='/api')
+    app.register_blueprint(invoice_rate_bp, url_prefix='/api')
     app.register_blueprint(spare_part_settings_bp, url_prefix='/api')
     app.register_blueprint(tatoeba_bp)
+    app.register_blueprint(invoice_generator_bp)
+    app.register_blueprint(supplier_info_bp)
     
     # JWT 에러 핸들러 추가
     from flask_jwt_extended.exceptions import JWTExtendedException

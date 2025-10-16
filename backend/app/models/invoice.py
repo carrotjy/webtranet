@@ -277,3 +277,32 @@ class Invoice:
         """거래명세표 항목들 조회"""
         from app.models.invoice_item import InvoiceItem
         return InvoiceItem.get_by_invoice_id(self.id)
+
+    def save_items(self, items_data):
+        """거래명세표 항목 저장 (기존 항목 삭제 후 새로 저장)"""
+        from app.models.invoice_item import InvoiceItem
+
+        if not self.id:
+            return False
+
+        # 기존 항목 삭제
+        InvoiceItem.delete_by_invoice_id(self.id)
+
+        # 새 항목 저장
+        if items_data and isinstance(items_data, list):
+            for item_info in items_data:
+                if item_info.get('description') or item_info.get('item_name'):  # 설명 또는 품목이 있는 경우만 저장
+                    item = InvoiceItem(
+                        invoice_id=self.id,
+                        item_type=item_info.get('item_type', 'parts'),
+                        description=item_info.get('description', ''),
+                        quantity=float(item_info.get('quantity', 0)),
+                        unit_price=float(item_info.get('unit_price', 0)),
+                        total_price=float(item_info.get('total_price', 0)),
+                        month=item_info.get('month'),
+                        day=item_info.get('day'),
+                        item_name=item_info.get('item_name'),
+                        part_number=item_info.get('part_number')
+                    )
+                    item.save()
+        return True

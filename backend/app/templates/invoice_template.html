@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>거래명세표</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+
+        body {
+            font-family: "Malgun Gothic", "맑은 고딕", sans-serif;
+            font-size: 11pt;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            text-align: center;
+            font-size: 20pt;
+            font-weight: bold;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+
+        .info-section {
+            margin-bottom: 20px;
+            border: 1px solid #000;
+            padding: 10px;
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 5px;
+        }
+
+        .info-label {
+            font-weight: bold;
+            width: 100px;
+            background-color: #f0f0f0;
+            padding: 5px;
+            border: 1px solid #ccc;
+        }
+
+        .info-value {
+            flex: 1;
+            padding: 5px;
+            border: 1px solid #ccc;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #e0e0e0;
+            font-weight: bold;
+        }
+
+        .text-left {
+            text-align: left;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .header-row {
+            background-color: #d0e8ff;
+            font-weight: bold;
+        }
+
+        .blank-row {
+            height: 10px;
+        }
+
+        .total-row {
+            background-color: #ffffcc;
+            font-weight: bold;
+        }
+
+        .nego-row {
+            color: #ff0000;
+        }
+
+        .footer {
+            margin-top: 30px;
+            text-align: right;
+            font-size: 10pt;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        거래명세표
+    </div>
+
+    <div class="info-section">
+        <div class="info-row">
+            <div class="info-label">작성일자</div>
+            <div class="info-value">{{ service_date }}</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">고객사명</div>
+            <div class="info-value">{{ customer_info.company_name }}</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">주소</div>
+            <div class="info-value">{{ customer_info.address }}</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">전화/팩스</div>
+            <div class="info-value">{{ customer_info.phone }}{% if customer_info.fax %} / {{ customer_info.fax }}{% endif %}</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">합계금액</div>
+            <div class="info-value">{{ "{:,}".format(total_amount) }}원</div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 5%;">월</th>
+                <th style="width: 5%;">일</th>
+                <th style="width: 20%;">품목</th>
+                <th style="width: 15%;">규격</th>
+                <th style="width: 8%;">수량</th>
+                <th style="width: 12%;">단가</th>
+                <th style="width: 15%;">공급가액</th>
+                <th style="width: 15%;">부가세</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+                {% if item.isBlank %}
+                    <tr class="blank-row">
+                        <td colspan="8"></td>
+                    </tr>
+                {% elif item.isHeader %}
+                    <tr class="header-row">
+                        <td>{% if item.month %}{{ item.month }}{% endif %}</td>
+                        <td>{% if item.day %}{{ item.day }}{% endif %}</td>
+                        <td colspan="6" class="text-left">{{ item.item_name }}</td>
+                    </tr>
+                {% else %}
+                    <tr {% if item.item_name == 'NEGO' %}class="nego-row"{% endif %}>
+                        <td>{% if item.month %}{{ item.month }}{% endif %}</td>
+                        <td>{% if item.day %}{{ item.day }}{% endif %}</td>
+                        <td class="text-left">{{ item.item_name }}</td>
+                        <td class="text-left">{{ item.specification }}</td>
+                        <td class="text-right">{{ item.quantity }}</td>
+                        <td class="text-right">{{ "{:,}".format(item.unit_price) }}</td>
+                        <td class="text-right">
+                            {% if item.item_name == 'NEGO' and item.total_price > 0 %}-{% endif %}
+                            {{ "{:,}".format(item.total_price|abs) }}
+                        </td>
+                        <td class="text-right">
+                            {% if item.item_name == 'NEGO' and item.vat > 0 %}-{% endif %}
+                            {{ "{:,}".format(item.vat|abs) }}
+                        </td>
+                    </tr>
+                {% endif %}
+            {% endfor %}
+
+            <tr class="total-row">
+                <td colspan="6" class="text-right">합계</td>
+                <td class="text-right">{{ "{:,}".format(total_supply) }}</td>
+                <td class="text-right">{{ "{:,}".format(total_vat) }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="footer">
+        생성일시: {{ generation_time }}
+    </div>
+</body>
+</html>

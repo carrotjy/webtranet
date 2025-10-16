@@ -6,25 +6,13 @@
 
 ## 1. 로그인 테스트
 
-### 관리자 로그인
 ```bash
 POST http://localhost:5000/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@webtranet.com",
-  "password": "admin"
-}
-```
-
-### 일반 사용자 로그인
-```bash
-POST http://localhost:5000/api/auth/login
-Content-Type: application/json
-
-{
-  "email": "technician@webtranet.com",
-  "password": "password123"
+  "email": "your-email@example.com",
+  "password": "your-password"
 }
 ```
 

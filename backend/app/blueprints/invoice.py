@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, make_response
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.invoice import Invoice
 from app.models.invoice_item import InvoiceItem
@@ -15,7 +15,11 @@ invoice_bp = Blueprint('invoice', __name__)
 @invoice_bp.route('/invoices/from-service-report/<int:service_report_id>', methods=['OPTIONS'])
 def handle_preflight(*args, **kwargs):
     """Invoice 경로에 대한 CORS preflight 처리"""
-    return '', 200
+    response = make_response('', 200)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
 
 @invoice_bp.route('/invoices', methods=['GET'])
 @jwt_required()
@@ -171,6 +175,57 @@ def update_invoice(invoice_id):
     except Exception as e:
         return jsonify({'error': f'거래명세표 수정 실패: {str(e)}'}), 500
 
+@invoice_bp.route('/invoices', methods=['POST'])
+@jwt_required()
+def create_invoice():
+    """거래명세서 직접 생성 (거래명세서 모달에서 사용)"""
+    try:
+        data = request.get_json()
+
+        # 필수 필드 확인
+        required_fields = ['customer_id', 'customer_name', 'customer_address', 'issue_date']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field}는 필수 항목입니다.'}), 400
+
+        # 거래명세서 번호 자동 생성
+        invoice_number = Invoice._generate_invoice_number()
+
+        # 거래명세서 생성
+        invoice = Invoice(
+            service_report_id=data.get('service_report_id'),
+            invoice_number=invoice_number,
+            customer_id=data['customer_id'],
+            customer_name=data['customer_name'],
+            customer_address=data['customer_address'],
+            issue_date=data['issue_date'],
+            due_date=data.get('due_date'),
+            work_subtotal=float(data.get('work_subtotal', 0)),
+            travel_subtotal=float(data.get('travel_subtotal', 0)),
+            parts_subtotal=float(data.get('parts_subtotal', 0)),
+            total_amount=float(data.get('total_amount', 0)),
+            vat_amount=float(data.get('vat_amount', 0)),
+            grand_total=float(data.get('grand_total', 0)),
+            notes=data.get('notes')
+        )
+
+        invoice_id = invoice.save()
+
+        # 거래명세서 항목 저장
+        if 'items' in data:
+            invoice.save_items(data['items'])
+
+        return jsonify({
+            'message': '거래명세서가 생성되었습니다.',
+            'invoice_id': invoice_id,
+            'invoice_number': invoice.invoice_number
+        }), 201
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'거래명세서 생성 실패: {str(e)}'}), 500
+
 @invoice_bp.route('/invoices/<int:invoice_id>', methods=['DELETE'])
 @admin_required
 def delete_invoice(invoice_id):
@@ -179,10 +234,10 @@ def delete_invoice(invoice_id):
         invoice = Invoice.get_by_id(invoice_id)
         if not invoice:
             return jsonify({'error': '거래명세표를 찾을 수 없습니다.'}), 404
-        
+
         Invoice.delete(invoice_id)
-        
+
         return jsonify({'message': '거래명세표가 삭제되었습니다.'}), 200
-        
+
     except Exception as e:
         return jsonify({'error': f'거래명세표 삭제 실패: {str(e)}'}), 500

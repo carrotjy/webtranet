@@ -9,14 +9,33 @@ interface InvoiceRates {
   updated_at?: string;
 }
 
+interface SupplierInfo {
+  company_name: string;
+  registration_number: string;
+  ceo_name: string;
+  address: string;
+  phone: string;
+  fax: string;
+}
+
 const InvoiceSettings: React.FC = () => {
   const [rates, setRates] = useState<InvoiceRates>({
     work_rate: 50000,
     travel_rate: 30000
   });
-  
+
+  const [supplierInfo, setSupplierInfo] = useState<SupplierInfo>({
+    company_name: '',
+    registration_number: '',
+    ceo_name: '',
+    address: '',
+    phone: '',
+    fax: ''
+  });
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingSupplier, setSavingSupplier] = useState(false);
 
   // 현재 요율 설정 조회
   const fetchRates = async () => {
@@ -31,6 +50,19 @@ const InvoiceSettings: React.FC = () => {
       // 기본값 유지
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 공급자 정보 조회
+  const fetchSupplierInfo = async () => {
+    try {
+      const response = await api.get('/admin/supplier-info');
+      if (response.data) {
+        setSupplierInfo(response.data);
+      }
+    } catch (error) {
+      console.error('공급자 정보 조회 실패:', error);
+      // 기본값 유지
     }
   };
 
@@ -55,8 +87,30 @@ const InvoiceSettings: React.FC = () => {
     }));
   };
 
+  // 공급자 정보 저장
+  const handleSaveSupplier = async () => {
+    try {
+      setSavingSupplier(true);
+      await api.post('/admin/supplier-info', supplierInfo);
+      alert('공급자 정보가 저장되었습니다.');
+    } catch (error) {
+      console.error('공급자 정보 저장 실패:', error);
+      alert('공급자 정보 저장에 실패했습니다.');
+    } finally {
+      setSavingSupplier(false);
+    }
+  };
+
+  const handleSupplierChange = (field: keyof SupplierInfo, value: string) => {
+    setSupplierInfo(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   useEffect(() => {
     fetchRates();
+    fetchSupplierInfo();
   }, []);
 
   return (
@@ -73,7 +127,113 @@ const InvoiceSettings: React.FC = () => {
       <div className="page-body">
         <div className="container-xl">
           <div className="row row-deck row-cards">
-            
+
+            {/* 공급자 정보 카드 */}
+            <div className="col-12">
+              <div className="card">
+                <div className="card-header">
+                  <h3 className="card-title">공급자 정보</h3>
+                  <div className="card-actions">
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleSaveSupplier}
+                      disabled={savingSupplier}
+                    >
+                      {savingSupplier ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                          저장 중...
+                        </>
+                      ) : (
+                        '공급자 정보 저장'
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="card-body">
+                  <div className="row">
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">사업자명</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={supplierInfo.company_name}
+                          onChange={(e) => handleSupplierChange('company_name', e.target.value)}
+                          placeholder="(주)회사명"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">사업자등록번호</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={supplierInfo.registration_number}
+                          onChange={(e) => handleSupplierChange('registration_number', e.target.value)}
+                          placeholder="000-00-00000"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">대표자명</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={supplierInfo.ceo_name}
+                          onChange={(e) => handleSupplierChange('ceo_name', e.target.value)}
+                          placeholder="홍길동"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">사업장 주소</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={supplierInfo.address}
+                          onChange={(e) => handleSupplierChange('address', e.target.value)}
+                          placeholder="서울시 강남구..."
+                        />
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">전화번호</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={supplierInfo.phone}
+                          onChange={(e) => handleSupplierChange('phone', e.target.value)}
+                          placeholder="02-0000-0000"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">팩스번호</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={supplierInfo.fax}
+                          onChange={(e) => handleSupplierChange('fax', e.target.value)}
+                          placeholder="02-0000-0001"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* 요율 설정 카드 */}
             <div className="col-12">
               <div className="card">

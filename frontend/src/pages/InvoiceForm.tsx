@@ -1,328 +1,534 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { invoiceAPI, customerAPI, sparePartsAPI } from '../services/api';
 import api from '../services/api';
+
+interface InvoiceLineItem {
+  id: string;
+  month: number;
+  day: number;
+  item_name: string;
+  specification: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  part_number?: string;
+  isHeader?: boolean;
+  isServiceCost?: boolean;
+  isPartsCost?: boolean;
+}
 
 interface Customer {
   id: number;
   company_name: string;
-  contact_person: string;
   address: string;
+  contact_person: string;
   phone: string;
-  email: string;
 }
 
-interface InvoiceItem {
-  id?: number;
-  item_type: 'work' | 'travel' | 'parts';
-  description: string;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
-}
-
-interface InvoiceData {
-  id?: number;
-  service_report_id?: number;
-  invoice_number: string;
-  customer_id: number;
-  customer_name: string;
-  customer_address: string;
-  issue_date: string;
-  due_date: string;
-  work_subtotal: number;
-  travel_subtotal: number;
-  parts_subtotal: number;
-  total_amount: number;
-  vat_amount: number;
-  grand_total: number;
-  notes: string;
-  items: InvoiceItem[];
+interface InvoiceRates {
+  work_rate: number;
+  travel_rate: number;
 }
 
 const InvoiceForm: React.FC = () => {
-  const params = useParams<{ serviceReportId?: string; invoiceId?: string }>();
-  const serviceReportId = params.serviceReportId;
-  const invoiceId = params.invoiceId;
+  const { invoiceId } = useParams<{ invoiceId: string }>();
   const navigate = useNavigate();
-  
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  
-  // 고객 검색 관련 상태
+
+  // 기본 정보
+  const [customerId, setCustomerId] = useState<number | null>(null);
+  const [customerName, setCustomerName] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState('');
+
+  // 고객 목록 및 검색
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
-  const [showCustomerSearch, setShowCustomerSearch] = useState(false);
-  
-  const [invoiceData, setInvoiceData] = useState<InvoiceData>({
-    invoice_number: '',
-    customer_id: 0,
-    customer_name: '',
-    customer_address: '',
-    issue_date: new Date().toISOString().split('T')[0],
-    due_date: '',
-    work_subtotal: 0,
-    travel_subtotal: 0,
-    parts_subtotal: 0,
-    total_amount: 0,
-    vat_amount: 0,
-    grand_total: 0,
-    notes: '',
-    items: []
-  });
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
-  // 기존 인보이스 로드
-  const loadExistingInvoice = async () => {
-    if (!invoiceId) return;
-    
-    try {
-      setLoading(true);
-      const response = await api.get(`/invoices/${invoiceId}`);
-      setInvoiceData(response.data);
-    } catch (error) {
-      console.error('거래명세표 로드 실패:', error);
-      alert('거래명세표를 불러오는데 실패했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 요율 정보
+  const [rates, setRates] = useState<InvoiceRates>({ work_rate: 50000, travel_rate: 30000 });
 
-  // 서비스 리포트 기반 거래명세표 생성
-  const createInvoiceFromServiceReport = async () => {
-    if (!serviceReportId) return;
-    
-    try {
-      setLoading(true);
-      const response = await api.post(`/invoices/from-service-report/${serviceReportId}`);
-      
-      if (response.data.invoice_id) {
-        // 생성된 거래명세표 조회
-        const invoiceResponse = await api.get(`/invoices/${response.data.invoice_id}`);
-        setInvoiceData(invoiceResponse.data);
+  // 거래명세서 항목
+  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
+  const [serviceCostCounter, setServiceCostCounter] = useState(0);
+  const [partsCostCounter, setPartsCostCounter] = useState(0);
+
+  // 부품 검색 자동완성
+  const [partSearchResults, setPartSearchResults] = useState<any[]>([]);
+  const [activePartSearchId, setActivePartSearchId] = useState<string | null>(null);
+
+  // 부품 추가 모달
+  const [showPartsModal, setShowPartsModal] = useState(false);
+  const [modalPartNumber, setModalPartNumber] = useState('');
+  const [modalPartName, setModalPartName] = useState('');
+  const [modalPartQuantity, setModalPartQuantity] = useState(1);
+  const [modalPartUnitPrice, setModalPartUnitPrice] = useState(0);
+  const [modalPartSearchResults, setModalPartSearchResults] = useState<any[]>([]);
+  const [marginRate, setMarginRate] = useState(20); // 기본 마진율 20%
+
+  // 고객 목록 로드
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const response = await customerAPI.getCustomers();
+        setCustomers(response.data.customers || []);
+      } catch (error) {
+        console.error('고객 목록 로드 실패:', error);
       }
-    } catch (error) {
-      console.error('거래명세표 생성 실패:', error);
-      alert('거래명세표 생성에 실패했습니다.');
-    } finally {
-      setLoading(false);
+    };
+
+    fetchCustomers();
+  }, []);
+
+  // 요율 정보 로드
+  useEffect(() => {
+    const fetchRates = async () => {
+      try {
+        const response = await api.get('/api/admin/invoice-rates');
+        if (response.data) {
+          setRates({
+            work_rate: response.data.work_rate || 50000,
+            travel_rate: response.data.travel_rate || 30000
+          });
+        }
+      } catch (error) {
+        console.error('요율 정보 로드 실패:', error);
+      }
+    };
+
+    fetchRates();
+  }, []);
+
+  // 마진율 정보 로드
+  useEffect(() => {
+    const fetchMarginRate = async () => {
+      try {
+        const response = await api.get('/api/admin/spare-part-settings');
+        if (response.data && response.data.success && response.data.data) {
+          setMarginRate(response.data.data.marginRate || 20);
+        }
+      } catch (error) {
+        console.error('마진율 정보 로드 실패:', error);
+        // 에러 발생 시 기본값 20% 사용
+      }
+    };
+
+    fetchMarginRate();
+  }, []);
+
+  // 기존 거래명세서 로드 (수정 모드)
+  useEffect(() => {
+    if (invoiceId) {
+      const fetchInvoice = async () => {
+        try {
+          setLoading(true);
+          const response = await invoiceAPI.getInvoiceById(parseInt(invoiceId));
+          const invoice = response.data;
+
+          setCustomerId(invoice.customer_id);
+          setCustomerName(invoice.customer_name);
+          setCustomerAddress(invoice.customer_address);
+          setIssueDate(invoice.issue_date);
+          setNotes(invoice.notes || '');
+
+          // 항목 변환
+          const items: InvoiceLineItem[] = invoice.items.map((item: any) => ({
+            id: `item-${item.id}`,
+            month: item.month || 0,
+            day: item.day || 0,
+            item_name: item.item_name || item.description,
+            specification: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total_price: item.total_price,
+            part_number: item.part_number || ''
+          }));
+
+          setLineItems(items);
+        } catch (error) {
+          console.error('거래명세서 로드 실패:', error);
+          alert('거래명세서를 불러오는데 실패했습니다.');
+          navigate('/invoices');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchInvoice();
     }
+  }, [invoiceId]);
+
+  // 고객 선택
+  const handleCustomerSelect = (customer: Customer) => {
+    setCustomerId(customer.id);
+    setCustomerName(customer.company_name);
+    setCustomerAddress(customer.address);
+    setCustomerSearchTerm(customer.company_name);
+    setShowCustomerDropdown(false);
   };
 
-  // 거래명세표 저장
-  const saveInvoice = async () => {
-    // 필수 필드 검증
-    if (!invoiceData.customer_id || !invoiceData.customer_name.trim()) {
-      alert('고객 정보를 입력해주세요.');
+  // 고객 검색 필터링
+  const filteredCustomers = customers.filter(c =>
+    c.company_name?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+    c.contact_person?.toLowerCase().includes(customerSearchTerm.toLowerCase())
+  );
+
+  // +서비스비용추가 버튼 클릭
+  const addServiceCost = () => {
+    // 전체 헤더 개수를 기준으로 번호 매기기
+    const headerCount = lineItems.filter(item => item.isHeader).length + 1;
+
+    const baseId = `service-${Date.now()}`;
+
+    // 오늘 날짜 가져오기
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+
+    const newItems: InvoiceLineItem[] = [
+      // 1번째 줄: 헤더 (월/일 입력 + "N. 서비스비용")
+      {
+        id: `${baseId}-header`,
+        month: currentMonth,
+        day: currentDay,
+        item_name: `${headerCount}. 서비스비용`,
+        specification: '',
+        quantity: 0,
+        unit_price: 0,
+        total_price: 0,
+        isHeader: true,
+        isServiceCost: true
+      },
+      // 2번째 줄: 작업시간
+      {
+        id: `${baseId}-work`,
+        month: currentMonth,
+        day: currentDay,
+        item_name: '작업시간',
+        specification: '1인 × 1시간',
+        quantity: 0,
+        unit_price: rates.work_rate,
+        total_price: 0,
+        isServiceCost: true
+      },
+      // 3번째 줄: 이동시간
+      {
+        id: `${baseId}-travel`,
+        month: currentMonth,
+        day: currentDay,
+        item_name: '이동시간',
+        specification: '1시간',
+        quantity: 0,
+        unit_price: rates.travel_rate,
+        total_price: 0,
+        isServiceCost: true
+      }
+    ];
+
+    setLineItems(prev => [...prev, ...newItems]);
+  };
+
+  // +부품비용추가 버튼 클릭 - 모달 열기
+  const addPartsCost = () => {
+    setModalPartNumber('');
+    setModalPartName('');
+    setModalPartQuantity(1);
+    setModalPartUnitPrice(0);
+    setModalPartSearchResults([]);
+    setShowPartsModal(true);
+  };
+
+  // 모달에서 부품번호 검색
+  const handleModalPartSearch = async (searchTerm: string) => {
+    if (!searchTerm || searchTerm.length < 1) {
+      setModalPartSearchResults([]);
       return;
     }
 
-    if (!invoiceData.issue_date) {
-      alert('발행일을 입력해주세요.');
+    try {
+      const response = await sparePartsAPI.searchPartByNumber(searchTerm);
+      if (response.data && response.data.spare_parts) {
+        setModalPartSearchResults(response.data.spare_parts);
+      }
+    } catch (error) {
+      console.error('부품 검색 실패:', error);
+      setModalPartSearchResults([]);
+    }
+  };
+
+  // 모달에서 부품 선택
+  const handleModalPartSelect = (part: any) => {
+    setModalPartNumber(part.part_number);
+    setModalPartName(part.part_name);
+    setModalPartUnitPrice(part.charge_price || 0);
+    setModalPartSearchResults([]);
+  };
+
+  // 모달에서 부품 추가 확정
+  const confirmAddPart = () => {
+    if (!modalPartName) {
+      alert('부품명을 입력해주세요.');
+      return;
+    }
+
+    if (modalPartQuantity <= 0) {
+      alert('수량은 1 이상이어야 합니다.');
+      return;
+    }
+
+    // 부품번호가 없고 단가만 입력된 경우 마진율 적용
+    let finalUnitPrice = modalPartUnitPrice;
+    if (!modalPartNumber && modalPartUnitPrice > 0) {
+      finalUnitPrice = Math.round(modalPartUnitPrice * (1 + marginRate / 100));
+    }
+
+    // 전체 헤더 개수를 기준으로 번호 매기기
+    const headerCount = lineItems.filter(item => item.isHeader).length + 1;
+    const baseId = `parts-${Date.now()}`;
+
+    // 오늘 날짜 가져오기
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+
+    const newItems: InvoiceLineItem[] = [
+      // 1번째 줄: 헤더 (월/일 입력 + "N. 부품비용")
+      {
+        id: `${baseId}-header`,
+        month: currentMonth,
+        day: currentDay,
+        item_name: `${headerCount}. 부품비용`,
+        specification: '',
+        quantity: 0,
+        unit_price: 0,
+        total_price: 0,
+        isHeader: true,
+        isPartsCost: true
+      },
+      // 2번째 줄: 부품 입력
+      {
+        id: `${baseId}-part`,
+        month: currentMonth,
+        day: currentDay,
+        item_name: modalPartName,
+        specification: modalPartName,
+        quantity: modalPartQuantity,
+        unit_price: finalUnitPrice,
+        total_price: modalPartQuantity * finalUnitPrice,
+        part_number: modalPartNumber,
+        isPartsCost: true
+      }
+    ];
+
+    setLineItems(prev => [...prev, ...newItems]);
+    setShowPartsModal(false);
+  };
+
+  // 항목 업데이트
+  const updateLineItem = (id: string, field: keyof InvoiceLineItem, value: any) => {
+    setLineItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const updated = { ...item, [field]: value };
+
+        // 수량이나 단가가 변경되면 합계 자동 계산
+        if (field === 'quantity' || field === 'unit_price') {
+          const qty = field === 'quantity' ? parseFloat(value) || 0 : item.quantity;
+          const price = field === 'unit_price' ? parseFloat(value) || 0 : item.unit_price;
+          updated.total_price = Math.round(qty * price);
+        }
+
+        // 헤더 행의 월/일이 변경되면 하위 항목에도 적용
+        if (item.isHeader && (field === 'month' || field === 'day')) {
+          const headerIndex = prev.findIndex(i => i.id === id);
+          const groupItems = [];
+
+          // 같은 그룹의 하위 항목들 찾기
+          for (let i = headerIndex + 1; i < prev.length; i++) {
+            if (prev[i].isHeader) break;
+            groupItems.push(i);
+          }
+
+          // 하위 항목들의 월/일도 업데이트
+          const updatedItems = [...prev];
+          updatedItems[headerIndex] = updated;
+          groupItems.forEach(idx => {
+            updatedItems[idx] = { ...updatedItems[idx], [field]: value };
+          });
+
+          return updatedItems[prev.indexOf(item)];
+        }
+
+        return updated;
+      }
+      return item;
+    }));
+  };
+
+  // 부품 검색 (실시간 자동완성 - 규격 필드)
+  const handlePartSearch = async (id: string, searchTerm: string) => {
+    if (!searchTerm || searchTerm.length < 1) {
+      setPartSearchResults([]);
+      setActivePartSearchId(null);
       return;
     }
 
     try {
-      setSaving(true);
-      
-      if (invoiceData.id) {
-        // 수정
-        await api.put(`/invoices/${invoiceData.id}`, invoiceData);
-        alert('거래명세표가 수정되었습니다.');
-      } else {
-        // 새로 생성
-        const response = await api.post('/invoices', invoiceData);
-        alert('거래명세표가 생성되었습니다.');
+      const response = await sparePartsAPI.searchPartByNumber(searchTerm);
+      if (response.data && response.data.spare_parts) {
+        setPartSearchResults(response.data.spare_parts);
+        setActivePartSearchId(id);
       }
-      
-      // 목록으로 이동
-      navigate('/invoices');
     } catch (error) {
-      console.error('거래명세표 저장 실패:', error);
-      alert('거래명세표 저장에 실패했습니다.');
-    } finally {
-      setSaving(false);
+      console.error('부품 검색 실패:', error);
+      setPartSearchResults([]);
     }
   };
 
-  // 항목 수정
-  const updateItem = (index: number, field: keyof InvoiceItem, value: any) => {
-    const updatedItems = [...invoiceData.items];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      [field]: value
-    };
-    
-    // 총가격 자동 계산
-    if (field === 'quantity' || field === 'unit_price') {
-      updatedItems[index].total_price = updatedItems[index].quantity * updatedItems[index].unit_price;
-    }
-    
-    setInvoiceData(prev => ({
-      ...prev,
-      items: updatedItems
-    }));
-    
-    calculateTotals(updatedItems);
-  };
-
-  // 합계 계산
-  const calculateTotals = (items: InvoiceItem[]) => {
-    let workSubtotal = 0;
-    let travelSubtotal = 0;
-    let partsSubtotal = 0;
-
-    items.forEach(item => {
-      switch (item.item_type) {
-        case 'work':
-          workSubtotal += item.total_price;
-          break;
-        case 'travel':
-          travelSubtotal += item.total_price;
-          break;
-        case 'parts':
-          partsSubtotal += item.total_price;
-          break;
+  // 부품 선택
+  const handlePartSelect = (itemId: string, part: any) => {
+    setLineItems(prev => prev.map(item => {
+      if (item.id === itemId) {
+        return {
+          ...item,
+          part_number: part.part_number,
+          item_name: part.part_name,
+          specification: part.part_name,  // 규격에 부품명만 표시
+          unit_price: part.charge_price || 0,
+          total_price: Math.round((part.charge_price || 0) * item.quantity)
+        };
       }
-    });
-
-    const totalAmount = workSubtotal + travelSubtotal + partsSubtotal;
-    const vatAmount = Math.round(totalAmount * 0.1);
-    const grandTotal = totalAmount + vatAmount;
-
-    setInvoiceData(prev => ({
-      ...prev,
-      work_subtotal: workSubtotal,
-      travel_subtotal: travelSubtotal,
-      parts_subtotal: partsSubtotal,
-      total_amount: totalAmount,
-      vat_amount: vatAmount,
-      grand_total: grandTotal
+      return item;
     }));
-  };
 
-  // 새 항목 추가
-  const addItem = (itemType: 'work' | 'travel' | 'parts') => {
-    const newItem: InvoiceItem = {
-      item_type: itemType,
-      description: '',
-      quantity: 1,
-      unit_price: 0,
-      total_price: 0
-    };
-    
-    const updatedItems = [...invoiceData.items, newItem];
-    setInvoiceData(prev => ({
-      ...prev,
-      items: updatedItems
-    }));
-    
-    calculateTotals(updatedItems);
+    setPartSearchResults([]);
+    setActivePartSearchId(null);
   };
 
   // 항목 삭제
-  const removeItem = (index: number) => {
-    const updatedItems = invoiceData.items.filter((_, i) => i !== index);
-    setInvoiceData(prev => ({
-      ...prev,
-      items: updatedItems
-    }));
-    
-    calculateTotals(updatedItems);
+  const removeLineItem = (id: string) => {
+    setLineItems(prev => {
+      const index = prev.findIndex(item => item.id === id);
+      if (index === -1) return prev;
+
+      const item = prev[index];
+
+      // 헤더 삭제 시 하위 항목도 모두 삭제
+      if (item.isHeader) {
+        const toRemove = [id];
+        for (let i = index + 1; i < prev.length; i++) {
+          if (prev[i].isHeader) break;
+          toRemove.push(prev[i].id);
+        }
+        return prev.filter(item => !toRemove.includes(item.id));
+      }
+
+      // 일반 항목 삭제
+      return prev.filter(item => item.id !== id);
+    });
   };
 
-  // 고객 검색 함수
-  const searchCustomers = async (searchTerm: string) => {
-    if (searchTerm.length < 1) {
-      setCustomerSearchResults([]);
-      setShowCustomerSearch(false);
+  // 합계 계산
+  const calculateTotals = () => {
+    const total_amount = lineItems
+      .filter(item => !item.isHeader)
+      .reduce((sum, item) => sum + item.total_price, 0);
+
+    const vat_amount = Math.round(total_amount * 0.1);
+    const grand_total = total_amount + vat_amount;
+
+    return { total_amount, vat_amount, grand_total };
+  };
+
+  // 저장
+  const handleSave = async () => {
+    if (!customerId || !customerName || !customerAddress) {
+      alert('고객 정보를 모두 입력해주세요.');
+      return;
+    }
+
+    if (lineItems.length === 0) {
+      alert('최소 1개 이상의 항목을 입력해주세요.');
       return;
     }
 
     try {
-      console.log('searchCustomers: API 호출 시작, 검색어:', searchTerm);
-      const response = await api.get('/customers');
-      console.log('searchCustomers: API 응답:', response.data);
-      
-      const allCustomers = response.data?.customers || response.data || [];
-      console.log('searchCustomers: 전체 고객 수:', allCustomers.length);
-      
-      const filteredCustomers = allCustomers.filter((customer: Customer) =>
-        customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      console.log('searchCustomers: 필터링된 고객 수:', filteredCustomers.length);
-      
-      setCustomerSearchResults(filteredCustomers);
-      setShowCustomerSearch(true);
-    } catch (error) {
-      console.error('고객 검색 실패:', error);
-    }
-  };
+      setLoading(true);
 
-  // 전체 고객 리스트 표시
-  const showAllCustomers = async () => {
-    try {
-      console.log('showAllCustomers: API 호출 시작');
-      const response = await api.get('/customers');
-      console.log('showAllCustomers: API 응답:', response.data);
-      
-      const allCustomers = response.data?.customers || response.data || [];
-      console.log('showAllCustomers: 추출된 고객 수:', allCustomers.length);
-      
-      // 임시 테스트: 하드코딩된 데이터 추가
-      if (allCustomers.length === 0) {
-        console.log('showAllCustomers: 고객 데이터가 없어서 테스트 데이터 사용');
-        const testCustomers = [
-          { id: 1, company_name: '테스트회사1', contact_person: '김담당', address: '서울시', phone: '010-1234-5678', email: 'test1@test.com' },
-          { id: 2, company_name: '테스트회사2', contact_person: '이담당', address: '부산시', phone: '010-2345-6789', email: 'test2@test.com' }
-        ];
-        setCustomerSearchResults(testCustomers);
+      const { total_amount, vat_amount, grand_total } = calculateTotals();
+
+      // item_type 판단
+      const dbItems = lineItems
+        .filter(item => !item.isHeader)
+        .map(item => {
+          let item_type = 'parts';
+
+          if (item.item_name.includes('작업')) {
+            item_type = 'work';
+          } else if (item.item_name.includes('이동') || item.item_name.includes('출장')) {
+            item_type = 'travel';
+          }
+
+          return {
+            item_type,
+            description: item.specification || item.item_name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total_price: item.total_price,
+            month: item.month || null,
+            day: item.day || null,
+            item_name: item.item_name,
+            part_number: item.part_number || ''
+          };
+        });
+
+      const invoiceData = {
+        customer_id: customerId,
+        customer_name: customerName,
+        customer_address: customerAddress,
+        issue_date: issueDate,
+        work_subtotal: dbItems.filter(i => i.item_type === 'work').reduce((s, i) => s + i.total_price, 0),
+        travel_subtotal: dbItems.filter(i => i.item_type === 'travel').reduce((s, i) => s + i.total_price, 0),
+        parts_subtotal: dbItems.filter(i => i.item_type === 'parts').reduce((s, i) => s + i.total_price, 0),
+        total_amount,
+        vat_amount,
+        grand_total,
+        notes,
+        items: dbItems
+      };
+
+      if (invoiceId) {
+        // 수정
+        await invoiceAPI.updateInvoice(parseInt(invoiceId), invoiceData);
+        alert('거래명세서가 수정되었습니다.');
       } else {
-        setCustomerSearchResults(allCustomers);
+        // 신규 생성
+        await invoiceAPI.createInvoice(invoiceData);
+        alert('거래명세서가 생성되었습니다.');
       }
-      
-      setShowCustomerSearch(true);
-    } catch (error) {
-      console.error('고객 목록 조회 실패:', error);
-      // 에러 시에도 테스트 데이터 표시
-      const testCustomers = [
-        { id: 1, company_name: '테스트회사1', contact_person: '김담당', address: '서울시', phone: '010-1234-5678', email: 'test1@test.com' },
-        { id: 2, company_name: '테스트회사2', contact_person: '이담당', address: '부산시', phone: '010-2345-6789', email: 'test2@test.com' }
-      ];
-      setCustomerSearchResults(testCustomers);
-      setShowCustomerSearch(true);
+
+      navigate('/invoices');
+    } catch (error: any) {
+      console.error('거래명세서 저장 실패:', error);
+      alert(`거래명세서 저장에 실패했습니다:\n${error.response?.data?.error || error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 고객 선택
-  const handleSelectCustomer = (customer: Customer) => {
-    setInvoiceData(prev => ({
-      ...prev,
-      customer_id: customer.id,
-      customer_name: customer.company_name,
-      customer_address: customer.address
-    }));
-    setShowCustomerSearch(false);
-  };
-
-  useEffect(() => {
-    if (invoiceId) {
-      // 기존 인보이스 수정
-      loadExistingInvoice();
-    } else if (serviceReportId) {
-      // 서비스 리포트 기반 신규 생성
-      createInvoiceFromServiceReport();
-    }
-  }, [serviceReportId, invoiceId]);
+  const { total_amount, vat_amount, grand_total } = calculateTotals();
 
   if (loading) {
     return (
-      <div className="page-body">
-        <div className="container-xl">
-          <div className="text-center py-5">
-            <div className="spinner-border" role="status">
-              <span className="visually-hidden">로딩 중...</span>
+      <div className="page page-center">
+        <div className="container-tight py-4">
+          <div className="text-center">
+            <div className="mb-3">
+              <div className="spinner-border text-primary" role="status"></div>
             </div>
-            <p className="mt-3">거래명세표를 생성하고 있습니다...</p>
+            <div className="text-muted mb-3">로딩 중...</div>
           </div>
         </div>
       </div>
@@ -330,888 +536,327 @@ const InvoiceForm: React.FC = () => {
   }
 
   return (
-    <div className="page-header d-print-none">
-      <div className="container-xl">
-        <div className="row g-2 align-items-center">
-          <div className="col">
-            <div className="page-pretitle">거래명세표</div>
-            <h2 className="page-title">
-              {invoiceData.id ? '거래명세표 수정' : '거래명세표 작성'}
-            </h2>
-          </div>
-          <div className="col-auto ms-auto d-print-none">
-            <div className="btn-list">
-              <button 
-                className="btn btn-outline-secondary"
-                onClick={() => navigate(-1)}
-              >
-                취소
-              </button>
-              <button 
-                className="btn btn-primary"
-                onClick={saveInvoice}
-                disabled={saving}
-              >
-                {saving ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                    저장 중...
-                  </>
-                ) : (
-                  '저장'
-                )}
-              </button>
+    <div className="page">
+      <div className="page-wrapper">
+        <div className="page-header d-print-none">
+          <div className="container-xl">
+            <div className="row g-2 align-items-center">
+              <div className="col">
+                <h2 className="page-title">
+                  {invoiceId ? '거래명세서 수정' : '거래명세서 작성'}
+                </h2>
+              </div>
+              <div className="col-auto ms-auto">
+                <div className="btn-list">
+                  <button
+                    type="button"
+                    className="btn btn-ghost-secondary"
+                    onClick={() => navigate('/invoices')}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleSave}
+                    disabled={loading}
+                  >
+                    {loading ? '저장 중...' : '저장'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="page-body">
-        <div className="container-xl">
-          <div className="row justify-content-center">
-            <div className="col-12">
-              
-              {/* 거래명세표 양식 */}
-              <div className="card">
-                <div className="card-body p-0">
-                  
-                  {/* 첫 번째 페이지 - 공급받는자용 */}
-                  <div style={{ 
-                    border: '2px solid #000', 
-                    backgroundColor: '#ffffff',
-                    minHeight: '842px', // A4 높이
-                    width: '100%',
-                    maxWidth: '595px', // A4 너비
-                    margin: '0 auto 20px auto',
-                    fontFamily: '"Malgun Gothic", sans-serif',
-                    pageBreakAfter: 'always'
-                  }}>
-                    
-                    {/* 상단 헤더 */}
-                    <div style={{ display: 'flex', borderBottom: '1px solid #000' }}>
-                      {/* 좌측 작성일자 */}
-                      <div style={{ 
-                        width: '120px',
-                        border: '1px solid #000',
-                        padding: '8px',
-                        fontSize: '12px'
-                      }}>
-                        <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '5px' }}>
-                          거래일자
+        <div className="page-body">
+          <div className="container-xl">
+            <div className="card">
+              <div className="card-header">
+                <h3 className="card-title">기본 정보</h3>
+              </div>
+              <div className="card-body">
+                <div className="row mb-3">
+                  <div className="col-md-6">
+                    <label className="form-label required">고객사</label>
+                    <div className="position-relative">
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={customerSearchTerm}
+                        onChange={(e) => {
+                          setCustomerSearchTerm(e.target.value);
+                          setShowCustomerDropdown(true);
+                        }}
+                        onFocus={() => setShowCustomerDropdown(true)}
+                        placeholder="고객사 검색..."
+                      />
+                      {showCustomerDropdown && filteredCustomers.length > 0 && (
+                        <div className="dropdown-menu show w-100" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                          {filteredCustomers.map(customer => (
+                            <button
+                              key={customer.id}
+                              type="button"
+                              className="dropdown-item"
+                              onClick={() => handleCustomerSelect(customer)}
+                            >
+                              {customer.company_name} {customer.contact_person && `(${customer.contact_person})`}
+                            </button>
+                          ))}
                         </div>
-                        <div style={{ textAlign: 'center' }}>
-                          <input
-                            type="date"
-                            value={invoiceData.issue_date}
-                            onChange={(e) => setInvoiceData(prev => ({
-                              ...prev,
-                              issue_date: e.target.value
-                            }))}
-                            style={{
-                              border: 'none',
-                              fontSize: '10px',
-                              textAlign: 'center',
-                              width: '100%'
-                            }}
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* 중앙 제목 */}
-                      <div style={{
-                        flex: 1,
-                        textAlign: 'center',
-                        padding: '15px',
-                        fontSize: '24px',
-                        fontWeight: 'bold',
-                        letterSpacing: '3px'
-                      }}>
-                        거래명세표
-                      </div>
-                      
-                      {/* 우측 구분 */}
-                      <div style={{ 
-                        width: '120px',
-                        border: '1px solid #000',
-                        padding: '8px',
-                        fontSize: '11px',
-                        textAlign: 'center',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        (공급받는자용)
-                      </div>
+                      )}
                     </div>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label required">발행일</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={issueDate}
+                      onChange={(e) => setIssueDate(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-                    {/* 공급받는자/공급자 정보 테이블 */}
-                    <table style={{ 
-                      width: '100%', 
-                      borderCollapse: 'collapse',
-                      fontSize: '11px',
-                      marginBottom: '0'
-                    }}>
+                <div className="row mb-3">
+                  <div className="col-12">
+                    <label className="form-label required">고객 주소</label>
+                    <textarea
+                      className="form-control"
+                      rows={2}
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      placeholder="고객 주소를 입력하세요"
+                    />
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="col-12">
+                    <label className="form-label">비고</label>
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="특이사항을 입력하세요"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card mt-3">
+              <div className="card-header">
+                <h3 className="card-title">거래명세서 항목</h3>
+                <div className="card-actions">
+                  <button
+                    type="button"
+                    className="btn btn-success btn-sm me-2"
+                    onClick={addServiceCost}
+                  >
+                    + 서비스비용추가
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-info btn-sm"
+                    onClick={addPartsCost}
+                  >
+                    + 부품비용추가
+                  </button>
+                </div>
+              </div>
+              <div className="card-body">
+                <div className="table-responsive">
+                  <table className="table table-bordered">
+                    <thead>
                       <tr>
-                        <td style={{ 
-                          border: '1px solid #000', 
-                          padding: '6px',
-                          textAlign: 'center',
-                          fontWeight: 'bold',
-                          width: '15%'
-                        }}>공급받는자</td>
-                        <td style={{ 
-                          border: '1px solid #000', 
-                          padding: '6px',
-                          width: '35%'
-                        }}>
-                          <div style={{ marginBottom: '4px', position: 'relative' }}>
-                            <input
-                              type="text"
-                              value={invoiceData.customer_name}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setInvoiceData(prev => ({
-                                  ...prev,
-                                  customer_name: value
-                                }));
-                                if (value.length >= 1) {
-                                  searchCustomers(value);
-                                } else {
-                                  setCustomerSearchResults([]);
-                                  setShowCustomerSearch(false);
-                                }
-                              }}
-                              onFocus={(e) => {
-                                const value = e.target.value;
-                                if (value.length >= 1) {
-                                  searchCustomers(value);
-                                } else {
-                                  showAllCustomers();
-                                }
-                              }}
-                              onBlur={() => {
-                                setTimeout(() => setShowCustomerSearch(false), 200);
-                              }}
-                              placeholder="상호명을 입력하여 검색..."
-                              style={{
-                                border: '1px solid #000',
-                                width: '150px',
-                                fontSize: '11px',
-                                padding: '2px'
-                              }}
-                            />
-                            {showCustomerSearch && customerSearchResults.length > 0 && (
-                              <div 
-                                className="position-absolute"
-                                style={{
-                                  zIndex: 1000,
-                                  backgroundColor: '#ffffff',
-                                  border: '1px solid #ddd',
-                                  borderRadius: '4px',
-                                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                  maxHeight: '200px',
-                                  overflowY: 'auto',
-                                  width: '250px',
-                                  marginTop: '20px'
-                                }}
-                              >
-                                {customerSearchResults.map((customer) => (
-                                  <div
-                                    key={customer.id}
-                                    className="p-2 cursor-pointer hover:bg-light"
-                                    style={{
-                                      borderBottom: '1px solid #eee',
-                                      cursor: 'pointer'
-                                    }}
-                                    onClick={() => handleSelectCustomer(customer)}
-                                    onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#f8f9fa'}
-                                    onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
-                                  >
-                                    <strong style={{ fontSize: '11px' }}>{customer.company_name}</strong>
-                                    <div style={{ fontSize: '9px', color: '#666' }}>
-                                      {customer.contact_person} | {customer.phone}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ marginBottom: '4px' }}>
-                            <span style={{ fontWeight: 'bold' }}>사업장주소: </span>
-                            <input
-                              type="text"
-                              value={invoiceData.customer_address}
-                              onChange={(e) => setInvoiceData(prev => ({
-                                ...prev,
-                                customer_address: e.target.value
-                              }))}
-                              style={{
-                                border: '1px solid #000',
-                                width: '200px',
-                                fontSize: '11px',
-                                padding: '2px'
-                              }}
-                              placeholder="주소"
-                            />
-                          </div>
-                          <div style={{ marginBottom: '4px' }}>
-                            <span style={{ fontWeight: 'bold' }}>전화번호: </span>
-                            <input
-                              type="text"
-                              placeholder="TEL: 055-338-5456  FAX: 055-338-5566"
-                              style={{
-                                border: '1px solid #000',
-                                width: '220px',
-                                fontSize: '11px',
-                                padding: '2px'
-                              }}
-                            />
-                          </div>
-                          <div style={{ 
-                            marginTop: '8px',
-                            textAlign: 'center',
-                            fontSize: '16px',
-                            fontWeight: 'bold',
-                            padding: '4px',
-                            border: '2px solid #000'
-                          }}>
-                            합계금액: ₩{invoiceData.grand_total.toLocaleString()}
-                          </div>
-                        </td>
-                        <td style={{ 
-                          border: '1px solid #000', 
-                          padding: '6px',
-                          textAlign: 'center',
-                          fontWeight: 'bold',
-                          width: '15%'
-                        }}>공급자</td>
-                        <td style={{ 
-                          border: '1px solid #000', 
-                          padding: '6px',
-                          width: '35%'
-                        }}>
-                          <div style={{ marginBottom: '4px' }}>
-                            <span style={{ fontWeight: 'bold' }}>상호(법인명): </span>
-                            <input
-                              type="text"
-                              defaultValue="LVD Korea (유)"
-                              style={{
-                                border: '1px solid #000',
-                                width: '100px',
-                                fontSize: '11px',
-                                padding: '2px'
-                              }}
-                            />
-                            <span style={{ marginLeft: '10px', fontWeight: 'bold' }}>대표: </span>
-                            <input
-                              type="text"
-                              defaultValue="이동호"
-                              style={{
-                                border: '1px solid #000',
-                                width: '60px',
-                                fontSize: '11px',
-                                padding: '2px'
-                              }}
-                            />
-                            <span style={{ marginLeft: '10px', fontSize: '12px', border: '1px solid #000', padding: '2px 6px' }}>
-                              인
-                            </span>
-                          </div>
-                          <div style={{ marginBottom: '4px' }}>
-                            <span style={{ fontWeight: 'bold' }}>등록번호: </span>
-                            <input
-                              type="text"
-                              defaultValue="122-86-12760"
-                              style={{
-                                border: '1px solid #000',
-                                width: '120px',
-                                fontSize: '11px',
-                                padding: '2px'
-                              }}
-                            />
-                          </div>
-                          <div style={{ marginBottom: '4px' }}>
-                            <span style={{ fontWeight: 'bold' }}>사업장주소: </span>
-                            <input
-                              type="text"
-                              defaultValue="인천광역시 부평구 청천로 409-7"
-                              style={{
-                                border: '1px solid #000',
-                                width: '200px',
-                                fontSize: '11px',
-                                padding: '2px'
-                              }}
-                            />
-                          </div>
-                          <div style={{ marginBottom: '4px' }}>
-                            <span style={{ fontWeight: 'bold' }}>전화번호: </span>
-                            <input
-                              type="text"
-                              defaultValue="050-2345-7801  FAX: 050-2345-7816"
-                              style={{
-                                border: '1px solid #000',
-                                width: '220px',
-                                fontSize: '11px',
-                                padding: '2px'
-                              }}
-                            />
-                          </div>
-                        </td>
+                        <th style={{ width: '80px' }}>월</th>
+                        <th style={{ width: '80px' }}>일</th>
+                        <th style={{ width: '180px' }}>품목</th>
+                        <th style={{ minWidth: '200px' }}>규격</th>
+                        <th style={{ width: '120px' }}>수량</th>
+                        <th style={{ width: '130px' }}>단가</th>
+                        <th style={{ width: '130px' }}>금액</th>
+                        <th style={{ width: '80px' }}>액션</th>
                       </tr>
-                    </table>
+                    </thead>
+                    <tbody>
+                      {lineItems.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="text-center text-muted">
+                            항목이 없습니다. 위의 버튼을 눌러 서비스비용 또는 부품비용을 추가하세요.
+                          </td>
+                        </tr>
+                      )}
 
-                    {/* 항목 테이블 */}
-                    <div style={{ borderBottom: '2px solid #000' }}>
-                      <table style={{ 
-                        width: '100%', 
-                        borderCollapse: 'collapse',
-                        fontSize: '12px'
-                      }}>
-                        <thead>
-                          <tr>
-                            <th style={{ 
-                              border: '1px solid #000', 
-                              padding: '8px', 
-                              textAlign: 'center',
-                              width: '10%'
-                            }}>번호</th>
-                            <th style={{ 
-                              border: '1px solid #000', 
-                              padding: '8px', 
-                              textAlign: 'center',
-                              width: '40%'
-                            }}>품목</th>
-                            <th style={{ 
-                              border: '1px solid #000', 
-                              padding: '8px', 
-                              textAlign: 'center',
-                              width: '15%'
-                            }}>수량</th>
-                            <th style={{ 
-                              border: '1px solid #000', 
-                              padding: '8px', 
-                              textAlign: 'center',
-                              width: '15%'
-                            }}>단가</th>
-                            <th style={{ 
-                              border: '1px solid #000', 
-                              padding: '8px', 
-                              textAlign: 'center',
-                              width: '15%'
-                            }}>금액</th>
-                            <th className="d-print-none" style={{ 
-                              border: '1px solid #000', 
-                              padding: '8px', 
-                              textAlign: 'center',
-                              width: '5%'
-                            }}>삭제</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {invoiceData.items.map((item, index) => (
-                            <tr key={index}>
-                              <td style={{ 
-                                border: '1px solid #000', 
-                                padding: '6px', 
-                                textAlign: 'center'
-                              }}>
-                                {index + 1}
-                              </td>
-                              <td style={{ 
-                                border: '1px solid #000', 
-                                padding: '6px'
-                              }}>
+                      {lineItems.map((item, idx) => (
+                        <tr key={item.id} className={item.isHeader ? 'table-active' : ''}>
+                          {/* 월 */}
+                          <td>
+                            {item.isHeader ? (
+                              <input
+                                type="number"
+                                className="form-control form-control-sm"
+                                value={item.month || ''}
+                                onChange={(e) => updateLineItem(item.id, 'month', parseInt(e.target.value) || 0)}
+                                placeholder="월"
+                                min="1"
+                                max="12"
+                                style={{ width: '70px' }}
+                              />
+                            ) : null}
+                          </td>
+
+                          {/* 일 */}
+                          <td>
+                            {item.isHeader ? (
+                              <input
+                                type="number"
+                                className="form-control form-control-sm"
+                                value={item.day || ''}
+                                onChange={(e) => updateLineItem(item.id, 'day', parseInt(e.target.value) || 0)}
+                                placeholder="일"
+                                min="1"
+                                max="31"
+                                style={{ width: '70px' }}
+                              />
+                            ) : null}
+                          </td>
+
+                          {/* 품목 */}
+                          <td>
+                            {item.isHeader ? (
+                              <strong>{item.item_name}</strong>
+                            ) : item.isPartsCost ? (
+                              <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                value={item.item_name}
+                                onChange={(e) => updateLineItem(item.id, 'item_name', e.target.value)}
+                                placeholder="품목명"
+                              />
+                            ) : (
+                              item.item_name
+                            )}
+                          </td>
+
+                          {/* 규격 */}
+                          <td>
+                            {!item.isHeader && (
+                              <div className="position-relative">
                                 <input
                                   type="text"
-                                  value={item.description}
-                                  onChange={(e) => updateItem(index, 'description', e.target.value)}
-                                  style={{
-                                    border: 'none',
-                                    backgroundColor: 'transparent',
-                                    width: '100%',
-                                    fontSize: '12px'
+                                  className="form-control form-control-sm"
+                                  value={item.specification}
+                                  onChange={(e) => {
+                                    updateLineItem(item.id, 'specification', e.target.value);
+                                    // 부품비용일 경우 부품 검색 (부품번호 또는 부품명)
+                                    if (item.isPartsCost) {
+                                      handlePartSearch(item.id, e.target.value);
+                                    }
                                   }}
+                                  placeholder={item.isPartsCost ? "부품명 또는 부품번호 입력" : "규격"}
+                                  readOnly={item.isServiceCost}
                                 />
-                              </td>
-                              <td style={{ 
-                                border: '1px solid #000', 
-                                padding: '6px'
-                              }}>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  value={item.quantity}
-                                  onChange={(e) => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)}
-                                  style={{
-                                    border: 'none',
-                                    backgroundColor: 'transparent',
-                                    width: '100%',
-                                    textAlign: 'right',
-                                    fontSize: '12px'
-                                  }}
-                                />
-                              </td>
-                              <td style={{ 
-                                border: '1px solid #000', 
-                                padding: '6px'
-                              }}>
-                                <input
-                                  type="number"
-                                  value={item.unit_price}
-                                  onChange={(e) => updateItem(index, 'unit_price', parseInt(e.target.value) || 0)}
-                                  style={{
-                                    border: 'none',
-                                    backgroundColor: 'transparent',
-                                    width: '100%',
-                                    textAlign: 'right',
-                                    fontSize: '12px'
-                                  }}
-                                />
-                              </td>
-                              <td style={{ 
-                                border: '1px solid #000', 
-                                padding: '6px',
-                                textAlign: 'right',
-                                fontWeight: 'bold'
-                              }}>
-                                {item.total_price.toLocaleString()}
-                              </td>
-                              <td className="d-print-none" style={{ 
-                                border: '1px solid #000', 
-                                padding: '6px',
-                                textAlign: 'center'
-                              }}>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-outline-danger"
-                                  onClick={() => removeItem(index)}
-                                  title="항목 삭제"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                    <line x1="18" y1="6" x2="6" y2="18"/>
-                                    <line x1="6" y1="6" x2="18" y2="18"/>
-                                  </svg>
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                          
-                          {/* 빈 행들 추가 */}
-                          {Array.from({ length: Math.max(0, 10 - invoiceData.items.length) }).map((_, index) => (
-                            <tr key={`empty-${index}`}>
-                              <td style={{ 
-                                border: '1px solid #000', 
-                                padding: '6px', 
-                                textAlign: 'center',
-                                height: '30px'
-                              }}>
-                                {invoiceData.items.length + index + 1}
-                              </td>
-                              <td style={{ border: '1px solid #000', padding: '6px' }}></td>
-                              <td style={{ border: '1px solid #000', padding: '6px' }}></td>
-                              <td style={{ border: '1px solid #000', padding: '6px' }}></td>
-                              <td style={{ border: '1px solid #000', padding: '6px' }}></td>
-                              <td className="d-print-none" style={{ border: '1px solid #000', padding: '6px' }}></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
 
-                    {/* 항목 추가 버튼들 (인쇄시 숨김) */}
-                    <div className="d-print-none" style={{ 
-                      padding: '10px', 
-                      borderBottom: '2px solid #000',
-                      backgroundColor: '#f8f9fa'
-                    }}>
-                      <div className="d-flex gap-2 justify-content-center">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => addItem('work')}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                            <line x1="12" y1="5" x2="12" y2="19"/>
-                            <line x1="5" y1="12" x2="19" y2="12"/>
-                          </svg>
-                          작업시간 추가
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-info"
-                          onClick={() => addItem('travel')}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                            <line x1="12" y1="5" x2="12" y2="19"/>
-                            <line x1="5" y1="12" x2="19" y2="12"/>
-                          </svg>
-                          이동시간 추가
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-success"
-                          onClick={() => addItem('parts')}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                            <line x1="12" y1="5" x2="12" y2="19"/>
-                            <line x1="5" y1="12" x2="19" y2="12"/>
-                          </svg>
-                          부품 추가
-                        </button>
-                      </div>
-                    </div>
+                                {/* 부품 검색 자동완성 드롭다운 */}
+                                {item.isPartsCost && activePartSearchId === item.id && partSearchResults.length > 0 && (
+                                  <div className="dropdown-menu show w-100" style={{ maxHeight: '200px', overflowY: 'auto', position: 'absolute', zIndex: 1000 }}>
+                                    {partSearchResults.map((part, pidx) => (
+                                      <button
+                                        key={pidx}
+                                        type="button"
+                                        className="dropdown-item"
+                                        onClick={() => handlePartSelect(item.id, part)}
+                                      >
+                                        <div>
+                                          <strong>{part.part_name}</strong> ({part.part_number})
+                                        </div>
+                                        <small className="text-muted">
+                                          청구가: {(part.charge_price || 0).toLocaleString()}원 | 재고: {part.stock_quantity}
+                                        </small>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
 
-                    {/* 하단 합계 */}
-                    <div style={{ display: 'flex' }}>
-                      
-                      {/* 왼쪽 - 비고 */}
-                      <div style={{ 
-                        flex: '1', 
-                        borderRight: '2px solid #000',
-                        padding: '10px'
-                      }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '10px' }}>
-                          비고
-                        </div>
-                        <textarea
-                          value={invoiceData.notes}
-                          onChange={(e) => setInvoiceData(prev => ({
-                            ...prev,
-                            notes: e.target.value
-                          }))}
-                          style={{
-                            border: '1px solid #ccc',
-                            width: '100%',
-                            height: '100px',
-                            padding: '5px',
-                            fontSize: '12px',
-                            resize: 'none'
-                          }}
-                          placeholder="특이사항이나 비고를 입력하세요..."
-                        />
-                      </div>
+                          {/* 수량 */}
+                          <td>
+                            {!item.isHeader && (
+                              <input
+                                type="number"
+                                className="form-control form-control-sm text-end"
+                                value={item.quantity || ''}
+                                onChange={(e) => updateLineItem(item.id, 'quantity', item.isPartsCost ? parseInt(e.target.value) || 0 : parseFloat(e.target.value) || 0)}
+                                placeholder="0"
+                                step={item.isPartsCost ? "1" : "0.1"}
+                                min="0"
+                              />
+                            )}
+                          </td>
 
-                      {/* 오른쪽 - 합계 */}
-                      <div style={{ 
-                        width: '200px',
-                        padding: '10px'
-                      }}>
-                        <table style={{ 
-                          width: '100%', 
-                          borderCollapse: 'collapse',
-                          fontSize: '14px'
-                        }}>
-                          <tbody>
-                            <tr>
-                              <td style={{ 
-                                border: '1px solid #000', 
-                                padding: '8px',
-                                backgroundColor: '#f8f9fa',
-                                fontWeight: 'bold',
-                                textAlign: 'center'
-                              }}>
-                                합계
-                              </td>
-                              <td style={{ 
-                                border: '1px solid #000', 
-                                padding: '8px',
-                                textAlign: 'right',
-                                fontWeight: 'bold'
-                              }}>
-                                {invoiceData.total_amount.toLocaleString()}
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style={{ 
-                                border: '1px solid #000', 
-                                padding: '8px',
-                                backgroundColor: '#f8f9fa',
-                                fontWeight: 'bold',
-                                textAlign: 'center'
-                              }}>
-                                부가세
-                              </td>
-                              <td style={{ 
-                                border: '1px solid #000', 
-                                padding: '8px',
-                                textAlign: 'right',
-                                fontWeight: 'bold'
-                              }}>
-                                {invoiceData.vat_amount.toLocaleString()}
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style={{ 
-                                border: '2px solid #000', 
-                                padding: '8px',
-                                fontWeight: 'bold',
-                                textAlign: 'center',
-                                fontSize: '16px'
-                              }}>
-                                총합계
-                              </td>
-                              <td style={{ 
-                                border: '2px solid #000', 
-                                padding: '8px',
-                                textAlign: 'right',
-                                fontWeight: 'bold',
-                                fontSize: '16px'
-                              }}>
-                                {invoiceData.grand_total.toLocaleString()}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                          {/* 단가 */}
+                          <td>
+                            {!item.isHeader && (
+                              <input
+                                type="number"
+                                className="form-control form-control-sm text-end"
+                                value={item.unit_price || ''}
+                                onChange={(e) => updateLineItem(item.id, 'unit_price', parseInt(e.target.value) || 0)}
+                                placeholder="0"
+                                min="0"
+                                readOnly={item.isServiceCost}
+                              />
+                            )}
+                          </td>
 
-                  </div>
+                          {/* 금액 */}
+                          <td className="text-end">
+                            {!item.isHeader && (
+                              <strong>{item.total_price.toLocaleString()}</strong>
+                            )}
+                          </td>
 
-                  {/* 두 번째 페이지 - 공급자용 (동일한 내용) */}
-                  <div style={{ 
-                    border: '2px solid #000', 
-                    backgroundColor: '#ffffff',
-                    minHeight: '842px',
-                    width: '100%',
-                    maxWidth: '595px',
-                    margin: '0 auto',
-                    fontFamily: '"Malgun Gothic", sans-serif',
-                    pageBreakBefore: 'always'
-                  }}>
-                    
-                    {/* 상단 헤더 */}
-                    <div style={{ display: 'flex', borderBottom: '1px solid #000' }}>
-                      {/* 좌측 작성일자 */}
-                      <div style={{ 
-                        width: '120px',
-                        border: '1px solid #000',
-                        padding: '8px',
-                        fontSize: '12px'
-                      }}>
-                        <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '5px' }}>
-                          거래일자
-                        </div>
-                        <div style={{ textAlign: 'center', fontSize: '10px' }}>
-                          {invoiceData.issue_date}
-                        </div>
-                      </div>
-                      
-                      {/* 중앙 제목 */}
-                      <div style={{
-                        flex: 1,
-                        textAlign: 'center',
-                        padding: '15px',
-                        fontSize: '24px',
-                        fontWeight: 'bold',
-                        letterSpacing: '3px'
-                      }}>
-                        거래명세표
-                      </div>
-                      
-                      {/* 우측 구분 */}
-                      <div style={{ 
-                        width: '120px',
-                        border: '1px solid #000',
-                        padding: '8px',
-                        fontSize: '11px',
-                        textAlign: 'center',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        (공급자용)
-                      </div>
-                    </div>
+                          {/* 액션 */}
+                          <td className="text-center">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger"
+                              onClick={() => removeLineItem(item.id)}
+                              title="삭제"
+                            >
+                              ×
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-                    {/* 동일한 내용 복사 (읽기 전용) */}
-                    <div style={{ display: 'flex', borderBottom: '1px solid #000' }}>
-                      
-                      {/* 왼쪽 - 공급받는자 정보 */}
-                      <div style={{ 
-                        width: '50%', 
-                        borderRight: '1px solid #000',
-                        padding: '8px'
-                      }}>
-                        <div style={{ 
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                          textAlign: 'center',
-                          marginBottom: '8px',
-                          padding: '4px',
-                          backgroundColor: '#f0f0f0'
-                        }}>
-                          공급받는자
-                        </div>
-                        
-                        <div style={{ marginBottom: '6px' }}>
-                          <span style={{ display: 'inline-block', width: '50px', fontSize: '11px', fontWeight: 'bold' }}>상호:</span>
-                          <span style={{ fontSize: '11px' }}>{invoiceData.customer_name}</span>
-                        </div>
-                        
-                        <div style={{ marginBottom: '6px' }}>
-                          <span style={{ display: 'inline-block', width: '50px', fontSize: '11px', fontWeight: 'bold' }}>주소:</span>
-                          <span style={{ fontSize: '11px' }}>{invoiceData.customer_address}</span>
-                        </div>
-                        
-                        <div style={{ marginBottom: '6px' }}>
-                          <span style={{ display: 'inline-block', width: '50px', fontSize: '11px', fontWeight: 'bold' }}>연락처:</span>
-                          <span style={{ fontSize: '11px' }}>TEL: 000-0000-0000  FAX: 000-0000-0000</span>
-                        </div>
-                        
-                        <div style={{ 
-                          marginTop: '10px',
-                          textAlign: 'center',
-                          fontSize: '14px',
-                          fontWeight: 'bold',
-                          padding: '6px',
-                          border: '1px solid #000'
-                        }}>
-                          합계금액: ₩{invoiceData.grand_total.toLocaleString()}
-                        </div>
-                      </div>
-
-                      {/* 오른쪽 - 공급자 정보 */}
-                      <div style={{ 
-                        width: '50%',
-                        padding: '8px'
-                      }}>
-                        <div style={{ 
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                          textAlign: 'center',
-                          marginBottom: '8px',
-                          padding: '4px',
-                          backgroundColor: '#f0f0f0'
-                        }}>
-                          공급자
-                        </div>
-                        
-                        <div style={{ marginBottom: '6px' }}>
-                          <span style={{ display: 'inline-block', width: '40px', fontSize: '11px', fontWeight: 'bold' }}>상호:</span>
-                          <span style={{ fontSize: '11px' }}>LVD Korea (유)</span>
-                          <span style={{ marginLeft: '10px', fontSize: '11px', fontWeight: 'bold' }}>대표:</span>
-                          <span style={{ fontSize: '11px', marginLeft: '5px' }}>이동호</span>
-                          <span style={{ marginLeft: '20px', fontSize: '10px', border: '1px solid #000', padding: '2px' }}>
-                            [인]
-                          </span>
-                        </div>
-                        
-                        <div style={{ marginBottom: '6px' }}>
-                          <span style={{ display: 'inline-block', width: '60px', fontSize: '11px', fontWeight: 'bold' }}>등록번호:</span>
-                          <span style={{ fontSize: '11px' }}>122-86-12760</span>
-                        </div>
-                        
-                        <div style={{ marginBottom: '6px' }}>
-                          <span style={{ display: 'inline-block', width: '40px', fontSize: '11px', fontWeight: 'bold' }}>주소:</span>
-                          <span style={{ fontSize: '11px' }}>인천광역시 부평구 청천로 409-7</span>
-                        </div>
-                        
-                        <div style={{ marginBottom: '6px' }}>
-                          <span style={{ display: 'inline-block', width: '40px', fontSize: '11px', fontWeight: 'bold' }}>연락처:</span>
-                          <span style={{ fontSize: '11px' }}>050-2345-7801  FAX: 050-2345-7816</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 항목 테이블 - 읽기 전용 */}
-                    <div style={{ borderBottom: '2px solid #000' }}>
-                      <table style={{ 
-                        width: '100%', 
-                        borderCollapse: 'collapse',
-                        fontSize: '12px'
-                      }}>
-                        <thead>
-                          <tr>
-                            <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '10%' }}>번호</th>
-                            <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '40%' }}>품목</th>
-                            <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '15%' }}>수량</th>
-                            <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '15%' }}>단가</th>
-                            <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '20%' }}>금액</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {invoiceData.items.map((item, index) => (
-                            <tr key={index}>
-                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>
-                                {index + 1}
-                              </td>
-                              <td style={{ border: '1px solid #000', padding: '6px' }}>
-                                {item.description}
-                              </td>
-                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>
-                                {item.quantity}
-                              </td>
-                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>
-                                {item.unit_price.toLocaleString()}
-                              </td>
-                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', fontWeight: 'bold' }}>
-                                {item.total_price.toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
-                          {/* 빈 행들 */}
-                          {[...Array(Math.max(0, 10 - invoiceData.items.length))].map((_, index) => (
-                            <tr key={`empty-${index}`}>
-                              <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center', height: '30px' }}>
-                                {invoiceData.items.length + index + 1}
-                              </td>
-                              <td style={{ border: '1px solid #000', padding: '6px' }}></td>
-                              <td style={{ border: '1px solid #000', padding: '6px' }}></td>
-                              <td style={{ border: '1px solid #000', padding: '6px' }}></td>
-                              <td style={{ border: '1px solid #000', padding: '6px' }}></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* 하단 합계 - 읽기 전용 */}
-                    <div style={{ display: 'flex' }}>
-                      <div style={{ flex: '1', borderRight: '2px solid #000', padding: '10px' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '10px' }}>
-                          비고
-                        </div>
-                        <div style={{ fontSize: '12px', minHeight: '60px' }}>
-                          {invoiceData.notes}
-                        </div>
-                      </div>
-                      
-                      <div style={{ width: '200px', padding: '0' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                          <tbody>
-                            <tr>
-                              <td style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
-                                공급가액
-                              </td>
-                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>
-                                {invoiceData.total_amount.toLocaleString()}
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
-                                세액
-                              </td>
-                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>
-                                {invoiceData.vat_amount.toLocaleString()}
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style={{ border: '2px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center', fontSize: '16px' }}>
-                                총합계
-                              </td>
-                              <td style={{ border: '2px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', fontSize: '16px' }}>
-                                {invoiceData.grand_total.toLocaleString()}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
+                {/* 합계 표시 */}
+                <div className="row mt-3">
+                  <div className="col-md-6 ms-auto">
+                    <table className="table table-sm">
+                      <tbody>
+                        <tr>
+                          <th className="text-end">공급가액</th>
+                          <td className="text-end">{total_amount.toLocaleString()}원</td>
+                        </tr>
+                        <tr>
+                          <th className="text-end">부가세 (10%)</th>
+                          <td className="text-end">{vat_amount.toLocaleString()}원</td>
+                        </tr>
+                        <tr className="table-active">
+                          <th className="text-end fs-4">총합계</th>
+                          <td className="text-end fs-4"><strong>{grand_total.toLocaleString()}원</strong></td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -1219,6 +864,113 @@ const InvoiceForm: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 부품 추가 모달 */}
+      {showPartsModal && (
+        <>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1040 }}></div>
+          <div className="modal fade show" style={{ display: 'block', zIndex: 1050 }} tabIndex={-1} role="dialog" aria-modal="true">
+            <div className="modal-dialog modal-dialog-centered modal-lg" role="document">
+              <div className="modal-content" style={{ backgroundColor: '#ffffff', position: 'relative', zIndex: 1051 }}>
+                <div className="modal-header">
+                  <h5 className="modal-title">부품 추가</h5>
+                  <button type="button" className="btn-close" onClick={() => setShowPartsModal(false)}></button>
+                </div>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label">부품번호 검색</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={modalPartNumber}
+                      onChange={(e) => {
+                        setModalPartNumber(e.target.value);
+                        handleModalPartSearch(e.target.value);
+                      }}
+                      placeholder="부품번호 입력..."
+                      maxLength={16}
+                    />
+                    {modalPartSearchResults.length > 0 && (
+                      <div className="list-group mt-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                        {modalPartSearchResults.map((part, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            className="list-group-item list-group-item-action"
+                            onClick={() => handleModalPartSelect(part)}
+                          >
+                            <div className="d-flex w-100 justify-content-between">
+                              <h6 className="mb-1">{part.part_number}</h6>
+                              <small className="text-success">{part.charge_price?.toLocaleString()}원</small>
+                            </div>
+                            <p className="mb-1">{part.part_name}</p>
+                            <small className="text-muted">재고: {part.stock_quantity}</small>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label required">부품명</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={modalPartName}
+                      onChange={(e) => setModalPartName(e.target.value)}
+                      placeholder="부품명 입력..."
+                    />
+                    <small className="form-hint">부품번호 없이 부품명만 입력 가능합니다</small>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label required">수량</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={modalPartQuantity}
+                      onChange={(e) => setModalPartQuantity(parseInt(e.target.value) || 1)}
+                      min="1"
+                      step="1"
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">구매가 (원)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={modalPartUnitPrice}
+                      onChange={(e) => setModalPartUnitPrice(parseInt(e.target.value) || 0)}
+                      placeholder="구매가 입력..."
+                      min="0"
+                      disabled={!!modalPartNumber}
+                    />
+                    {!modalPartNumber && modalPartUnitPrice > 0 && (
+                      <small className="form-hint text-success">
+                        청구가: {Math.round(modalPartUnitPrice * (1 + marginRate / 100)).toLocaleString()}원 (마진율 {marginRate}% 적용)
+                      </small>
+                    )}
+                    {modalPartNumber && (
+                      <small className="form-hint text-muted">
+                        등록된 부품은 청구가가 자동 적용됩니다
+                      </small>
+                    )}
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-link link-secondary" onClick={() => setShowPartsModal(false)}>
+                    취소
+                  </button>
+                  <button type="button" className="btn btn-primary ms-auto" onClick={confirmAddPart}>
+                    추가
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
