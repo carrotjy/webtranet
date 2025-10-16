@@ -505,14 +505,82 @@ const InvoiceForm: React.FC = () => {
         alert('거래명세서가 수정되었습니다.');
       } else {
         // 신규 생성
-        await invoiceAPI.createInvoice(invoiceData);
-        alert('거래명세서가 생성되었습니다.');
+        const createResponse = await invoiceAPI.createInvoice(invoiceData);
+
+        // Excel 파일 생성 (거래명세서 생성 후)
+        try {
+          await generateExcelInvoice();
+          alert('거래명세서와 Excel 파일이 생성되었습니다.');
+        } catch (excelError) {
+          console.error('Excel 생성 실패:', excelError);
+          alert('거래명세서는 생성되었으나 Excel 파일 생성에 실패했습니다.');
+        }
       }
 
       navigate('/invoices');
     } catch (error: any) {
       console.error('거래명세서 저장 실패:', error);
       alert(`거래명세서 저장에 실패했습니다:\n${error.response?.data?.error || error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Excel 파일 생성 함수
+  const generateExcelInvoice = async () => {
+    // lineItems를 Excel 생성 API에 맞는 형식으로 변환
+    const excelItems = lineItems.map(item => ({
+      month: item.month || 0,
+      day: item.day || 0,
+      item_name: item.item_name,
+      specification: item.specification || '',
+      quantity: item.quantity || 0,
+      unit_price: item.unit_price || 0,
+      total_price: item.total_price || 0,
+      vat: Math.round((item.total_price || 0) * 0.1),
+      part_number: item.part_number || '',
+      isHeader: item.isHeader || false,
+      isBlank: false
+    }));
+
+    // 고객 정보 구성
+    const customerInfo = {
+      company_name: customerName,
+      address: customerAddress,
+      phone: customers.find(c => c.id === customerId)?.phone || '',
+      fax: ''
+    };
+
+    const excelData = {
+      customer_name: customerName,
+      service_date: issueDate,
+      customer_info: customerInfo,
+      items: excelItems
+    };
+
+    const response = await api.post('/api/generate-invoice', excelData);
+    return response.data;
+  };
+
+  // Excel 생성 버튼 핸들러 (수정 모드에서 사용)
+  const handleGenerateExcel = async () => {
+    if (!customerId || !customerName || !customerAddress) {
+      alert('고객 정보를 모두 입력해주세요.');
+      return;
+    }
+
+    if (lineItems.length === 0) {
+      alert('최소 1개 이상의 항목을 입력해주세요.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await generateExcelInvoice();
+      alert('Excel 파일이 생성되었습니다.');
+    } catch (error: any) {
+      console.error('Excel 생성 실패:', error);
+      alert(`Excel 파일 생성에 실패했습니다:\n${error.response?.data?.error || error.message}`);
     } finally {
       setLoading(false);
     }
@@ -555,6 +623,16 @@ const InvoiceForm: React.FC = () => {
                   >
                     취소
                   </button>
+                  {invoiceId && (
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      onClick={handleGenerateExcel}
+                      disabled={loading}
+                    >
+                      Excel 생성
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn btn-primary"
