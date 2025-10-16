@@ -247,4 +247,21 @@
 # Database files (keep sample files for reference)
 backend/app/database/user.db
 !backend/sample_customers*.xlsx
-!backend/test_with_empty_cells.xlsxnul
+!backend/test_with_empty_cells.xlsx
+
+# Windows invalid filename
+nul
+
+# Generated service scripts
+start_services.sh
+stop_services.sh
+start_services.bat
+stop_services.bat
+
+# PID files
+**/*.pid
+
+# Backup files
+**/backups/
+**/*.backup
+**/*.bak

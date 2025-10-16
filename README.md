@@ -110,9 +110,39 @@ python run.py
 - 관리자 전용 기능 분리
 - 비밀번호 해싱 (bcrypt)
 
-## 향후 개발 계획
-1. React 프론트엔드 구현
-2. 서비스 리포트 CRUD 기능 완성
-3. 거래명세서 자동 생성 기능
-4. PDF 출력 기능
-5. 이메일 알림 기능
+## 배포 방법
+
+### 빠른 배포 (자동 스크립트)
+
+**Linux/Mac:**
+```bash
+chmod +x deploy.sh
+./deploy.sh
+./start_services.sh
+```
+
+**Windows:**
+```cmd
+deploy.bat
+start_services.bat
+```
+
+### 상세 배포 가이드
+
+자세한 배포 방법은 [DEPLOYMENT.md](DEPLOYMENT.md) 문서를 참고하세요.
+
+배포 옵션:
+1. **Git Clone 방식** (권장) - 서버에서 직접 저장소 클론
+2. **압축 파일 방식** - Git 없이 압축 파일로 배포
+3. **Docker 방식** - Docker Compose 사용 (준비 중)
+
+## 프로덕션 환경
+
+프로덕션 환경에서는 다음을 권장합니다:
+- **웹서버**: Nginx
+- **WSGI 서버**: Gunicorn (Linux) / Waitress (Windows)
+- **프로세스 관리**: Systemd (Linux) / NSSM (Windows)
+- **HTTPS**: Let's Encrypt SSL 인증서
+- **데이터베이스 백업**: 일일 자동 백업 설정
+
+자세한 내용은 [DEPLOYMENT.md](DEPLOYMENT.md)를 참고하세요.
