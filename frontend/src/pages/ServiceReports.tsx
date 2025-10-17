@@ -7,6 +7,7 @@ interface Customer {
   id: number;
   company_name: string;
   contact_person: string;
+  president: string;
   address: string;
 }
 
@@ -562,7 +563,7 @@ const ServiceReports: React.FC = () => {
   // Invoice 코드 목록 로드
   const loadInvoiceCodes = async () => {
     try {
-      const response = await api.get('/invoice-codes');
+      const response = await api.get('/api/invoice-codes');
       const invoiceData = response.data?.invoice_codes || [];
       setInvoiceCodes(Array.isArray(invoiceData) ? invoiceData : []);
     } catch (error) {
@@ -1532,7 +1533,12 @@ const ServiceReports: React.FC = () => {
         } else if (response.data.excel_url) {
           // PDF가 없으면 Excel 파일 다운로드
           const excelUrl = `${window.location.origin}${response.data.excel_url}`;
-          window.open(excelUrl, '_blank');
+          const link = document.createElement('a');
+          link.href = excelUrl;
+          link.download = '';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
           alert('거래명세표가 Excel 파일로 생성되었습니다.\n\n(서버에 LibreOffice가 설치되지 않아 PDF 변환은 지원되지 않습니다)');
         } else {
           alert(`거래명세표가 생성되었으나 파일을 찾을 수 없습니다.\n\nExcel: ${response.data.excel_path}`);
@@ -2320,7 +2326,7 @@ const ServiceReports: React.FC = () => {
             }
           }}
         >
-          <div className="modal-dialog modal-xl modal-dialog-centered">
+          <div className="modal-dialog modal-lg modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">
@@ -2415,7 +2421,7 @@ const ServiceReports: React.FC = () => {
                           onClick={() => !editingReport?.is_locked && setShowSupportTechnicianDropdown(!showSupportTechnicianDropdown)}
                         >
                           {formData.support_technician_names.length === 0 ? (
-                            <span className="text-muted">동행/지원 FSE를 선택하세요 (선택사항)</span>
+                            <span className="text-muted">동행/지원 FSE</span>
                           ) : (
                             formData.support_technician_names.map((name, index) => (
                               <span
@@ -2554,8 +2560,15 @@ const ServiceReports: React.FC = () => {
                                       style={{backgroundColor: '#ffffff', opacity: 1}}
                                       onClick={() => handleSelectCustomer(customer)}
                                     >
-                                      <strong>{customer.company_name}</strong>
-                                      <small className="text-muted d-block">{customer.contact_person} | {customer.address}</small>
+                                      <div>
+                                        <strong>{customer.company_name}</strong>
+                                        {/* {customer.president && <small className="text-muted d-block">대표 {customer.president}</small>} */}
+                                      </div>
+                                      {customer.address && (
+                                        <small className="text-muted d-block">
+                                          {customer.address}
+                                        </small>
+                                      )}
                                     </button>
                                   ))
                                 ) : (
@@ -3099,7 +3112,7 @@ const ServiceReports: React.FC = () => {
             }
           }}
         >
-          <div className="modal-dialog modal-xl modal-dialog-centered">
+          <div className="modal-dialog modal-lg modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">서비스 리포트 상세 보기</h5>
@@ -3645,7 +3658,7 @@ const ServiceReports: React.FC = () => {
             }
           }}
         >
-          <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+          <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">거래명세표 항목 입력</h5>

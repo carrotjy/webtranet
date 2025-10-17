@@ -41,7 +41,7 @@ const InvoiceSettings: React.FC = () => {
   const fetchRates = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/admin/invoice-rates');
+      const response = await api.get('/api/admin/invoice-rates');
       if (response.data) {
         setRates(response.data);
       }
@@ -56,7 +56,7 @@ const InvoiceSettings: React.FC = () => {
   // 공급자 정보 조회
   const fetchSupplierInfo = async () => {
     try {
-      const response = await api.get('/admin/supplier-info');
+      const response = await api.get('/api/admin/supplier-info');
       if (response.data) {
         setSupplierInfo(response.data);
       }
@@ -70,7 +70,7 @@ const InvoiceSettings: React.FC = () => {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await api.post('/admin/invoice-rates', rates);
+      await api.post('/api/admin/invoice-rates', rates);
       alert('요율 설정이 저장되었습니다.');
     } catch (error) {
       console.error('요율 설정 저장 실패:', error);
@@ -91,7 +91,7 @@ const InvoiceSettings: React.FC = () => {
   const handleSaveSupplier = async () => {
     try {
       setSavingSupplier(true);
-      await api.post('/admin/supplier-info', supplierInfo);
+      await api.post('/api/admin/supplier-info', supplierInfo);
       alert('공급자 정보가 저장되었습니다.');
     } catch (error) {
       console.error('공급자 정보 저장 실패:', error);

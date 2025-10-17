@@ -52,20 +52,21 @@ def search_customers():
     """고객사명 검색 - 부품 출고 시 사용처 검색용"""
     try:
         query = request.args.get('q', '').strip()
+
+        # 검색어가 없으면 전체 고객 목록 반환 (최대 10개)
         if not query:
-            return jsonify({
-                'success': True,
-                'data': []
-            }), 200
+            customers, total = Customer.get_all(page=1, per_page=10)
+        else:
+            # 검색어가 있으면 검색 - 최대 10개 결과만 반환
+            customers, total = Customer.search(keyword=query, page=1, per_page=10)
         
-        # 간단한 검색 - 최대 10개 결과만 반환
-        customers, total = Customer.search(keyword=query, page=1, per_page=10)
-        
-        # 간단한 형태로 반환 (id와 company_name만)
+        # 간단한 형태로 반환 (id, company_name, customer_name 모두 포함)
         customer_list = [
             {
                 'id': customer.id,
-                'customer_name': customer.company_name  # 프론트엔드에서 customer_name으로 기대
+                'company_name': customer.company_name,  # 표시용
+                'customer_name': customer.company_name,  # 입력 필드 설정용 (하위 호환성)
+                'address': customer.address if hasattr(customer, 'address') else None
             }
             for customer in customers
         ]

@@ -46,7 +46,7 @@ const ServiceReportSettings: React.FC = () => {
   const fetchInvoiceCodes = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/admin/invoice-codes');
+      const response = await api.get('/api/admin/invoice-codes');
       setInvoiceCodes(response.data.invoice_codes || []);
     } catch (error) {
       console.error('Invoice 코드 조회 실패:', error);
@@ -70,17 +70,17 @@ const ServiceReportSettings: React.FC = () => {
       }
 
       if (editingCode) {
-        await api.put(`/admin/invoice-codes/${editingCode.id}`, modalData);
+        await api.put(`/api/admin/invoice-codes/${editingCode.id}`, modalData);
       } else {
-        await api.post('/admin/invoice-codes', modalData);
+        await api.post('/api/admin/invoice-codes', modalData);
       }
 
       alert(editingCode ? 'Invoice 코드가 수정되었습니다.' : 'Invoice 코드가 생성되었습니다.');
-      
+
       setShowModal(false);
       setEditingCode(null);
       setModalData({ code: '', description: '', category: '' });
-      
+
       // 목록 새로고침
       fetchInvoiceCodes();
     } catch (error: any) {
@@ -97,7 +97,7 @@ const ServiceReportSettings: React.FC = () => {
     }
 
     try {
-      await api.delete(`/admin/invoice-codes/${codeId}`);
+      await api.delete(`/api/admin/invoice-codes/${codeId}`);
       alert('Invoice 코드가 삭제되었습니다.');
       fetchInvoiceCodes();
     } catch (error: any) {

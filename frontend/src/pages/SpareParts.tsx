@@ -1366,12 +1366,24 @@ const SpareParts: React.FC = () => {
                         onChange={(e) => {
                           const value = e.target.value;
                           setStockTransaction({...stockTransaction, customer_name: value});
-                          
+
                           if (value.trim()) {
                             searchCustomers(value);
                           } else {
-                            setCustomerSearchResults([]);
+                            searchCustomers(''); // 빈 문자열로도 검색하여 전체 리스트 표시
                           }
+                        }}
+                        onFocus={() => {
+                          // 포커스 시 전체 고객 리스트 표시
+                          if (!stockTransaction.customer_name.trim()) {
+                            searchCustomers('');
+                          } else {
+                            searchCustomers(stockTransaction.customer_name);
+                          }
+                        }}
+                        onBlur={() => {
+                          // 약간의 지연을 두어 클릭 이벤트가 처리되도록 함
+                          setTimeout(() => setCustomerSearchResults([]), 200);
                         }}
                         placeholder="고객사명 검색"
                       />
@@ -1403,7 +1415,15 @@ const SpareParts: React.FC = () => {
                               onMouseOver={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
                               onMouseOut={(e) => (e.target as HTMLElement).style.backgroundColor = 'white'}
                             >
-                              {customer.customer_name}
+                              <div>
+                                <strong>{customer.company_name}</strong>
+                                {/* {customer.contact_person && <span>, 대표 "{customer.contact_person}"</span>} */}
+                              </div>
+                              {customer.address && (
+                                <small className="text-muted d-block">
+                                  {customer.address}
+                                </small>
+                              )}
                             </div>
                           ))}
                         </div>

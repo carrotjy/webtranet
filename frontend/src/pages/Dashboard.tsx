@@ -278,8 +278,17 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="h1 mb-0 me-2">LVDK Webtranet</div>
                   <div className="text-muted">
-                    LVD Korea 서비스 관리 시스템<br />
-                    v1.0.0
+                      <span
+                        className="badge me-1"
+                        style={{
+                          backgroundColor: 'white',
+                          border: '1px solid #347bffff',
+                          color: '#347bffff'
+                        }}
+                      >
+                        v1.0 BETA
+                      </span><br />
+                    다섯 가지 섹션(리포트, 거래명세서, 고객정보, 스페어파트, 리소스)에 대한 CRUD 기능 지원
                   </div>
                 </div>
               </div>

@@ -678,7 +678,15 @@ const InvoiceForm: React.FC = () => {
                               className="dropdown-item"
                               onClick={() => handleCustomerSelect(customer)}
                             >
-                              {customer.company_name} {customer.contact_person && `(${customer.contact_person})`}
+                              <div>
+                                <strong>{customer.company_name}</strong><br />
+                                {/* {customer.contact_person && <span>, 대표 "{customer.contact_person}"</span>} */}
+                              </div>
+                              <div>{customer.address && (
+                                <small className="text-muted d-block">
+                                  {customer.address}
+                                </small>
+                              )}</div>
                             </button>
                           ))}
                         </div>

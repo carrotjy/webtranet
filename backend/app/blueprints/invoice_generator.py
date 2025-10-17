@@ -4,7 +4,7 @@ import shutil
 from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import Font, Border, Side
+from openpyxl.styles import Font, Border, Side, Color
 
 # PDF 변환을 위한 임포트
 import subprocess
@@ -304,14 +304,11 @@ def apply_thick_border_to_range(sheet, start_cell: str = 'B3', end_cell: str = '
 
     # 기존 테두리 색상 가져오기 (B3 셀의 테두리 색상 사용)
     sample_cell = sheet['B3']
-    border_color = '000000'  # 기본값은 검정색
+    border_color = Color(rgb='000000')  # 기본값은 검정색
 
-    # 샘플 셀에서 테두리 색상 추출
+    # 샘플 셀에서 테두리 색상 객체를 직접 사용
     if sample_cell.border and sample_cell.border.left and sample_cell.border.left.color:
-        if hasattr(sample_cell.border.left.color, 'rgb'):
-            border_color = sample_cell.border.left.color.rgb
-        elif hasattr(sample_cell.border.left.color, 'value'):
-            border_color = sample_cell.border.left.color.value or '000000'
+        border_color = sample_cell.border.left.color
 
     # 두꺼운 테두리 스타일 정의 (medium)
     thick_side = Side(style='medium', color=border_color)

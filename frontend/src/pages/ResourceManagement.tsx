@@ -75,7 +75,6 @@ const ResourceManagement: React.FC = () => {
   });
 
   useEffect(() => {
-    console.log('ResourceManagement 컴포넌트 마운트');
     loadResources();
     loadCustomers();
     loadHistoryTemplates();
@@ -641,8 +640,15 @@ const ResourceManagement: React.FC = () => {
                                     }}
                                     onClick={() => handleSelectCustomer(customer)}
                                   >
-                                    <div className="fw-medium">{customer.company_name}</div>
-                                    <small className="text-muted">{customer.contact_person}</small>
+                                    <div>
+                                      <strong>{customer.company_name}</strong>
+                                      {/* {customer.contact_person && <span>, 대표 "{customer.contact_person}"</span>} */}
+                                    </div>
+                                    {customer.address && (
+                                      <small className="text-muted d-block">
+                                        {customer.address}
+                                      </small>
+                                    )}
                                   </div>
                                 ))
                               ) : (

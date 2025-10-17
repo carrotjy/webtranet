@@ -7,6 +7,7 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const [isAdminDropdownOpen, setIsAdminDropdownOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -92,23 +93,32 @@ const Layout: React.FC = () => {
       if (isUserDropdownOpen && !target.closest('.user-dropdown')) {
         setIsUserDropdownOpen(false);
       }
+      // 모바일 메뉴 외부 클릭 시 닫기
+      if (isMobileMenuOpen && !target.closest('#navbar-menu') && !target.closest('.navbar-toggler')) {
+        setIsMobileMenuOpen(false);
+      }
     };
 
     document.addEventListener('click', handleClickOutside);
     return () => {
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [isAdminDropdownOpen, isUserDropdownOpen]);
+  }, [isAdminDropdownOpen, isUserDropdownOpen, isMobileMenuOpen]);
 
   return (
     <div className="page">
       {/* 헤더 */}
       <header className="navbar navbar-expand-md navbar-light d-print-none">
         <div className="container-xl">
-          <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
+          <button
+            className="navbar-toggler"
+            type="button"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-expanded={isMobileMenuOpen}
+          >
             <span className="navbar-toggler-icon"></span>
           </button>
-          
+
           <h1 className="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
             <Link to="/dashboard">
               <span className="text-primary fw-bold">Webtranet</span>
@@ -176,14 +186,15 @@ const Layout: React.FC = () => {
 
       {/* 사이드바 네비게이션 */}
       <div className="navbar-expand-md">
-        <div className="collapse navbar-collapse" id="navbar-menu">
+        <div className={`navbar-collapse ${isMobileMenuOpen ? 'show' : 'collapse'}`} id="navbar-menu">
           <div className="navbar navbar-light">
             <div className="container-xl">
               <ul className="navbar-nav flex-row flex-wrap justify-content-center justify-content-sm-start">
                 <li className="nav-item">
-                  <Link 
-                    className={`nav-link ${isActive('/dashboard') ? 'active' : ''}`} 
+                  <Link
+                    className={`nav-link ${isActive('/dashboard') ? 'active' : ''}`}
                     to="/dashboard"
+                    onClick={() => setIsMobileMenuOpen(false)}
                   >
                     <span className="nav-link-icon">
                       <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -197,12 +208,13 @@ const Layout: React.FC = () => {
                     <span className="nav-link-title d-none d-sm-inline">대시보드</span>
                   </Link>
                 </li>
-                
+
                 {hasPermission('service_report_access') && (
                   <li className="nav-item">
-                    <Link 
-                      className={`nav-link ${isActive('/service-reports') ? 'active' : ''}`} 
+                    <Link
+                      className={`nav-link ${isActive('/service-reports') ? 'active' : ''}`}
                       to="/service-reports"
+                      onClick={() => setIsMobileMenuOpen(false)}
                     >
                       <span className="nav-link-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -218,12 +230,13 @@ const Layout: React.FC = () => {
                     </Link>
                   </li>
                 )}
-                
+
                 {hasPermission('customer_access') && (
                   <li className="nav-item">
-                    <Link 
-                      className={`nav-link ${isActive('/customers') ? 'active' : ''}`} 
+                    <Link
+                      className={`nav-link ${isActive('/customers') ? 'active' : ''}`}
                       to="/customers"
+                      onClick={() => setIsMobileMenuOpen(false)}
                     >
                       <span className="nav-link-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -236,12 +249,13 @@ const Layout: React.FC = () => {
                     </Link>
                   </li>
                 )}
-                
+
                 {hasPermission('resource_access') && (
                   <li className="nav-item">
-                    <Link 
-                      className={`nav-link ${isActive('/resource-management') ? 'active' : ''}`} 
+                    <Link
+                      className={`nav-link ${isActive('/resource-management') ? 'active' : ''}`}
                       to="/resource-management"
+                      onClick={() => setIsMobileMenuOpen(false)}
                     >
                       <span className="nav-link-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -257,12 +271,13 @@ const Layout: React.FC = () => {
                     </Link>
                   </li>
                 )}
-                
+
                 {hasPermission('transaction_access') && (
                   <li className="nav-item">
-                    <Link 
-                      className={`nav-link ${isActive('/invoices') ? 'active' : ''}`} 
+                    <Link
+                      className={`nav-link ${isActive('/invoices') ? 'active' : ''}`}
                       to="/invoices"
+                      onClick={() => setIsMobileMenuOpen(false)}
                     >
                       <span className="nav-link-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -277,12 +292,13 @@ const Layout: React.FC = () => {
                     </Link>
                   </li>
                 )}
-                
+
                 {hasPermission('spare_parts_access') && (
                   <li className="nav-item">
-                    <Link 
-                      className={`nav-link ${isActive('/spare-parts') ? 'active' : ''}`} 
+                    <Link
+                      className={`nav-link ${isActive('/spare-parts') ? 'active' : ''}`}
                       to="/spare-parts"
+                      onClick={() => setIsMobileMenuOpen(false)}
                     >
                       <span className="nav-link-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -337,10 +353,13 @@ const Layout: React.FC = () => {
                       >
                         <div className="dropdown-menu-columns">
                           <div className="dropdown-menu-column">
-                            <Link 
-                              className="dropdown-item" 
+                            <Link
+                              className="dropdown-item"
                               to="/user-management"
-                              onClick={() => setIsAdminDropdownOpen(false)}
+                              onClick={() => {
+                                setIsAdminDropdownOpen(false);
+                                setIsMobileMenuOpen(false);
+                              }}
                             >
                               <span className="nav-link-icon d-md-none d-lg-inline-block">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -353,10 +372,13 @@ const Layout: React.FC = () => {
                               </span>
                               사용자 관리
                             </Link>
-                            <Link 
-                              className="dropdown-item" 
+                            <Link
+                              className="dropdown-item"
                               to="/admin/service-reports"
-                              onClick={() => setIsAdminDropdownOpen(false)}
+                              onClick={() => {
+                                setIsAdminDropdownOpen(false);
+                                setIsMobileMenuOpen(false);
+                              }}
                             >
                               <span className="nav-link-icon d-md-none d-lg-inline-block">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -368,10 +390,13 @@ const Layout: React.FC = () => {
                               </span>
                               서비스리포트 설정
                             </Link>
-                            <Link 
-                              className="dropdown-item" 
+                            <Link
+                              className="dropdown-item"
                               to="/admin/resource-settings"
-                              onClick={() => setIsAdminDropdownOpen(false)}
+                              onClick={() => {
+                                setIsAdminDropdownOpen(false);
+                                setIsMobileMenuOpen(false);
+                              }}
                             >
                               <span className="nav-link-icon d-md-none d-lg-inline-block">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -388,10 +413,13 @@ const Layout: React.FC = () => {
                               </span>
                               리소스 설정
                             </Link>
-                            <Link 
-                              className="dropdown-item" 
+                            <Link
+                              className="dropdown-item"
                               to="/admin/invoices"
-                              onClick={() => setIsAdminDropdownOpen(false)}
+                              onClick={() => {
+                                setIsAdminDropdownOpen(false);
+                                setIsMobileMenuOpen(false);
+                              }}
                             >
                               <span className="nav-link-icon d-md-none d-lg-inline-block">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -403,10 +431,13 @@ const Layout: React.FC = () => {
                               </span>
                               거래명세표 설정
                             </Link>
-                            <Link 
-                              className="dropdown-item" 
+                            <Link
+                              className="dropdown-item"
                               to="/admin/spare-parts"
-                              onClick={() => setIsAdminDropdownOpen(false)}
+                              onClick={() => {
+                                setIsAdminDropdownOpen(false);
+                                setIsMobileMenuOpen(false);
+                              }}
                             >
                               <span className="nav-link-icon d-md-none d-lg-inline-block">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
