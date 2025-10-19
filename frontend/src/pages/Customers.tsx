@@ -471,16 +471,39 @@ const Customers: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 주소, 우편번호 (7:3 비율) */}
+                    {/* 주소, 우편번호 (8:4 비율) */}
                     <div className="col-md-8">
                       <div className="mb-3">
                         <label className="form-label">주소</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          value={formData.address}
-                          onChange={(e) => setFormData({...formData, address: e.target.value})}
-                        />
+                        <div className="input-group">
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={formData.address}
+                            onChange={(e) => setFormData({...formData, address: e.target.value})}
+                            readOnly
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary"
+                            onClick={() => {
+                              // @ts-ignore
+                              new window.daum.Postcode({
+                                oncomplete: function(data: any) {
+                                  // 도로명 주소 또는 지번 주소 선택
+                                  const fullAddress = data.roadAddress || data.jibunAddress;
+                                  setFormData({
+                                    ...formData,
+                                    address: fullAddress,
+                                    postal_code: data.zonecode
+                                  });
+                                }
+                              }).open();
+                            }}
+                          >
+                            주소 검색
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -492,6 +515,7 @@ const Customers: React.FC = () => {
                           className="form-control"
                           value={formData.postal_code}
                           onChange={(e) => setFormData({...formData, postal_code: e.target.value})}
+                          readOnly
                         />
                       </div>
                     </div>

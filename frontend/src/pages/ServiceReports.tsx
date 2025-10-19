@@ -331,9 +331,14 @@ const ServiceReports: React.FC = () => {
   const [newCustomerData, setNewCustomerData] = useState({
     company_name: '',
     contact_person: '',
-    phone: '',
     email: '',
-    address: ''
+    phone: '',
+    address: '',
+    postal_code: '',
+    fax: '',
+    president: '',
+    mobile: '',
+    contact: ''
   });
   
   // 기술부 직원 관련 상태
@@ -736,9 +741,14 @@ const ServiceReports: React.FC = () => {
     setNewCustomerData({
       company_name: formData.customer_name || '', // 검색 중이던 텍스트를 기본값으로 사용
       contact_person: '',
-      phone: '',
       email: '',
-      address: ''
+      phone: '',
+      address: '',
+      postal_code: '',
+      fax: '',
+      president: '',
+      mobile: '',
+      contact: ''
     });
     setShowAddCustomerModal(true);
     setShowCustomerSearch(false); // 검색 드롭다운 닫기
@@ -760,33 +770,43 @@ const ServiceReports: React.FC = () => {
       const customerData = {
         company_name: newCustomerData.company_name.trim(),
         contact_person: newCustomerData.contact_person.trim(),
-        phone: newCustomerData.phone.trim(),
         email: newCustomerData.email.trim(),
-        address: newCustomerData.address.trim()
+        phone: newCustomerData.phone.trim(),
+        address: newCustomerData.address.trim(),
+        postal_code: newCustomerData.postal_code.trim(),
+        fax: newCustomerData.fax.trim(),
+        president: newCustomerData.president.trim(),
+        mobile: newCustomerData.mobile.trim(),
+        contact: newCustomerData.contact.trim()
       };
 
       const response = await customerAPI.createCustomer(customerData);
-      
+
       if (response.data) {
         alert('고객사가 성공적으로 추가되었습니다.');
         setShowAddCustomerModal(false);
-        
+
         // 고객 목록 새로고침
         await loadCustomers();
-        
+
         // 새로 추가된 고객을 자동 선택
         const newCustomer = response.data.customer || response.data;
         if (newCustomer) {
           handleSelectCustomer(newCustomer);
         }
-        
+
         // 모달 데이터 초기화
         setNewCustomerData({
           company_name: '',
           contact_person: '',
-          phone: '',
           email: '',
-          address: ''
+          phone: '',
+          address: '',
+          postal_code: '',
+          fax: '',
+          president: '',
+          mobile: '',
+          contact: ''
         });
       }
     } catch (error: any) {
@@ -3512,8 +3532,8 @@ const ServiceReports: React.FC = () => {
 
       {/* 고객사 추가 모달 */}
       {showAddCustomerModal && (
-        <div 
-          className="modal modal-blur fade show" 
+        <div
+          className="modal modal-blur fade show"
           style={{display: 'block', zIndex: 2100}}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -3549,79 +3569,196 @@ const ServiceReports: React.FC = () => {
                 </div>
               </div>
               <div className="modal-body">
-                <div className="row mb-3">
+                <div className="row">
+                  {/* 첫 번째 줄: 회사명, 이메일 */}
                   <div className="col-md-6">
-                    <label className="form-label">회사명 *</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={newCustomerData.company_name}
-                      onChange={(e) => setNewCustomerData({
-                        ...newCustomerData,
-                        company_name: e.target.value
-                      })}
-                      placeholder="회사명 입력"
-                      required
-                    />
+                    <div className="mb-3">
+                      <label className="form-label">회사명 *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.company_name}
+                        onChange={(e) => setNewCustomerData({
+                          ...newCustomerData,
+                          company_name: e.target.value
+                        })}
+                        placeholder="회사명 입력"
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className="col-md-6">
-                    <label className="form-label">담당자명 *</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={newCustomerData.contact_person}
-                      onChange={(e) => setNewCustomerData({
-                        ...newCustomerData,
-                        contact_person: e.target.value
-                      })}
-                      placeholder="담당자명 입력"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="row mb-3">
-                  <div className="col-md-6">
-                    <label className="form-label">전화번호</label>
-                    <input
-                      type="tel"
-                      className="form-control"
-                      value={newCustomerData.phone}
-                      onChange={(e) => setNewCustomerData({
-                        ...newCustomerData,
-                        phone: e.target.value
-                      })}
-                      placeholder="전화번호 입력"
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">이메일</label>
-                    <input
-                      type="email"
-                      className="form-control"
-                      value={newCustomerData.email}
-                      onChange={(e) => setNewCustomerData({
-                        ...newCustomerData,
-                        email: e.target.value
-                      })}
-                      placeholder="이메일 입력"
-                    />
-                  </div>
-                </div>
 
-                <div className="row mb-3">
-                  <div className="col-12">
-                    <label className="form-label">주소</label>
-                    <textarea
-                      className="form-control"
-                      rows={3}
-                      value={newCustomerData.address}
-                      onChange={(e) => setNewCustomerData({
-                        ...newCustomerData,
-                        address: e.target.value
-                      })}
-                      placeholder="주소 입력"
-                    />
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">이메일</label>
+                      <input
+                        type="email"
+                        className="form-control"
+                        value={newCustomerData.email}
+                        onChange={(e) => setNewCustomerData({
+                          ...newCustomerData,
+                          email: e.target.value
+                        })}
+                        placeholder="이메일 입력"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 두 번째 줄: 담당자, 담당자 연락처 */}
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">담당자 *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.contact_person}
+                        onChange={(e) => setNewCustomerData({
+                          ...newCustomerData,
+                          contact_person: e.target.value
+                        })}
+                        placeholder="담당자명 입력"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">담당자 연락처</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.contact}
+                        onChange={(e) => setNewCustomerData({
+                          ...newCustomerData,
+                          contact: e.target.value
+                        })}
+                        placeholder="담당자 연락처 입력"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 전화번호, 팩스번호 */}
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">전화번호</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.phone}
+                        onChange={(e) => setNewCustomerData({
+                          ...newCustomerData,
+                          phone: e.target.value
+                        })}
+                        placeholder="전화번호 입력"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">팩스번호</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.fax}
+                        onChange={(e) => setNewCustomerData({
+                          ...newCustomerData,
+                          fax: e.target.value
+                        })}
+                        placeholder="팩스번호 입력"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 주소, 우편번호 (8:4 비율) */}
+                  <div className="col-md-8">
+                    <div className="mb-3">
+                      <label className="form-label">주소</label>
+                      <div className="input-group">
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={newCustomerData.address}
+                          onChange={(e) => setNewCustomerData({
+                            ...newCustomerData,
+                            address: e.target.value
+                          })}
+                          placeholder="주소 입력"
+                          readOnly
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary"
+                          onClick={() => {
+                            // @ts-ignore
+                            new window.daum.Postcode({
+                              oncomplete: function(data: any) {
+                                // 도로명 주소 또는 지번 주소 선택
+                                const fullAddress = data.roadAddress || data.jibunAddress;
+                                setNewCustomerData({
+                                  ...newCustomerData,
+                                  address: fullAddress,
+                                  postal_code: data.zonecode
+                                });
+                              }
+                            }).open();
+                          }}
+                        >
+                          주소 검색
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label">우편번호</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.postal_code}
+                        onChange={(e) => setNewCustomerData({
+                          ...newCustomerData,
+                          postal_code: e.target.value
+                        })}
+                        placeholder="우편번호"
+                        readOnly
+                      />
+                    </div>
+                  </div>
+
+                  {/* 대표자, 대표자 휴대폰 */}
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">대표자</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.president}
+                        onChange={(e) => setNewCustomerData({
+                          ...newCustomerData,
+                          president: e.target.value
+                        })}
+                        placeholder="대표자명 입력"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">대표자 휴대폰</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.mobile}
+                        onChange={(e) => setNewCustomerData({
+                          ...newCustomerData,
+                          mobile: e.target.value
+                        })}
+                        placeholder="대표자 휴대폰 입력"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
