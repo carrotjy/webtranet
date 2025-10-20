@@ -66,9 +66,9 @@ def create_app():
     app.register_blueprint(invoice_bp, url_prefix='/api')
     app.register_blueprint(invoice_rate_bp, url_prefix='/api')
     app.register_blueprint(spare_part_settings_bp, url_prefix='/api')
-    app.register_blueprint(tatoeba_bp)
-    app.register_blueprint(invoice_generator_bp)
-    app.register_blueprint(supplier_info_bp)
+    app.register_blueprint(tatoeba_bp, url_prefix='/api')
+    app.register_blueprint(invoice_generator_bp, url_prefix='/api')
+    app.register_blueprint(supplier_info_bp, url_prefix='/api')
     
     # JWT 에러 핸들러 추가
     from flask_jwt_extended.exceptions import JWTExtendedException

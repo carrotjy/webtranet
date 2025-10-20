@@ -403,8 +403,21 @@ def init_database():
         )
     ''')
     
-    # 거래 상세 항목 테이블 생성
-    
+    # 공급자 정보 테이블 생성
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS supplier_info (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_name TEXT,
+            registration_number TEXT,
+            ceo_name TEXT,
+            address TEXT,
+            phone TEXT,
+            fax TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     conn.commit()
     
     # 초기 데이터 삽입
