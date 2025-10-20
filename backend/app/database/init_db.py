@@ -14,18 +14,7 @@ def get_db_connection():
 def init_database():
     """데이터베이스와 테이블을 초기화합니다."""
     conn = get_db_connection()
-    
-    # users 테이블이 이미 존재하는지 확인
-    table_exists = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
-    ).fetchone()
-    
-    if table_exists:
-        # 초기 데이터만 확인
-        create_initial_data(conn)
-        conn.close()
-        return
-    
+
     # 사용자 테이블 생성
     conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
