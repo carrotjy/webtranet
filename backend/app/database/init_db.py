@@ -39,8 +39,10 @@ def init_database():
             role TEXT DEFAULT '사용자',
             service_report_access BOOLEAN DEFAULT 0,
             invoice_access BOOLEAN DEFAULT 0,
+            transaction_access BOOLEAN DEFAULT 0,
             customer_access BOOLEAN DEFAULT 0,
             spare_parts_access BOOLEAN DEFAULT 0,
+            resource_access BOOLEAN DEFAULT 0,
             is_admin BOOLEAN DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -52,9 +54,21 @@ def init_database():
         conn.execute('ALTER TABLE users ADD COLUMN username TEXT UNIQUE')
     except sqlite3.OperationalError:
         pass  # 컬럼이 이미 존재함
-    
+
     try:
         conn.execute('ALTER TABLE users ADD COLUMN role TEXT DEFAULT "사용자"')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+
+    # users 테이블에 transaction_access 컬럼 추가 (마이그레이션)
+    try:
+        conn.execute('ALTER TABLE users ADD COLUMN transaction_access BOOLEAN DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+
+    # users 테이블에 resource_access 컬럼 추가 (마이그레이션)
+    try:
+        conn.execute('ALTER TABLE users ADD COLUMN resource_access BOOLEAN DEFAULT 0')
     except sqlite3.OperationalError:
         pass  # 컬럼이 이미 존재함
     
