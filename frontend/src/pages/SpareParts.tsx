@@ -658,8 +658,8 @@ const SpareParts: React.FC = () => {
                     입출고내역
                   </button>
                 )}
-                {hasPermission('customer_update') && (
-                  <button 
+                {(user?.spare_parts_stock_in || hasPermission('spare_parts_update')) && (
+                  <button
                     className="btn btn-outline-primary"
                     onClick={() => setShowStockInModal(true)}
                   >
@@ -673,8 +673,8 @@ const SpareParts: React.FC = () => {
                     입고
                   </button>
                 )}
-                {hasPermission('customer_update') && (
-                  <button 
+                {(user?.spare_parts_stock_out || hasPermission('spare_parts_update')) && (
+                  <button
                     className="btn btn-outline-warning"
                     onClick={() => setShowStockOutModal(true)}
                   >
@@ -688,7 +688,7 @@ const SpareParts: React.FC = () => {
                     출고
                   </button>
                 )}
-                {hasPermission('customer_create') && (
+                {hasPermission('spare_parts_create') && (
                   <button 
                     className="btn btn-primary"
                     onClick={() => setShowRegisterModal(true)}
@@ -739,12 +739,12 @@ const SpareParts: React.FC = () => {
                         <td>{new Date(part.created_at).toLocaleDateString('ko-KR')}</td>
                         <td>
                           <div className="d-flex gap-1">
-                            {hasPermission('customer_read') && (
+                            {hasPermission('spare_parts_read') && (
                             <button
                               className="btn btn-sm btn-outline-primary"
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
                                 justifyContent: 'center',
                                 width: '32px',
                                 height: '32px',
@@ -765,12 +765,12 @@ const SpareParts: React.FC = () => {
                               </svg>
                             </button>
                             )}
-                            {hasPermission('customer_update') && (
+                            {(user?.spare_parts_edit || hasPermission('spare_parts_update')) && (
                               <button
                                 className="btn btn-sm btn-outline-secondary"
-                                style={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
                                   justifyContent: 'center',
                                   width: '32px',
                                   height: '32px',
@@ -795,7 +795,7 @@ const SpareParts: React.FC = () => {
                                 </svg>
                               </button>
                             )}
-                            {hasPermission('customer_delete') && (
+                            {(user?.spare_parts_delete || hasPermission('spare_parts_delete_crud')) && (
                               <button
                                 className="btn btn-sm btn-outline-danger"
                                 style={{ 
