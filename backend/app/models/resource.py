@@ -47,9 +47,9 @@ class Resource:
             if self.management_history:
                 for history in self.management_history:
                     cursor.execute('''
-                    INSERT INTO resource_management_history (resource_id, date, content, created_at)
+                    INSERT INTO resource_management_history (resource_id, action, new_data, changed_at)
                     VALUES (?, ?, ?, ?)
-                    ''', (self.id, history.get('date', ''), history.get('content', ''), datetime.now().isoformat()))
+                    ''', (self.id, 'update', history.get('content', ''), history.get('date', datetime.now().isoformat())))
             
             conn.commit()
         except Exception as e:
@@ -72,16 +72,16 @@ class Resource:
         if row:
             # 관리 이력도 함께 조회
             cursor.execute('''
-            SELECT date, content FROM resource_management_history 
-            WHERE resource_id = ? ORDER BY date DESC
+            SELECT changed_at, action, old_data, new_data FROM resource_management_history
+            WHERE resource_id = ? ORDER BY changed_at DESC
             ''', (resource_id,))
             history_rows = cursor.fetchall()
-            
+
             management_history = []
             for hist_row in history_rows:
                 management_history.append({
                     'date': hist_row[0],
-                    'content': hist_row[1]
+                    'content': f"{hist_row[1]}: {hist_row[3] or ''}"
                 })
             
             # 데이터베이스 스키마에 맞는 순서로 Resource 객체 생성
@@ -115,16 +115,16 @@ class Resource:
         for row in rows:
             # 관리 이력도 함께 조회
             cursor.execute('''
-            SELECT date, content FROM resource_management_history 
-            WHERE resource_id = ? ORDER BY date DESC
+            SELECT changed_at, action, old_data, new_data FROM resource_management_history
+            WHERE resource_id = ? ORDER BY changed_at DESC
             ''', (row[0],))  # row[0]은 resource id
             history_rows = cursor.fetchall()
-            
+
             management_history = []
             for hist_row in history_rows:
                 management_history.append({
                     'date': hist_row[0],
-                    'content': hist_row[1]
+                    'content': f"{hist_row[1]}: {hist_row[3] or ''}"
                 })
             
             # 데이터베이스 스키마에 맞는 순서로 Resource 객체 생성
@@ -169,16 +169,16 @@ class Resource:
             
             # 해당 리소스의 관리 이력 조회
             cursor.execute('''
-            SELECT date, content FROM resource_management_history 
-            WHERE resource_id = ? ORDER BY date DESC
+            SELECT changed_at, action, old_data, new_data FROM resource_management_history
+            WHERE resource_id = ? ORDER BY changed_at DESC
             ''', (resource_id,))
             history_rows = cursor.fetchall()
-            
+
             management_history = []
             for hist_row in history_rows:
                 management_history.append({
                     'date': hist_row[0],
-                    'content': hist_row[1]
+                    'content': f"{hist_row[1]}: {hist_row[3] or ''}"
                 })
             
             resource_dict = {

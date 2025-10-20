@@ -60,7 +60,42 @@ def init_database():
         conn.execute('ALTER TABLE users ADD COLUMN resource_access BOOLEAN DEFAULT 0')
     except sqlite3.OperationalError:
         pass  # 컬럼이 이미 존재함
-    
+
+    # users 테이블에 spare_parts 관련 권한 컬럼 추가
+    spare_parts_columns = [
+        'spare_parts_edit', 'spare_parts_delete',
+        'spare_parts_stock_in', 'spare_parts_stock_out'
+    ]
+    for col in spare_parts_columns:
+        try:
+            conn.execute(f'ALTER TABLE users ADD COLUMN {col} BOOLEAN DEFAULT 1')
+        except sqlite3.OperationalError:
+            pass
+
+    # users 테이블에 CRUD 권한 컬럼들 추가
+    crud_columns = [
+        # 서비스 리포트 CRUD
+        'service_report_create', 'service_report_read',
+        'service_report_update', 'service_report_delete',
+        # 리소스 CRUD
+        'resource_create', 'resource_read',
+        'resource_update', 'resource_delete',
+        # 고객 CRUD
+        'customer_create', 'customer_read',
+        'customer_update', 'customer_delete',
+        # 거래명세서 CRUD
+        'transaction_create', 'transaction_read',
+        'transaction_update', 'transaction_delete',
+        # 부품 CRUD
+        'spare_parts_create', 'spare_parts_read',
+        'spare_parts_update', 'spare_parts_delete_crud'
+    ]
+    for col in crud_columns:
+        try:
+            conn.execute(f'ALTER TABLE users ADD COLUMN {col} BOOLEAN DEFAULT 0')
+        except sqlite3.OperationalError:
+            pass
+
     # 서비스 리포트 테이블 생성
     conn.execute('''
         CREATE TABLE IF NOT EXISTS service_reports (
