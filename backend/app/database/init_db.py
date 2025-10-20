@@ -276,6 +276,21 @@ def init_database():
             FOREIGN KEY (customer_id) REFERENCES customers (id)
         )
     ''')
+
+    # 리소스 관리 히스토리 테이블 생성
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS resource_management_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            resource_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            changed_by INTEGER,
+            changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            old_data TEXT,
+            new_data TEXT,
+            FOREIGN KEY (resource_id) REFERENCES resources (id) ON DELETE CASCADE,
+            FOREIGN KEY (changed_by) REFERENCES users (id)
+        )
+    ''')
     
     # Invoice 코드 테이블 생성
     conn.execute('''
