@@ -77,40 +77,58 @@ class User:
             'SELECT * FROM users WHERE email = ?', (email,)
         ).fetchone()
         conn.close()
-        
+
         if user_data:
+            # 안전하게 컬럼 값 가져오기
+            def safe_get(key, default=0):
+                try:
+                    return user_data[key] if user_data[key] is not None else default
+                except (KeyError, IndexError):
+                    return default
+
             return cls(
                 id=user_data['id'],
                 name=user_data['name'],
                 email=user_data['email'],
                 password=user_data['password'],
-                contact=user_data['contact'],
-                department=user_data['department'],
-                service_report_access=bool(user_data['service_report_access']),
-                transaction_access=bool(user_data['transaction_access']),
-                customer_access=bool(user_data['customer_access']),
-                spare_parts_access=bool(user_data['spare_parts_access']),
-                spare_parts_edit=bool(user_data['spare_parts_edit'] if user_data['spare_parts_edit'] is not None else 1),
-                spare_parts_delete=bool(user_data['spare_parts_delete'] if user_data['spare_parts_delete'] is not None else 1),
-                spare_parts_stock_in=bool(user_data['spare_parts_stock_in'] if user_data['spare_parts_stock_in'] is not None else 1),
-                spare_parts_stock_out=bool(user_data['spare_parts_stock_out'] if user_data['spare_parts_stock_out'] is not None else 1),
-                is_admin=bool(user_data['is_admin']),
+                contact=safe_get('contact', ''),
+                department=safe_get('department', ''),
+                service_report_access=bool(safe_get('service_report_access')),
+                transaction_access=bool(safe_get('transaction_access')),
+                customer_access=bool(safe_get('customer_access')),
+                spare_parts_access=bool(safe_get('spare_parts_access')),
+                resource_access=bool(safe_get('resource_access')),
+                spare_parts_edit=bool(safe_get('spare_parts_edit', 1)),
+                spare_parts_delete=bool(safe_get('spare_parts_delete', 1)),
+                spare_parts_stock_in=bool(safe_get('spare_parts_stock_in', 1)),
+                spare_parts_stock_out=bool(safe_get('spare_parts_stock_out', 1)),
+                is_admin=bool(safe_get('is_admin')),
                 # 서비스 리포트 CRUD 권한
-                service_report_create=bool(user_data['service_report_create'] if user_data['service_report_create'] is not None else 0),
-                service_report_read=bool(user_data['service_report_read'] if user_data['service_report_read'] is not None else 0),
-                service_report_update=bool(user_data['service_report_update'] if user_data['service_report_update'] is not None else 0),
-                service_report_delete=bool(user_data['service_report_delete'] if user_data['service_report_delete'] is not None else 0),
+                service_report_create=bool(safe_get('service_report_create')),
+                service_report_read=bool(safe_get('service_report_read')),
+                service_report_update=bool(safe_get('service_report_update')),
+                service_report_delete=bool(safe_get('service_report_delete')),
                 # 리소스 CRUD 권한
-                resource_create=bool(user_data['resource_create'] if user_data['resource_create'] is not None else 0),
-                resource_read=bool(user_data['resource_read'] if user_data['resource_read'] is not None else 0),
-                resource_update=bool(user_data['resource_update'] if user_data['resource_update'] is not None else 0),
-                resource_delete=bool(user_data['resource_delete'] if user_data['resource_delete'] is not None else 0),
+                resource_create=bool(safe_get('resource_create')),
+                resource_read=bool(safe_get('resource_read')),
+                resource_update=bool(safe_get('resource_update')),
+                resource_delete=bool(safe_get('resource_delete')),
                 # 고객정보 CRUD 권한
-                customer_create=bool(user_data['customer_create'] if user_data['customer_create'] is not None else 0),
-                customer_read=bool(user_data['customer_read'] if user_data['customer_read'] is not None else 0),
-                customer_update=bool(user_data['customer_update'] if user_data['customer_update'] is not None else 0),
-                customer_delete=bool(user_data['customer_delete'] if user_data['customer_delete'] is not None else 0),
-                created_at=user_data['created_at']
+                customer_create=bool(safe_get('customer_create')),
+                customer_read=bool(safe_get('customer_read')),
+                customer_update=bool(safe_get('customer_update')),
+                customer_delete=bool(safe_get('customer_delete')),
+                # 거래명세서 CRUD 권한
+                transaction_create=bool(safe_get('transaction_create')),
+                transaction_read=bool(safe_get('transaction_read')),
+                transaction_update=bool(safe_get('transaction_update')),
+                transaction_delete=bool(safe_get('transaction_delete')),
+                # 부품 CRUD 권한
+                spare_parts_create=bool(safe_get('spare_parts_create')),
+                spare_parts_read=bool(safe_get('spare_parts_read')),
+                spare_parts_update=bool(safe_get('spare_parts_update')),
+                spare_parts_delete_crud=bool(safe_get('spare_parts_delete_crud')),
+                created_at=safe_get('created_at')
             )
         return None
     
