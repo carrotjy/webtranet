@@ -1,0 +1,15 @@
+[Unit]
+Description=Webtranet Flask Backend
+After=network.target
+
+[Service]
+Type=simple
+User=webtranet
+WorkingDirectory=/home/webtranet/webtranet/backend
+Environment="PATH=/home/webtranet/webtranet/backend/venv/bin"
+ExecStart=/home/webtranet/webtranet/backend/venv/bin/python run.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
