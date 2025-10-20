@@ -49,33 +49,33 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (credentials: { username: string; password: string }) => {
     // Map username to email for backend compatibility
-    return api.post('/auth/login', { 
-      email: credentials.username, 
-      password: credentials.password 
+    return api.post('/api/auth/login', {
+      email: credentials.username,
+      password: credentials.password
     });
   },
-  
-  logout: () => api.post('/auth/logout'),
-  
-  getCurrentUser: () => api.get('/auth/me'),
-  
-  register: (userData: { 
-    username: string; 
-    password: string; 
-    email: string; 
-    role: string; 
-    permissions: string[]; 
-  }) => api.post('/auth/register', userData),
+
+  logout: () => api.post('/api/auth/logout'),
+
+  getCurrentUser: () => api.get('/api/auth/me'),
+
+  register: (userData: {
+    username: string;
+    password: string;
+    email: string;
+    role: string;
+    permissions: string[];
+  }) => api.post('/api/auth/register', userData),
 };
 
 // User Management API
 export const userAPI = {
-  getUsers: () => api.get('/users'),
-  getUserById: (id: number) => api.get(`/users/${id}`),
-  getTechnicians: () => api.get('/users/technicians'),
-  createUser: (userData: any) => api.post('/users', userData),
-  updateUser: (id: number, userData: any) => api.put(`/users/${id}`, userData),
-  deleteUser: (id: number) => api.delete(`/users/${id}`),
+  getUsers: () => api.get('/api/users'),
+  getUserById: (id: number) => api.get(`/api/users/${id}`),
+  getTechnicians: () => api.get('/api/users/technicians'),
+  createUser: (userData: any) => api.post('/api/users', userData),
+  updateUser: (id: number, userData: any) => api.put(`/api/users/${id}`, userData),
+  deleteUser: (id: number) => api.delete(`/api/users/${id}`),
 };
 
 // Customer API
@@ -86,18 +86,18 @@ export const customerAPI = {
     if (params?.keyword) searchParams.append('keyword', params.keyword);
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.per_page) searchParams.append('per_page', params.per_page.toString());
-    
+
     const queryString = searchParams.toString();
-    return api.get(`/customers/${queryString ? `?${queryString}` : ''}`);
+    return api.get(`/api/customers/${queryString ? `?${queryString}` : ''}`);
   },
-  getCustomerById: (id: number) => api.get(`/customers/${id}`),
-  createCustomer: (customerData: any) => api.post('/customers/', customerData),
-  updateCustomer: (id: number, customerData: any) => api.put(`/customers/${id}`, customerData),
-  deleteCustomer: (id: number) => api.delete(`/customers/${id}`),
+  getCustomerById: (id: number) => api.get(`/api/customers/${id}`),
+  createCustomer: (customerData: any) => api.post('/api/customers/', customerData),
+  updateCustomer: (id: number, customerData: any) => api.put(`/api/customers/${id}`, customerData),
+  deleteCustomer: (id: number) => api.delete(`/api/customers/${id}`),
   importFromExcel: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post('/customers/import-excel', formData, {
+    return api.post('/api/customers/import-excel', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -116,18 +116,18 @@ export const resourceAPI = {
       params.append('include_customer', 'true');
     }
     const queryString = params.toString();
-    return api.get(`/resources${queryString ? `?${queryString}` : ''}`);
+    return api.get(`/api/resources${queryString ? `?${queryString}` : ''}`);
   },
-  getResourceById: (id: number) => api.get(`/resources/${id}`),
-  createResource: (resourceData: any) => api.post('/resources', resourceData),
-  updateResource: (id: number, resourceData: any) => api.put(`/resources/${id}`, resourceData),
-  deleteResource: (id: number) => api.delete(`/resources/${id}`),
+  getResourceById: (id: number) => api.get(`/api/resources/${id}`),
+  createResource: (resourceData: any) => api.post('/api/resources', resourceData),
+  updateResource: (id: number, resourceData: any) => api.put(`/api/resources/${id}`, resourceData),
+  deleteResource: (id: number) => api.delete(`/api/resources/${id}`),
 };
 
 // Service Report API
 export const serviceReportAPI = {
   getServiceReports: () => {
-    return api.get('/service-reports/', {
+    return api.get('/api/service-reports/', {
       params: {
         per_page: 1000 // 충분히 큰 수로 설정하여 모든 데이터 가져오기
       }
@@ -135,39 +135,39 @@ export const serviceReportAPI = {
   },
   getServiceReportById: (id: number) => {
     console.log(`API: 서비스 리포트 조회 시작, ID: ${id}`);
-    return api.get(`/service-reports/${id}`);
+    return api.get(`/api/service-reports/${id}`);
   },
   createServiceReport: (reportData: any) => {
     console.log('API: 서비스 리포트 생성 시작');
     console.log('API: 생성 데이터:', reportData);
-    return api.post('/service-reports/', reportData);
+    return api.post('/api/service-reports/', reportData);
   },
   updateServiceReport: (id: number, reportData: any) => {
     console.log(`API: 서비스 리포트 수정 시작, ID: ${id}`);
     console.log('API: 수정 데이터:', reportData);
-    return api.put(`/service-reports/${id}`, reportData);
+    return api.put(`/api/service-reports/${id}`, reportData);
   },
   deleteServiceReport: (id: number) => {
     console.log(`API: 서비스 리포트 삭제 시작, ID: ${id}`);
-    return api.delete(`/service-reports/${id}`);
+    return api.delete(`/api/service-reports/${id}`);
   },
   lockServiceReport: (id: number) => {
     console.log(`API: 서비스 리포트 잠금, ID: ${id}`);
-    return api.post(`/service-reports/${id}/lock`);
+    return api.post(`/api/service-reports/${id}/lock`);
   },
   unlockServiceReport: (id: number) => {
     console.log(`API: 서비스 리포트 잠금 해제, ID: ${id}`);
-    return api.post(`/service-reports/${id}/unlock`);
+    return api.post(`/api/service-reports/${id}/unlock`);
   },
 };
 
 // Spare Parts API
 export const sparePartsAPI = {
-  getSpareParts: () => api.get('/spare-parts'),
-  getSparePartById: (id: number) => api.get(`/spare-parts/${id}`),
-  createSparePart: (partData: any) => api.post('/spare-parts', partData),
-  updateSparePart: (id: number, partData: any) => api.put(`/spare-parts/${id}`, partData),
-  deleteSparePart: (id: number) => api.delete(`/spare-parts/${id}`),
+  getSpareParts: () => api.get('/api/spare-parts'),
+  getSparePartById: (id: number) => api.get(`/api/spare-parts/${id}`),
+  createSparePart: (partData: any) => api.post('/api/spare-parts', partData),
+  updateSparePart: (id: number, partData: any) => api.put(`/api/spare-parts/${id}`, partData),
+  deleteSparePart: (id: number) => api.delete(`/api/spare-parts/${id}`),
   
   // 서비스 리포트용 부품 검색
   searchPartByNumber: (partNumber: string) => 
@@ -208,11 +208,11 @@ export const invoiceAPI = {
 
 // Transaction API
 export const transactionAPI = {
-  getTransactions: () => api.get('/transactions'),
-  getTransactionById: (id: number) => api.get(`/transactions/${id}`),
-  createTransaction: (transactionData: any) => api.post('/transactions', transactionData),
-  updateTransaction: (id: number, transactionData: any) => api.put(`/transactions/${id}`, transactionData),
-  deleteTransaction: (id: number) => api.delete(`/transactions/${id}`),
+  getTransactions: () => api.get('/api/transactions'),
+  getTransactionById: (id: number) => api.get(`/api/transactions/${id}`),
+  createTransaction: (transactionData: any) => api.post('/api/transactions', transactionData),
+  updateTransaction: (id: number, transactionData: any) => api.put(`/api/transactions/${id}`, transactionData),
+  deleteTransaction: (id: number) => api.delete(`/api/transactions/${id}`),
 };
 
 export default api;
