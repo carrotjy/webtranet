@@ -1,0 +1,22 @@
+[Unit]
+Description=Webtranet Flask Backend with Gunicorn (LVD Korea)
+After=network.target
+
+[Service]
+Type=notify
+User=jhi
+Group=jhi
+WorkingDirectory=/home/lvdkorea/webtranet/backend
+Environment="PATH=/home/lvdkorea/webtranet/backend/venv/bin"
+ExecStart=/home/lvdkorea/webtranet/backend/venv/bin/gunicorn \
+    --config gunicorn.conf.py \
+    run:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
