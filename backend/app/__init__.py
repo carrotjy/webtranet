@@ -66,7 +66,7 @@ def create_app():
     app.register_blueprint(invoice_bp, url_prefix='/api')
     app.register_blueprint(invoice_rate_bp, url_prefix='/api')
     app.register_blueprint(spare_part_settings_bp, url_prefix='/api')
-    app.register_blueprint(tatoeba_bp, url_prefix='/api')
+    app.register_blueprint(tatoeba_bp)  # 이미 blueprint 자체에 url_prefix='/api/tatoeba' 설정됨
     app.register_blueprint(invoice_generator_bp, url_prefix='/api')
     app.register_blueprint(supplier_info_bp, url_prefix='/api')
     
