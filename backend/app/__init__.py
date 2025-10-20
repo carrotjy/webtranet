@@ -55,13 +55,13 @@ def create_app():
     from app.blueprints.invoice_generator import invoice_generator_bp
     from app.blueprints.supplier_info import supplier_info_bp
 
-    app.register_blueprint(auth_bp, url_prefix='/auth')
-    app.register_blueprint(user_mgmt_bp, url_prefix='/users')
-    app.register_blueprint(service_report_bp, url_prefix='/service-reports')
-    app.register_blueprint(customer_bp, url_prefix='/customers')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(user_mgmt_bp, url_prefix='/api/users')
+    app.register_blueprint(service_report_bp, url_prefix='/api/service-reports')
+    app.register_blueprint(customer_bp, url_prefix='/api/customers')
     app.register_blueprint(spare_parts_bp, url_prefix='/api')
     app.register_blueprint(user_permissions_bp, url_prefix='/api')
-    app.register_blueprint(resource_bp, url_prefix='/resources')
+    app.register_blueprint(resource_bp, url_prefix='/api/resources')
     app.register_blueprint(invoice_code_bp, url_prefix='/api')
     app.register_blueprint(invoice_bp, url_prefix='/api')
     app.register_blueprint(invoice_rate_bp, url_prefix='/api')
