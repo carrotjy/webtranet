@@ -66,8 +66,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchUser = async () => {
       if (token) {
         try {
+          // 환경에 따른 API URL 설정
+          const API_BASE_URL = process.env.REACT_APP_API_URL || (
+            process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000'
+          );
+
           // API로부터 최신 사용자 정보 가져오기
-          const response = await fetch('http://localhost:5000/auth/me', {
+          const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }

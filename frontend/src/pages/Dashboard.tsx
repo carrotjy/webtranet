@@ -87,9 +87,14 @@ const Dashboard: React.FC = () => {
     setSentenceError(null);
 
     try {
+      // 환경에 따른 API URL 설정
+      const API_BASE_URL = process.env.REACT_APP_API_URL || (
+        process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000'
+      );
+
       // 백엔드 API 호출
       const response = await fetch(
-        'http://localhost:5000/api/tatoeba/random-sentence',
+        `${API_BASE_URL}/api/tatoeba/random-sentence`,
         {
           method: 'GET',
           headers: {
