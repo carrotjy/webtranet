@@ -227,25 +227,44 @@ class Resource:
                 'created_at': str(self.created_at) if self.created_at else ''
             }
 
+    def delete(self):
+        """리소스 삭제"""
+        conn = sqlite3.connect('app/database/user.db')
+        cursor = conn.cursor()
+
+        try:
+            # 관리 이력 먼저 삭제
+            cursor.execute('DELETE FROM resource_management_history WHERE resource_id=?', (self.id,))
+
+            # 리소스 삭제
+            cursor.execute('DELETE FROM resources WHERE id=?', (self.id,))
+
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+
     @classmethod
     def from_dict(cls, data: Dict) -> 'Resource':
         """딕셔너리에서 Resource 객체 생성"""
         created_at = data.get('created_at')
         updated_at = data.get('updated_at')
-        
+
         # ISO 형식 문자열을 datetime 객체로 변환
         if isinstance(created_at, str):
             try:
                 created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
             except:
                 created_at = datetime.now()
-                
+
         if isinstance(updated_at, str):
             try:
                 updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
             except:
                 updated_at = datetime.now()
-        
+
         return cls(
             id=data.get('id'),
             customer_id=data.get('customer_id'),
