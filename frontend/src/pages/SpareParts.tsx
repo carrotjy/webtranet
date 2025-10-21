@@ -320,12 +320,19 @@ const SpareParts: React.FC = () => {
 
     // 신규 등록 모달에서 호출된 경우 (selectedPart.id === 0)
     if (selectedPart.id === 0) {
+      // 청구가 계산
+      const calculatedBillingPrice = await calculateBillingPrice(
+        newPrice.price,
+        newPrice.currency,
+        newPrice.part_type
+      );
+
       // 가격을 로컬 priceHistory에 추가 (부품 등록 시 함께 저장됨)
       const newPriceItem = {
         id: Date.now(), // 임시 ID
         part_number: selectedPart.part_number,
         price: newPrice.price,
-        billing_price: 0, // 백엔드에서 계산됨
+        billing_price: calculatedBillingPrice,
         effective_date: newPrice.effective_date,
         created_at: new Date().toISOString(),
         created_by: user?.name || 'unknown',
@@ -335,6 +342,13 @@ const SpareParts: React.FC = () => {
       };
 
       setPriceHistory([...priceHistory, newPriceItem]);
+
+      // billingPrices state에도 추가
+      setBillingPrices({
+        ...billingPrices,
+        [newPriceItem.id]: calculatedBillingPrice
+      });
+
       setShowAddPriceModal(false);
       setNewPrice({
         price: 0,
@@ -854,12 +868,12 @@ const SpareParts: React.FC = () => {
                                 </svg>
                               </button>
                             )}
-                            {(user?.spare_parts_delete || hasPermission('spare_parts_delete_crud')) && (
+                            {(user?.spare_parts_delete || hasPermission('spare_parts_delete')) && (
                               <button
                                 className="btn btn-sm btn-outline-danger"
-                                style={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
                                   justifyContent: 'center',
                                   width: '32px',
                                   height: '32px',
