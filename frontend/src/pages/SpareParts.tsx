@@ -317,7 +317,36 @@ const SpareParts: React.FC = () => {
 
   const addPriceHistory = async () => {
     if (!selectedPart) return;
-    
+
+    // 신규 등록 모달에서 호출된 경우 (selectedPart.id === 0)
+    if (selectedPart.id === 0) {
+      // 가격을 로컬 priceHistory에 추가 (부품 등록 시 함께 저장됨)
+      const newPriceItem = {
+        id: Date.now(), // 임시 ID
+        part_number: selectedPart.part_number,
+        price: newPrice.price,
+        billing_price: 0, // 백엔드에서 계산됨
+        effective_date: newPrice.effective_date,
+        created_at: new Date().toISOString(),
+        created_by: user?.name || 'unknown',
+        notes: newPrice.notes,
+        currency: newPrice.currency,
+        part_type: newPrice.part_type
+      };
+
+      setPriceHistory([...priceHistory, newPriceItem]);
+      setShowAddPriceModal(false);
+      setNewPrice({
+        price: 0,
+        effective_date: new Date().toISOString().split('T')[0],
+        notes: '',
+        currency: 'KRW',
+        part_type: 'repair'
+      });
+      return;
+    }
+
+    // 기존 부품의 가격 이력 추가
     try {
       const response = await api.post(`/api/spare-parts/${selectedPart.id}/price-history`, {
         price: newPrice.price,
@@ -414,9 +443,33 @@ const SpareParts: React.FC = () => {
 
   const handleRegisterPart = async () => {
     try {
-      await api.post('/api/spare-parts', newPart);
+      // 부품 등록
+      const partResponse = await api.post('/api/spare-parts', newPart);
+
+      // 가격 정보가 있으면 함께 등록
+      if (priceHistory.length > 0 && partResponse.data) {
+        const partId = partResponse.data.id;
+
+        // 각 가격 정보를 순차적으로 등록
+        for (const priceItem of priceHistory) {
+          try {
+            await api.post(`/api/spare-parts/${partId}/price-history`, {
+              price: priceItem.price,
+              effective_date: priceItem.effective_date,
+              currency: priceItem.currency,
+              part_type: priceItem.part_type,
+              notes: priceItem.notes
+            });
+          } catch (priceErr) {
+            console.error('가격 정보 등록 실패:', priceErr);
+          }
+        }
+      }
+
       setShowRegisterModal(false);
       setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0 });
+      setPriceHistory([]);
+      setSelectedPart(null);
       fetchSpareParts();
     } catch (err: any) {
       console.error('Error registering part:', err);
@@ -689,9 +742,15 @@ const SpareParts: React.FC = () => {
                   </button>
                 )}
                 {hasPermission('spare_parts_create') && (
-                  <button 
+                  <button
                     className="btn btn-primary"
-                    onClick={() => setShowRegisterModal(true)}
+                    onClick={() => {
+                      // 입력 필드 초기화
+                      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0 });
+                      setSelectedPart(null);
+                      setPriceHistory([]);
+                      setShowRegisterModal(true);
+                    }}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -982,8 +1041,8 @@ const SpareParts: React.FC = () => {
         </div>
       )}      {/* 새 부품 등록 모달 */}
       {showRegisterModal && (
-        <div 
-          className="modal modal-blur fade show" 
+        <div
+          className="modal modal-blur fade show"
           style={{ display: 'block' }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -998,6 +1057,7 @@ const SpareParts: React.FC = () => {
                 <button type="button" className="btn-close" onClick={() => setShowRegisterModal(false)}></button>
               </div>
               <div className="modal-body">
+                {/* 기본 정보 */}
                 <div className="row">
                   <div className="col-md-6">
                     <label className="form-label">부품번호</label>
@@ -1041,6 +1101,96 @@ const SpareParts: React.FC = () => {
                       min="0"
                     />
                   </div>
+                </div>
+
+                <hr className="my-4" />
+
+                {/* 가격 정보 섹션 */}
+                <div className="mb-3">
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h6 className="mb-0">가격 정보 (선택사항)</h6>
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary btn-sm"
+                      onClick={() => {
+                        setNewPrice({
+                          price: 0,
+                          effective_date: new Date().toISOString().split('T')[0],
+                          notes: '',
+                          currency: 'KRW',
+                          part_type: 'repair'
+                        });
+                        // 임시 부품 객체 생성 (가격 추가 모달에서 사용)
+                        setSelectedPart({
+                          id: 0, // 신규 등록이므로 ID는 0
+                          part_number: newPart.part_number,
+                          part_name: newPart.part_name,
+                          erp_name: newPart.erp_name,
+                          stock_quantity: newPart.stock_quantity,
+                          price: 0,
+                          created_at: new Date().toISOString(),
+                          updated_at: new Date().toISOString()
+                        });
+                        setShowAddPriceModal(true);
+                      }}
+                      disabled={!newPart.part_number || !newPart.part_name}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <path d="M12 5l0 14"/>
+                        <path d="M5 12l14 0"/>
+                      </svg>
+                      가격정보 추가
+                    </button>
+                  </div>
+
+                  {priceHistory.length > 0 ? (
+                    <div className="card">
+                      <div className="table-responsive">
+                        <table className="table table-vcenter mb-0">
+                          <thead>
+                            <tr>
+                              <th style={{ fontSize: '14px' }}>구매원가</th>
+                              <th style={{ fontSize: '14px' }}>청구가 (원)</th>
+                              <th style={{ fontSize: '14px' }}>통화</th>
+                              <th style={{ fontSize: '14px' }}>부품타입</th>
+                              <th style={{ fontSize: '14px' }}>비고</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {priceHistory.map((price, index) => (
+                              <tr key={index}>
+                                <td>
+                                  <span style={{ fontSize: '14px' }}>
+                                    {price.currency === 'KRW' ? '₩' :
+                                     price.currency === 'EUR' ? '€' : '$'}{price.price.toLocaleString()}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span style={{ fontSize: '14px', color: '#0d6efd', fontWeight: '600' }}>
+                                    ₩{(billingPrices[price.id] || 0).toLocaleString()}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span style={{ fontSize: '14px', color: '#6c757d' }}>{price.currency}</span>
+                                </td>
+                                <td>
+                                  <span style={{ fontSize: '14px', color: '#6c757d' }}>
+                                    {price.part_type === 'repair' ? '수리용' : '소모성'}
+                                  </span>
+                                </td>
+                                <td style={{ fontSize: '14px' }}>{price.notes || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="alert alert-info mb-0">
+                      부품 등록 후에도 가격 정보를 추가할 수 있습니다.
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="modal-footer">
