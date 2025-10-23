@@ -146,6 +146,7 @@ const InvoiceForm: React.FC = () => {
           setCustomerId(invoice.customer_id);
           setCustomerName(invoice.customer_name);
           setCustomerAddress(invoice.customer_address);
+          setCustomerSearchTerm(invoice.customer_name); // 고객사 검색어 설정
           setIssueDate(invoice.issue_date);
           setNotes(invoice.notes || '');
 
@@ -154,8 +155,8 @@ const InvoiceForm: React.FC = () => {
             id: `item-${item.id}`,
             month: item.month || 0,
             day: item.day || 0,
-            item_name: item.item_name || item.description,
-            specification: item.description,
+            item_name: item.item_name || item.description, // 부품명
+            specification: item.part_number || item.description, // 부품번호 (규격 필드)
             quantity: item.quantity,
             unit_price: item.unit_price,
             total_price: item.total_price,
@@ -393,8 +394,8 @@ const InvoiceForm: React.FC = () => {
         id: `${baseId}-part`,
         month: currentMonth,
         day: currentDay,
-        item_name: modalPartName,
-        specification: modalPartName,
+        item_name: modalPartName, // 품목에 부품명
+        specification: modalPartNumber || modalPartName, // 규격에 부품번호 (없으면 부품명)
         quantity: modalPartQuantity,
         unit_price: finalUnitPrice,
         total_price: modalPartQuantity * finalUnitPrice,
@@ -474,8 +475,8 @@ const InvoiceForm: React.FC = () => {
         return {
           ...item,
           part_number: part.part_number,
-          item_name: part.part_name,
-          specification: part.part_name,  // 규격에 부품명만 표시
+          item_name: part.part_name, // 품목에 부품명
+          specification: part.part_number, // 규격에 부품번호
           unit_price: part.charge_price || 0,
           total_price: Math.round((part.charge_price || 0) * item.quantity)
         };
