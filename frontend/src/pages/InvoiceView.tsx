@@ -79,7 +79,7 @@ const InvoiceView: React.FC = () => {
         </div>
       </div>
     );
-  }
+  };
 
   if (!invoice) {
     return (
@@ -96,380 +96,413 @@ const InvoiceView: React.FC = () => {
     );
   }
 
-  // 렌더링할 공급받는자용/공급자용 페이지 컴포넌트
-  const InvoicePage = ({ type }: { type: 'recipient' | 'supplier' }) => (
+  // Excel 양식 기반 거래명세표 페이지
+  const InvoicePage = ({ type }: { type: 'customer' | 'supplier' }) => (
     <div style={{
-      border: '2px solid #000',
-      backgroundColor: '#ffffff',
-      width: '210mm',  // A4 width
-      minHeight: '297mm', // A4 height
+      width: '210mm',
+      minHeight: '297mm',
       margin: '0 auto',
-      padding: '10mm',
+      padding: '15mm 10mm',
+      backgroundColor: 'white',
       fontFamily: '"Malgun Gothic", "맑은 고딕", sans-serif',
-      pageBreakAfter: type === 'recipient' ? 'always' : 'auto',
-      boxSizing: 'border-box'
+      fontSize: '10pt',
+      pageBreakAfter: type === 'customer' ? 'always' : 'auto',
+      boxSizing: 'border-box',
+      position: 'relative'
     }}>
-      {/* 헤더 */}
-      <div style={{ display: 'flex', borderBottom: '2px solid #000', marginBottom: '5mm' }}>
+      {/* 전체를 감싸는 테두리 */}
+      <div style={{
+        border: '2px solid #000',
+        padding: '5mm',
+        minHeight: '260mm'
+      }}>
+        {/* 상단 헤더 영역 */}
         <div style={{
-          width: '30mm',
-          border: '1px solid #000',
-          padding: '3mm',
-          fontSize: '11pt',
-          textAlign: 'center'
+          display: 'grid',
+          gridTemplateColumns: '60mm 1fr 40mm',
+          marginBottom: '3mm',
+          gap: '2mm'
         }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '2mm' }}>거래일자</div>
-          <div style={{ fontSize: '10pt' }}>
-            {new Date(invoice.issue_date).toLocaleDateString('ko-KR', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit'
-            }).replace(/\./g, '.').replace(/\s/g, '')}
+          {/* 작성일자 */}
+          <div style={{
+            border: '1px solid #000',
+            padding: '3mm',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '9pt', marginBottom: '1mm' }}>작성일자</div>
+            <div style={{ fontWeight: 'bold', fontSize: '11pt' }}>
+              {new Date(invoice.issue_date).toLocaleDateString('ko-KR')}
+            </div>
+          </div>
+
+          {/* 제목 */}
+          <div style={{
+            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <h1 style={{
+              fontSize: '24pt',
+              fontWeight: 'bold',
+              letterSpacing: '8mm',
+              margin: 0
+            }}>거래명세표</h1>
+          </div>
+
+          {/* 구분 (공급받는자용/공급자용) */}
+          <div style={{
+            border: '1px solid #000',
+            padding: '3mm',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '9pt'
+          }}>
+            ({type === 'customer' ? '공급받는자용' : '공급자용'})
           </div>
         </div>
 
+        {/* 공급받는자/공급자 정보 */}
         <div style={{
-          flex: 1,
-          textAlign: 'center',
-          padding: '5mm 0',
-          fontSize: '20pt',
-          fontWeight: 'bold',
-          letterSpacing: '5mm'
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '3mm',
+          marginBottom: '5mm'
         }}>
-          거래명세표
-        </div>
-
-        <div style={{
-          width: '30mm',
-          border: '1px solid #000',
-          padding: '3mm',
-          fontSize: '10pt',
-          textAlign: 'center',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          ({type === 'recipient' ? '공급받는자용' : '공급자용'})
-        </div>
-      </div>
-
-      {/* 공급자/공급받는자 정보 */}
-      <table style={{
-        width: '100%',
-        borderCollapse: 'collapse',
-        fontSize: '10pt',
-        marginBottom: '5mm'
-      }}>
-        <tbody>
-          <tr>
-            <td style={{
-              border: '1px solid #000',
-              padding: '3mm',
+          {/* 공급받는자 */}
+          <div style={{ border: '1px solid #000' }}>
+            <div style={{
+              backgroundColor: '#e8e8e8',
+              padding: '2mm',
+              borderBottom: '1px solid #000',
               textAlign: 'center',
-              fontWeight: 'bold',
-              width: '15%',
-              backgroundColor: '#f0f0f0'
+              fontWeight: 'bold'
             }}>
               공급받는자
-            </td>
-            <td style={{ border: '1px solid #000', padding: '3mm', width: '35%' }}>
+            </div>
+            <div style={{ padding: '3mm' }}>
               <div style={{ marginBottom: '2mm' }}>
-                <span style={{ fontWeight: 'bold' }}>상호: </span>
-                <span>{invoice.customer_name}</span>
+                <span style={{ fontWeight: 'bold' }}>회사명:</span> {invoice.customer_name}
               </div>
-              <div style={{ marginBottom: '2mm' }}>
-                <span style={{ fontWeight: 'bold' }}>주소: </span>
-                <span style={{ fontSize: '9pt' }}>{invoice.customer_address}</span>
+              <div style={{ marginBottom: '2mm', fontSize: '9pt' }}>
+                <span style={{ fontWeight: 'bold' }}>주소:</span> {invoice.customer_address || '-'}
+              </div>
+              <div style={{ fontSize: '9pt' }}>
+                <span style={{ fontWeight: 'bold' }}>연락처:</span> -
+              </div>
+            </div>
+            {/* 합계금액 */}
+            <div style={{
+              marginTop: '3mm',
+              padding: '5mm',
+              borderTop: '2px solid #000',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '2mm' }}>
+                합계금액
               </div>
               <div style={{
-                marginTop: '3mm',
-                textAlign: 'center',
-                fontSize: '14pt',
+                fontSize: '18pt',
                 fontWeight: 'bold',
-                padding: '2mm',
-                border: '2px solid #000'
+                color: '#000',
+                border: '2px solid #000',
+                padding: '3mm',
+                backgroundColor: '#f5f5f5'
               }}>
-                합계금액: ₩{invoice.grand_total.toLocaleString()}
+                ₩ {invoice.grand_total.toLocaleString()}
               </div>
-            </td>
-            <td style={{
-              border: '1px solid #000',
-              padding: '3mm',
+            </div>
+          </div>
+
+          {/* 공급자 */}
+          <div style={{ border: '1px solid #000' }}>
+            <div style={{
+              backgroundColor: '#e8e8e8',
+              padding: '2mm',
+              borderBottom: '1px solid #000',
               textAlign: 'center',
-              fontWeight: 'bold',
-              width: '15%',
-              backgroundColor: '#f0f0f0'
+              fontWeight: 'bold'
             }}>
               공급자
-            </td>
-            <td style={{ border: '1px solid #000', padding: '3mm', width: '35%' }}>
+            </div>
+            <div style={{ padding: '3mm' }}>
               <div style={{ marginBottom: '2mm' }}>
-                <span style={{ fontWeight: 'bold' }}>상호: </span>
-                <span>LVD Korea (유)</span>
-                <span style={{ marginLeft: '3mm', fontWeight: 'bold' }}>대표: </span>
-                <span>이동호</span>
+                <span style={{ fontWeight: 'bold' }}>회사명:</span> LVD Korea (유)
                 <span style={{
-                  marginLeft: '3mm',
-                  fontSize: '9pt',
+                  marginLeft: '5mm',
                   border: '1px solid #000',
-                  padding: '1mm 2mm'
+                  padding: '1mm 3mm',
+                  fontSize: '9pt'
                 }}>
                   인
                 </span>
               </div>
               <div style={{ marginBottom: '2mm' }}>
-                <span style={{ fontWeight: 'bold' }}>등록번호: </span>
-                <span>122-86-12760</span>
+                <span style={{ fontWeight: 'bold' }}>대표자:</span> 이동호
               </div>
               <div style={{ marginBottom: '2mm', fontSize: '9pt' }}>
-                <span style={{ fontWeight: 'bold' }}>주소: </span>
-                <span>인천광역시 부평구 청천로 409-7</span>
+                <span style={{ fontWeight: 'bold' }}>사업자등록번호:</span> 122-86-12760
+              </div>
+              <div style={{ marginBottom: '2mm', fontSize: '9pt' }}>
+                <span style={{ fontWeight: 'bold' }}>주소:</span> 인천광역시 부평구 청천로 409-7
               </div>
               <div style={{ fontSize: '9pt' }}>
-                <span style={{ fontWeight: 'bold' }}>연락처: </span>
-                <span>050-2345-7801 FAX: 050-2345-7816</span>
+                <span style={{ fontWeight: 'bold' }}>전화:</span> 050-2345-7801
+                <span style={{ marginLeft: '3mm', fontWeight: 'bold' }}>FAX:</span> 050-2345-7816
               </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 항목 테이블 */}
-      <table style={{
-        width: '100%',
-        borderCollapse: 'collapse',
-        fontSize: '10pt',
-        marginBottom: '5mm'
-      }}>
-        <thead>
-          <tr style={{ backgroundColor: '#f0f0f0' }}>
-            <th style={{
-              border: '1px solid #000',
-              padding: '2mm',
-              textAlign: 'center',
-              width: '6%'
-            }}>번호</th>
-            <th style={{
-              border: '1px solid #000',
-              padding: '2mm',
-              textAlign: 'center',
-              width: '8%'
-            }}>월/일</th>
-            <th style={{
-              border: '1px solid #000',
-              padding: '2mm',
-              textAlign: 'center',
-              width: '12%'
-            }}>품목</th>
-            <th style={{
-              border: '1px solid #000',
-              padding: '2mm',
-              textAlign: 'center',
-              width: '30%'
-            }}>규격</th>
-            <th style={{
-              border: '1px solid #000',
-              padding: '2mm',
-              textAlign: 'center',
-              width: '10%'
-            }}>수량</th>
-            <th style={{
-              border: '1px solid #000',
-              padding: '2mm',
-              textAlign: 'center',
-              width: '14%'
-            }}>단가</th>
-            <th style={{
-              border: '1px solid #000',
-              padding: '2mm',
-              textAlign: 'center',
-              width: '20%'
-            }}>금액</th>
-          </tr>
-        </thead>
-        <tbody>
-          {invoice.items.map((item, index) => (
-            <tr key={index}>
-              <td style={{
-                border: '1px solid #000',
-                padding: '2mm',
-                textAlign: 'center'
-              }}>
-                {index + 1}
-              </td>
-              <td style={{
-                border: '1px solid #000',
-                padding: '2mm',
-                textAlign: 'center',
-                fontSize: '9pt'
-              }}>
-                {item.month && item.day ? `${item.month}/${item.day}` : ''}
-              </td>
-              <td style={{
-                border: '1px solid #000',
-                padding: '2mm',
-                textAlign: 'center',
-                fontSize: '9pt'
-              }}>
-                {item.item_name || (
-                  item.item_type === 'work' ? '작업' :
-                    item.item_type === 'travel' ? '출장' :
-                      item.item_type === 'nego' ? 'NEGO' :
-                        '부품'
-                )}
-              </td>
-              <td style={{
-                border: '1px solid #000',
-                padding: '2mm',
-                fontSize: '9pt'
-              }}>
-                {item.description}
-                {item.part_number && (
-                  <span style={{ color: '#666', marginLeft: '2mm' }}>
-                    ({item.part_number})
-                  </span>
-                )}
-              </td>
-              <td style={{
-                border: '1px solid #000',
-                padding: '2mm',
-                textAlign: 'right'
-              }}>
-                {item.quantity}
-              </td>
-              <td style={{
-                border: '1px solid #000',
-                padding: '2mm',
-                textAlign: 'right'
-              }}>
-                {item.unit_price.toLocaleString()}
-              </td>
-              <td style={{
-                border: '1px solid #000',
-                padding: '2mm',
-                textAlign: 'right',
-                fontWeight: item.item_type === 'nego' ? 'bold' : 'normal',
-                color: item.item_type === 'nego' ? '#d9534f' : 'inherit'
-              }}>
-                {item.total_price.toLocaleString()}
-              </td>
-            </tr>
-          ))}
-
-          {/* 빈 행 추가 (최소 10행) */}
-          {Array.from({ length: Math.max(0, 10 - invoice.items.length) }).map((_, index) => (
-            <tr key={`empty-${index}`}>
-              <td style={{
-                border: '1px solid #000',
-                padding: '2mm',
-                textAlign: 'center',
-                height: '8mm'
-              }}>
-                {invoice.items.length + index + 1}
-              </td>
-              <td style={{ border: '1px solid #000' }}></td>
-              <td style={{ border: '1px solid #000' }}></td>
-              <td style={{ border: '1px solid #000' }}></td>
-              <td style={{ border: '1px solid #000' }}></td>
-              <td style={{ border: '1px solid #000' }}></td>
-              <td style={{ border: '1px solid #000' }}></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* 하단 비고 및 합계 */}
-      <div style={{ display: 'flex', minHeight: '40mm' }}>
-        {/* 비고 */}
-        <div style={{
-          flex: 1,
-          border: '1px solid #000',
-          borderRight: 'none',
-          padding: '3mm'
-        }}>
-          <div style={{ fontWeight: 'bold', fontSize: '11pt', marginBottom: '2mm' }}>
-            비고
-          </div>
-          <div style={{
-            fontSize: '9pt',
-            lineHeight: '1.5',
-            whiteSpace: 'pre-wrap'
-          }}>
-            {invoice.notes || '특이사항 없음'}
+            </div>
           </div>
         </div>
 
-        {/* 합계 */}
-        <div style={{ width: '50mm' }}>
-          <table style={{
-            width: '100%',
-            height: '100%',
-            borderCollapse: 'collapse',
-            fontSize: '10pt'
+        {/* 항목 테이블 */}
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontSize: '9pt',
+          marginBottom: '3mm'
+        }}>
+          <thead>
+            <tr style={{ backgroundColor: '#e8e8e8' }}>
+              <th style={{
+                border: '1px solid #000',
+                padding: '2mm',
+                textAlign: 'center',
+                width: '5%',
+                fontWeight: 'bold'
+              }}>월</th>
+              <th style={{
+                border: '1px solid #000',
+                padding: '2mm',
+                textAlign: 'center',
+                width: '5%',
+                fontWeight: 'bold'
+              }}>일</th>
+              <th style={{
+                border: '1px solid #000',
+                padding: '2mm',
+                textAlign: 'center',
+                width: '15%',
+                fontWeight: 'bold'
+              }}>품목</th>
+              <th style={{
+                border: '1px solid #000',
+                padding: '2mm',
+                textAlign: 'center',
+                width: '25%',
+                fontWeight: 'bold'
+              }}>규격</th>
+              <th style={{
+                border: '1px solid #000',
+                padding: '2mm',
+                textAlign: 'center',
+                width: '8%',
+                fontWeight: 'bold'
+              }}>수량</th>
+              <th style={{
+                border: '1px solid #000',
+                padding: '2mm',
+                textAlign: 'center',
+                width: '14%',
+                fontWeight: 'bold'
+              }}>단가</th>
+              <th style={{
+                border: '1px solid #000',
+                padding: '2mm',
+                textAlign: 'center',
+                width: '14%',
+                fontWeight: 'bold'
+              }}>공급가액</th>
+              <th style={{
+                border: '1px solid #000',
+                padding: '2mm',
+                textAlign: 'center',
+                width: '14%',
+                fontWeight: 'bold'
+              }}>부가세</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.items.map((item, index) => {
+              const vat = Math.round(item.total_price * 0.1);
+              const isNego = item.item_type === 'nego' || item.item_name === 'NEGO';
+
+              return (
+                <tr key={index} style={{ color: isNego ? '#ff0000' : 'inherit' }}>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    textAlign: 'center',
+                    fontSize: '8pt'
+                  }}>
+                    {item.month || ''}
+                  </td>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    textAlign: 'center',
+                    fontSize: '8pt'
+                  }}>
+                    {item.day || ''}
+                  </td>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    fontSize: '8pt'
+                  }}>
+                    {item.item_name || (
+                      item.item_type === 'work' ? '작업' :
+                      item.item_type === 'travel' ? '출장' :
+                      item.item_type === 'nego' ? 'NEGO' :
+                      '부품'
+                    )}
+                  </td>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    fontSize: '8pt'
+                  }}>
+                    {item.part_number || item.description || ''}
+                  </td>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    textAlign: 'right',
+                    fontSize: '8pt'
+                  }}>
+                    {item.quantity || ''}
+                  </td>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    textAlign: 'right',
+                    fontSize: '8pt'
+                  }}>
+                    {item.unit_price ? item.unit_price.toLocaleString() : ''}
+                  </td>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    textAlign: 'right',
+                    fontSize: '8pt',
+                    fontWeight: isNego ? 'bold' : 'normal'
+                  }}>
+                    {item.total_price ? item.total_price.toLocaleString() : ''}
+                  </td>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    textAlign: 'right',
+                    fontSize: '8pt'
+                  }}>
+                    {vat ? vat.toLocaleString() : ''}
+                  </td>
+                </tr>
+              );
+            })}
+
+            {/* 빈 행 추가 (최소 30행) */}
+            {Array.from({ length: Math.max(0, 30 - invoice.items.length) }).map((_, index) => (
+              <tr key={`empty-${index}`}>
+                <td style={{ border: '1px solid #000', padding: '2mm', height: '6mm' }}>&nbsp;</td>
+                <td style={{ border: '1px solid #000' }}>&nbsp;</td>
+                <td style={{ border: '1px solid #000' }}>&nbsp;</td>
+                <td style={{ border: '1px solid #000' }}>&nbsp;</td>
+                <td style={{ border: '1px solid #000' }}>&nbsp;</td>
+                <td style={{ border: '1px solid #000' }}>&nbsp;</td>
+                <td style={{ border: '1px solid #000' }}>&nbsp;</td>
+                <td style={{ border: '1px solid #000' }}>&nbsp;</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* 하단 합계 영역 */}
+        <div style={{ display: 'flex', gap: '3mm' }}>
+          {/* 비고 */}
+          <div style={{
+            flex: 1,
+            border: '1px solid #000',
+            padding: '3mm',
+            minHeight: '30mm'
           }}>
-            <tbody>
-              <tr>
-                <td style={{
-                  border: '1px solid #000',
-                  padding: '2mm',
-                  textAlign: 'center',
-                  fontWeight: 'bold',
-                  backgroundColor: '#f0f0f0'
-                }}>
-                  공급가액
-                </td>
-                <td style={{
-                  border: '1px solid #000',
-                  padding: '2mm',
-                  textAlign: 'right',
-                  fontWeight: 'bold'
-                }}>
-                  {invoice.total_amount.toLocaleString()}
-                </td>
-              </tr>
-              <tr>
-                <td style={{
-                  border: '1px solid #000',
-                  padding: '2mm',
-                  textAlign: 'center',
-                  fontWeight: 'bold',
-                  backgroundColor: '#f0f0f0'
-                }}>
-                  세액
-                </td>
-                <td style={{
-                  border: '1px solid #000',
-                  padding: '2mm',
-                  textAlign: 'right',
-                  fontWeight: 'bold'
-                }}>
-                  {invoice.vat_amount.toLocaleString()}
-                </td>
-              </tr>
-              <tr>
-                <td style={{
-                  border: '2px solid #000',
-                  padding: '3mm',
-                  textAlign: 'center',
-                  fontWeight: 'bold',
-                  fontSize: '12pt',
-                  backgroundColor: '#e0e0e0'
-                }}>
-                  총합계
-                </td>
-                <td style={{
-                  border: '2px solid #000',
-                  padding: '3mm',
-                  textAlign: 'right',
-                  fontWeight: 'bold',
-                  fontSize: '14pt',
-                  color: '#0066cc'
-                }}>
-                  {invoice.grand_total.toLocaleString()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+            <div style={{ fontWeight: 'bold', marginBottom: '2mm' }}>비고</div>
+            <div style={{ fontSize: '9pt', whiteSpace: 'pre-wrap' }}>
+              {invoice.notes || ''}
+            </div>
+          </div>
+
+          {/* 합계 테이블 */}
+          <div style={{ width: '80mm' }}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: '10pt'
+            }}>
+              <tbody>
+                <tr>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    backgroundColor: '#e8e8e8',
+                    width: '40%'
+                  }}>
+                    공급가액
+                  </td>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    textAlign: 'right',
+                    fontWeight: 'bold'
+                  }}>
+                    {invoice.total_amount.toLocaleString()}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    backgroundColor: '#e8e8e8'
+                  }}>
+                    세액
+                  </td>
+                  <td style={{
+                    border: '1px solid #000',
+                    padding: '2mm',
+                    textAlign: 'right',
+                    fontWeight: 'bold'
+                  }}>
+                    {invoice.vat_amount.toLocaleString()}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{
+                    border: '2px solid #000',
+                    padding: '3mm',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    fontSize: '11pt',
+                    backgroundColor: '#d0d0d0'
+                  }}>
+                    총합계
+                  </td>
+                  <td style={{
+                    border: '2px solid #000',
+                    padding: '3mm',
+                    textAlign: 'right',
+                    fontWeight: 'bold',
+                    fontSize: '13pt'
+                  }}>
+                    {invoice.grand_total.toLocaleString()}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -520,16 +553,21 @@ const InvoiceView: React.FC = () => {
       </div>
 
       <div className="page-body">
-        <div className="container-xl d-print-none">
-          <div className="row justify-content-center" style={{ gap: '20px' }}>
-            <InvoicePage type="recipient" />
+        <div className="container-xl d-print-none" style={{ maxWidth: '100%' }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            alignItems: 'center'
+          }}>
+            <InvoicePage type="customer" />
             <InvoicePage type="supplier" />
           </div>
         </div>
 
         {/* 인쇄 시에는 페이지 브레이크로 분리 */}
         <div className="d-none d-print-block">
-          <InvoicePage type="recipient" />
+          <InvoicePage type="customer" />
           <InvoicePage type="supplier" />
         </div>
       </div>
