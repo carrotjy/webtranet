@@ -48,6 +48,21 @@ const InvoiceForm: React.FC = () => {
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
+  // 고객 추가 모달
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [newCustomerData, setNewCustomerData] = useState({
+    company_name: '',
+    contact_person: '',
+    email: '',
+    phone: '',
+    address: '',
+    postal_code: '',
+    fax: '',
+    president: '',
+    mobile: '',
+    contact: ''
+  });
+
   // 요율 정보
   const [rates, setRates] = useState<InvoiceRates>({ work_rate: 50000, travel_rate: 30000 });
 
@@ -170,11 +185,61 @@ const InvoiceForm: React.FC = () => {
     setShowCustomerDropdown(false);
   };
 
+  // 고객 추가 버튼 클릭
+  const handleAddCustomer = () => {
+    setNewCustomerData({
+      company_name: customerSearchTerm,
+      contact_person: '',
+      email: '',
+      phone: '',
+      address: '',
+      postal_code: '',
+      fax: '',
+      president: '',
+      mobile: '',
+      contact: ''
+    });
+    setShowCustomerDropdown(false);
+    setShowAddCustomerModal(true);
+  };
+
+  // 새 고객 저장
+  const handleSaveNewCustomer = async () => {
+    if (!newCustomerData.company_name.trim()) {
+      alert('회사명을 입력해주세요.');
+      return;
+    }
+
+    try {
+      const response = await customerAPI.createCustomer(newCustomerData);
+      const newCustomer = response.data.customer;
+
+      // 고객 목록에 추가
+      setCustomers(prev => [...prev, newCustomer]);
+
+      // 폼에 자동 선택
+      setCustomerId(newCustomer.id);
+      setCustomerName(newCustomer.company_name);
+      setCustomerAddress(newCustomer.address || '');
+      setCustomerSearchTerm(newCustomer.company_name);
+
+      // 모달 닫기
+      setShowAddCustomerModal(false);
+
+      alert('고객사가 추가되었습니다.');
+    } catch (error: any) {
+      console.error('고객 추가 실패:', error);
+      alert(`고객 추가에 실패했습니다: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
   // 고객 검색 필터링
-  const filteredCustomers = customers.filter(c =>
-    c.company_name?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-    c.contact_person?.toLowerCase().includes(customerSearchTerm.toLowerCase())
-  );
+  const filteredCustomers = customerSearchTerm
+    ? customers.filter(c =>
+        c.company_name?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+        c.contact_person?.toLowerCase().includes(customerSearchTerm.toLowerCase())
+      )
+    : customers;
 
   // +서비스비용추가 버튼 클릭
   const addServiceCost = () => {
@@ -669,26 +734,47 @@ const InvoiceForm: React.FC = () => {
                         onFocus={() => setShowCustomerDropdown(true)}
                         placeholder="고객사 검색..."
                       />
-                      {showCustomerDropdown && filteredCustomers.length > 0 && (
-                        <div className="dropdown-menu show w-100" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                          {filteredCustomers.map(customer => (
-                            <button
-                              key={customer.id}
-                              type="button"
-                              className="dropdown-item"
-                              onClick={() => handleCustomerSelect(customer)}
-                            >
-                              <div>
-                                <strong>{customer.company_name}</strong><br />
-                                {/* {customer.contact_person && <span>, 대표 "{customer.contact_person}"</span>} */}
-                              </div>
-                              <div>{customer.address && (
-                                <small className="text-muted d-block">
-                                  {customer.address}
-                                </small>
-                              )}</div>
-                            </button>
-                          ))}
+                      {showCustomerDropdown && (
+                        <div className="dropdown-menu show w-100" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                          {filteredCustomers.length > 0 ? (
+                            filteredCustomers.map(customer => (
+                              <button
+                                key={customer.id}
+                                type="button"
+                                className="dropdown-item"
+                                onClick={() => handleCustomerSelect(customer)}
+                              >
+                                <div>
+                                  <strong>{customer.company_name}</strong><br />
+                                  {/* {customer.contact_person && <span>, 대표 "{customer.contact_person}"</span>} */}
+                                </div>
+                                <div>{customer.address && (
+                                  <small className="text-muted d-block">
+                                    {customer.address}
+                                  </small>
+                                )}</div>
+                              </button>
+                            ))
+                          ) : customerSearchTerm ? (
+                            <div className="dropdown-item text-muted">
+                              검색 결과가 없습니다.
+                            </div>
+                          ) : null}
+
+                          {/* 고객 추가 버튼 */}
+                          <button
+                            type="button"
+                            className="dropdown-item"
+                            style={{backgroundColor: '#e3f2fd', fontWeight: 'bold', borderTop: '2px solid #2196f3'}}
+                            onClick={handleAddCustomer}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="icon me-2" width="20" height="20" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                              <line x1="12" y1="5" x2="12" y2="19" />
+                              <line x1="5" y1="12" x2="19" y2="12" />
+                            </svg>
+                            새 고객사 추가하기
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1050,6 +1136,125 @@ const InvoiceForm: React.FC = () => {
                   </button>
                   <button type="button" className="btn btn-primary ms-auto" onClick={confirmAddPart}>
                     추가
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 고객 추가 모달 */}
+      {showAddCustomerModal && (
+        <>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
+          <div className="modal fade show" style={{ display: 'block', zIndex: 1070 }} tabIndex={-1} role="dialog" aria-modal="true">
+            <div className="modal-dialog modal-dialog-centered modal-lg" role="document">
+              <div className="modal-content" style={{ backgroundColor: '#ffffff', position: 'relative', zIndex: 1071 }}>
+                <div className="modal-header">
+                  <h5 className="modal-title">새 고객사 추가</h5>
+                  <button type="button" className="btn-close" onClick={() => setShowAddCustomerModal(false)}></button>
+                </div>
+                <div className="modal-body">
+                  <div className="row">
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label required">회사명</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.company_name}
+                        onChange={(e) => setNewCustomerData({...newCustomerData, company_name: e.target.value})}
+                        placeholder="회사명 입력..."
+                      />
+                    </div>
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">대표자명</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.president}
+                        onChange={(e) => setNewCustomerData({...newCustomerData, president: e.target.value})}
+                        placeholder="대표자명 입력..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="row">
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">담당자명</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.contact_person}
+                        onChange={(e) => setNewCustomerData({...newCustomerData, contact_person: e.target.value})}
+                        placeholder="담당자명 입력..."
+                      />
+                    </div>
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">이메일</label>
+                      <input
+                        type="email"
+                        className="form-control"
+                        value={newCustomerData.email}
+                        onChange={(e) => setNewCustomerData({...newCustomerData, email: e.target.value})}
+                        placeholder="이메일 입력..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="row">
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">전화번호</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.phone}
+                        onChange={(e) => setNewCustomerData({...newCustomerData, phone: e.target.value})}
+                        placeholder="전화번호 입력..."
+                      />
+                    </div>
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">팩스</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.fax}
+                        onChange={(e) => setNewCustomerData({...newCustomerData, fax: e.target.value})}
+                        placeholder="팩스 입력..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="row">
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">우편번호</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.postal_code}
+                        onChange={(e) => setNewCustomerData({...newCustomerData, postal_code: e.target.value})}
+                        placeholder="우편번호 입력..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">주소</label>
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      value={newCustomerData.address}
+                      onChange={(e) => setNewCustomerData({...newCustomerData, address: e.target.value})}
+                      placeholder="주소 입력..."
+                    />
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-link link-secondary" onClick={() => setShowAddCustomerModal(false)}>
+                    취소
+                  </button>
+                  <button type="button" className="btn btn-primary ms-auto" onClick={handleSaveNewCustomer}>
+                    저장
                   </button>
                 </div>
               </div>
