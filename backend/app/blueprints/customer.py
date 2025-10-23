@@ -106,20 +106,26 @@ def create_customer():
     """새 고객정보 생성"""
     try:
         data = request.get_json()
-        
+
         # 필수 필드 확인
         if not data.get('company_name'):
             return jsonify({'error': '회사명은 필수 항목입니다.'}), 400
-        
+
         customer = Customer(
             company_name=data['company_name'],
             contact_person=data.get('contact_person', ''),
             email=data.get('email', ''),
             phone=data.get('phone', ''),
             address=data.get('address', ''),
+            postal_code=data.get('postal_code', ''),
+            tel=data.get('tel', ''),
+            fax=data.get('fax', ''),
+            president=data.get('president', ''),
+            mobile=data.get('mobile', ''),
+            contact=data.get('contact', ''),
             notes=data.get('notes', '')
         )
-        
+
         customer_id = customer.save()
         if customer_id:
             return jsonify({
@@ -128,7 +134,7 @@ def create_customer():
             }), 201
         else:
             return jsonify({'error': '고객정보 생성에 실패했습니다.'}), 500
-            
+
     except Exception as e:
         return jsonify({'error': f'고객정보 생성 중 오류가 발생했습니다: {str(e)}'}), 500
 
