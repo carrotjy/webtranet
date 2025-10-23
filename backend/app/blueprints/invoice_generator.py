@@ -740,6 +740,21 @@ def generate_invoice():
         workbook.save(invoice_file_path)
         workbook.close()
 
+        # 네트워크 공유 폴더에 복사
+        network_base_dir = '/mnt/windows/거래명세서'
+        try:
+            # 네트워크 폴더 구조 생성
+            network_customer_dir = os.path.join(network_base_dir, customer_name)
+            os.makedirs(network_customer_dir, exist_ok=True)
+
+            # Excel 파일 복사
+            network_excel_path = os.path.join(network_customer_dir, f'거래명세표({customer_name}).xlsx')
+            shutil.copy2(invoice_file_path, network_excel_path)
+            print(f"네트워크 공유 폴더에 Excel 복사 성공: {network_excel_path}")
+        except Exception as e:
+            print(f"네트워크 공유 폴더 복사 실패: {str(e)}")
+            # 복사 실패해도 계속 진행
+
         # PDF 변환 (순수 Python 방식 우선, LibreOffice는 백업)
         pdf_filename = f'거래명세표({customer_name})-{sheet_name}.pdf'
         pdf_path = os.path.join(os.path.dirname(invoice_file_path), pdf_filename)
@@ -748,20 +763,33 @@ def generate_invoice():
         pdf_url = None
 
         # 1순위: WeasyPrint (순수 Python, 외부 프로그램 불필요)
+        print(f"WeasyPrint 사용 가능 여부: {HAS_WEASYPRINT}")
         if HAS_WEASYPRINT:
+            print("WeasyPrint로 PDF 생성 시도 중...")
             pdf_success = convert_to_pdf_weasyprint(
                 items, service_date, customer_info, total_amount, pdf_path
             )
+            print(f"WeasyPrint PDF 생성 결과: {pdf_success}")
 
         # 2순위: LibreOffice (WeasyPrint 실패 시)
         # 특정 시트만 PDF로 변환 (고객사용 시트만)
         if not pdf_success:
+            print("LibreOffice로 PDF 생성 시도 중...")
             customer_sheet_name_for_pdf = f"{sheet_name}-c"
             pdf_success = convert_excel_to_pdf_libreoffice(invoice_file_path, pdf_path, customer_sheet_name_for_pdf)
+            print(f"LibreOffice PDF 생성 결과: {pdf_success}")
 
+        # PDF를 네트워크 폴더에도 복사
         if pdf_success:
             # 상대 경로 생성 (customer_name/filename)
             pdf_url = f'/api/invoice-pdf/{customer_name}/{pdf_filename}'
+
+            try:
+                network_pdf_path = os.path.join(network_customer_dir, pdf_filename)
+                shutil.copy2(pdf_path, network_pdf_path)
+                print(f"네트워크 공유 폴더에 PDF 복사 성공: {network_pdf_path}")
+            except Exception as e:
+                print(f"네트워크 공유 폴더 PDF 복사 실패: {str(e)}")
 
         # Excel 파일 다운로드 URL 추가
         excel_filename = f'거래명세표({customer_name}).xlsx'
