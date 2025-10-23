@@ -1225,31 +1225,32 @@ const InvoiceForm: React.FC = () => {
                         className="form-control"
                         value={newCustomerData.phone}
                         onChange={(e) => setNewCustomerData({...newCustomerData, phone: e.target.value})}
-                        placeholder="전화번호 입력..."
+                        placeholder="전화번호 입력"
                       />
                     </div>
                     <div className="col-md-6 mb-3">
-                      <label className="form-label">팩스</label>
+                      <label className="form-label">팩스번호</label>
                       <input
                         type="text"
                         className="form-control"
                         value={newCustomerData.fax}
                         onChange={(e) => setNewCustomerData({...newCustomerData, fax: e.target.value})}
-                        placeholder="팩스 입력..."
+                        placeholder="팩스번호 입력"
                       />
                     </div>
                   </div>
 
                   <div className="row">
-                    <div className="col-md-6 mb-3">
-                      <label className="form-label">우편번호</label>
+                    {/* 주소 (8열) */}
+                    <div className="col-md-8 mb-3">
+                      <label className="form-label">주소</label>
                       <div className="input-group">
                         <input
                           type="text"
                           className="form-control"
-                          value={newCustomerData.postal_code}
-                          onChange={(e) => setNewCustomerData({...newCustomerData, postal_code: e.target.value})}
-                          placeholder="우편번호"
+                          value={newCustomerData.address}
+                          onChange={(e) => setNewCustomerData({...newCustomerData, address: e.target.value})}
+                          placeholder="주소 입력"
                           readOnly
                         />
                         <button
@@ -1261,30 +1262,32 @@ const InvoiceForm: React.FC = () => {
                               oncomplete: function(data: any) {
                                 // 도로명 주소 또는 지번 주소 선택
                                 const fullAddress = data.roadAddress || data.jibunAddress;
-                                setNewCustomerData(prev => ({
-                                  ...prev,
-                                  postal_code: data.zonecode,
-                                  address: fullAddress
-                                }));
+                                setNewCustomerData({
+                                  ...newCustomerData,
+                                  address: fullAddress,
+                                  postal_code: data.zonecode
+                                });
                               }
                             }).open();
                           }}
                         >
-                          우편번호 검색
+                          주소 검색
                         </button>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="mb-3">
-                    <label className="form-label">주소</label>
-                    <textarea
-                      className="form-control"
-                      rows={3}
-                      value={newCustomerData.address}
-                      onChange={(e) => setNewCustomerData({...newCustomerData, address: e.target.value})}
-                      placeholder="주소 입력..."
-                    />
+                    {/* 우편번호 (4열) */}
+                    <div className="col-md-4 mb-3">
+                      <label className="form-label">우편번호</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.postal_code}
+                        onChange={(e) => setNewCustomerData({...newCustomerData, postal_code: e.target.value})}
+                        placeholder="우편번호"
+                        readOnly
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="modal-footer">
