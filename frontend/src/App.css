@@ -280,6 +280,39 @@ body.modal-open {
   .modal-dialog {
     margin: 0.5rem auto !important;
   }
+
+  /* 모바일에서 모달 헤더/푸터 패딩 줄이기 */
+  .modal-header,
+  .modal-footer {
+    padding: 0.75rem 1rem !important;
+  }
+
+  /* 모바일에서 모달 바디 패딩 줄이기 */
+  .modal-body {
+    padding: 1rem !important;
+  }
+
+  /* 모바일에서 폼 요소 크기 조정 */
+  .modal .form-label {
+    font-size: 0.875rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+
+  .modal .form-control,
+  .modal .form-select {
+    font-size: 0.875rem !important;
+  }
+
+  /* 모바일에서 버튼 크기 조정 */
+  .modal .btn {
+    font-size: 0.875rem !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+
+  /* 모바일에서 모달 타이틀 크기 조정 */
+  .modal-title {
+    font-size: 1.125rem !important;
+  }
 }
 
 @media (min-width: 576px) {
@@ -294,27 +327,93 @@ body.modal-open {
   }
 }
 
-/* 중간 화면에서 모달 크기 조정 */
-@media (min-width: 768px) and (max-width: 991.98px) {
+/* 모바일 (iPhone 12 mini: 375px 기준) */
+@media (max-width: 575.98px) {
+  .modal-dialog {
+    max-width: calc(100vw - 1rem) !important;
+    margin: 0.5rem !important;
+  }
+
   .modal-lg .modal-dialog,
   .modal-dialog.modal-lg {
-    max-width: 700px !important;
+    max-width: calc(100vw - 1rem) !important;
+  }
+
+  .modal-xl .modal-dialog,
+  .modal-dialog.modal-xl {
+    max-width: calc(100vw - 1rem) !important;
+  }
+
+  /* 모바일에서 모달 바디 높이 제한 */
+  .modal-body {
+    max-height: calc(100vh - 150px) !important;
+  }
+}
+
+/* 중간 화면 (태블릿) */
+@media (min-width: 576px) and (max-width: 767.98px) {
+  .modal-dialog {
+    max-width: 540px !important;
+  }
+
+  .modal-lg .modal-dialog,
+  .modal-dialog.modal-lg {
+    max-width: 540px !important;
+  }
+
+  .modal-xl .modal-dialog,
+  .modal-dialog.modal-xl {
+    max-width: 540px !important;
+  }
+}
+
+/* 중간 화면에서 모달 크기 조정 */
+@media (min-width: 768px) and (max-width: 991.98px) {
+  .modal-dialog {
+    max-width: 720px !important;
+  }
+
+  .modal-lg .modal-dialog,
+  .modal-dialog.modal-lg {
+    max-width: 720px !important;
+  }
+
+  .modal-xl .modal-dialog,
+  .modal-dialog.modal-xl {
+    max-width: 720px !important;
+  }
+}
+
+/* 큰 화면에서 모달 크기 조정 */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+  .modal-dialog {
+    max-width: 600px !important;
+  }
+
+  .modal-lg .modal-dialog,
+  .modal-dialog.modal-lg {
+    max-width: 800px !important;
+  }
+
+  .modal-xl .modal-dialog,
+  .modal-dialog.modal-xl {
+    max-width: 960px !important;
   }
 }
 
 /* 큰 화면에서 모달 최대 크기 및 최소 크기 */
 @media (min-width: 1200px) {
+  .modal-dialog {
+    max-width: 600px !important;
+    min-width: 600px !important;
+  }
+
   .modal-lg .modal-dialog,
   .modal-dialog.modal-lg {
     max-width: 900px !important;
     min-width: 800px !important; /* 데스크톱에서 최소 크기 보장 */
   }
-  
-  /* 기본 모달도 데스크톱에서 적절한 최소 크기 설정 */
-  .modal-dialog {
-    min-width: 600px !important;
-  }
-  
+
   /* 특히 큰 콘텐츠를 가진 모달들 (리포트, 장비관리 등) */
   .modal-xl .modal-dialog,
   .modal-dialog.modal-xl {
