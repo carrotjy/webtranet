@@ -538,7 +538,7 @@ def convert_to_pdf_weasyprint(items: list, service_date: str, customer_info: dic
         traceback.print_exc()
         return False
 
-def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_name: str = None) -> bool:
+def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_names: list = None) -> bool:
     """
     LibreOffice를 사용하여 Excel 파일을 PDF로 변환
     우분투/리눅스에서 작동하며 Windows에서도 LibreOffice가 설치되어 있으면 작동
@@ -546,26 +546,28 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_name:
     Args:
         excel_path: 원본 Excel 파일 경로
         pdf_path: 생성할 PDF 파일 경로
-        sheet_name: 특정 시트만 PDF로 변환 (None이면 전체)
+        sheet_names: PDF에 포함할 시트 이름 리스트 (None이면 전체, Template 시트 제외)
     """
     try:
         output_dir = os.path.dirname(os.path.abspath(pdf_path))
 
-        # 특정 시트만 PDF로 변환하는 경우, 임시 파일 생성
-        if sheet_name:
+        # 특정 시트들만 PDF로 변환하는 경우, 임시 파일 생성
+        if sheet_names:
             import tempfile
             workbook = load_workbook(excel_path)
 
-            if sheet_name not in workbook.sheetnames:
-                print(f"경고: 시트 '{sheet_name}'를 찾을 수 없습니다.")
-                workbook.close()
-                return False
+            # 요청된 시트들이 모두 존재하는지 확인
+            for sheet_name in sheet_names:
+                if sheet_name not in workbook.sheetnames:
+                    print(f"경고: 시트 '{sheet_name}'를 찾을 수 없습니다.")
+                    workbook.close()
+                    return False
 
-            # 임시 파일에 해당 시트만 복사
+            # 임시 파일에 해당 시트들만 복사
             temp_wb = load_workbook(excel_path)  # 전체 파일 복사
 
-            # 타겟 시트를 제외한 모든 시트 삭제
-            sheets_to_remove = [s for s in temp_wb.sheetnames if s != sheet_name]
+            # 타겟 시트들을 제외한 모든 시트 삭제
+            sheets_to_remove = [s for s in temp_wb.sheetnames if s not in sheet_names]
             for sheet in sheets_to_remove:
                 del temp_wb[sheet]
 
@@ -579,7 +581,7 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_name:
             workbook.close()
 
             abs_excel_path = os.path.abspath(temp_excel_path)
-            print(f"임시 파일 생성: {temp_excel_path} (시트: {sheet_name}만 포함)")
+            print(f"임시 파일 생성: {temp_excel_path} (시트: {', '.join(sheet_names)} 포함)")
         else:
             abs_excel_path = os.path.abspath(excel_path)
             temp_excel_path = None
@@ -852,11 +854,13 @@ def generate_invoice():
             print(f"WeasyPrint PDF 생성 결과: {pdf_success}")
 
         # 2순위: LibreOffice (WeasyPrint 실패 시)
-        # 특정 시트만 PDF로 변환 (고객사용 시트만)
+        # 고객사용(-c)과 공급자용(-s) 두 시트를 모두 PDF로 변환
         if not pdf_success:
             print("LibreOffice로 PDF 생성 시도 중...")
-            customer_sheet_name_for_pdf = f"{sheet_name}-c"
-            pdf_success = convert_excel_to_pdf_libreoffice(invoice_file_path, pdf_path, customer_sheet_name_for_pdf)
+            customer_sheet_name = f"{sheet_name}-c"
+            supplier_sheet_name = f"{sheet_name}-s"
+            sheet_names_for_pdf = [customer_sheet_name, supplier_sheet_name]
+            pdf_success = convert_excel_to_pdf_libreoffice(invoice_file_path, pdf_path, sheet_names_for_pdf)
             print(f"LibreOffice PDF 생성 결과: {pdf_success}")
 
         # PDF를 네트워크 폴더에도 복사
