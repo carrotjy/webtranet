@@ -695,7 +695,7 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_name:
                 pass
         return False
 
-@invoice_generator_bp.route('/api/generate-invoice', methods=['POST'])
+@invoice_generator_bp.route('/generate-invoice', methods=['POST'])
 def generate_invoice():
     """거래명세서 생성 API"""
     try:
@@ -788,7 +788,7 @@ def generate_invoice():
             'details': error_traceback
         }), 500
 
-@invoice_generator_bp.route('/api/invoice-excel/<customer_name>/<filename>', methods=['GET'])
+@invoice_generator_bp.route('/invoice-excel/<customer_name>/<filename>', methods=['GET'])
 def serve_invoice_excel(customer_name, filename):
     """생성된 Excel 파일 제공"""
     try:
@@ -812,7 +812,7 @@ def serve_invoice_excel(customer_name, filename):
             'error': str(e)
         }), 500
 
-@invoice_generator_bp.route('/api/invoice-pdf/<customer_name>/<filename>', methods=['GET'])
+@invoice_generator_bp.route('/invoice-pdf/<customer_name>/<filename>', methods=['GET'])
 def serve_invoice_pdf(customer_name, filename):
     """생성된 PDF 파일 제공 (Excel이 설치된 경우에만)"""
     try:
