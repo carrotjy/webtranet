@@ -10,25 +10,26 @@ from openpyxl.styles import Font, Border, Side, Color
 import subprocess
 import platform
 
-# WeasyPrint를 사용한 순수 Python PDF 생성 (Linux/Mac에서만 사용)
-# Windows에서는 GTK 의존성 문제로 사용 불가
+# WeasyPrint를 사용한 순수 Python PDF 생성
+# pydyf 버전 호환성 문제로 임시 비활성화 - LibreOffice 사용
 HAS_WEASYPRINT = False
-try:
-    # Windows가 아닌 경우에만 import 시도
-    if platform.system() != 'Windows':
-        from weasyprint import HTML
-        from jinja2 import Template, Environment, FileSystemLoader
-        HAS_WEASYPRINT = True
-        print("WeasyPrint 사용 가능 (Linux/Mac)")
-    else:
-        print("Windows 환경: WeasyPrint 비활성화 (GTK 의존성 문제)")
-        print("프로덕션(Ubuntu)에서는 WeasyPrint가 자동으로 활성화됩니다.")
-except ImportError as e:
-    HAS_WEASYPRINT = False
-    print(f"WeasyPrint를 사용할 수 없습니다: {str(e)}")
-except Exception as e:
-    HAS_WEASYPRINT = False
-    print(f"WeasyPrint 로드 실패: {str(e)}")
+# try:
+#     # Windows가 아닌 경우에만 import 시도
+#     if platform.system() != 'Windows':
+#         from weasyprint import HTML
+#         from jinja2 import Template, Environment, FileSystemLoader
+#         HAS_WEASYPRINT = True
+#         print("WeasyPrint 사용 가능 (Linux/Mac)")
+#     else:
+#         print("Windows 환경: WeasyPrint 비활성화 (GTK 의존성 문제)")
+#         print("프로덕션(Ubuntu)에서는 WeasyPrint가 자동으로 활성화됩니다.")
+# except ImportError as e:
+#     HAS_WEASYPRINT = False
+#     print(f"WeasyPrint를 사용할 수 없습니다: {str(e)}")
+# except Exception as e:
+#     HAS_WEASYPRINT = False
+#     print(f"WeasyPrint 로드 실패: {str(e)}")
+print("WeasyPrint 비활성화 (pydyf 버전 호환성 문제) - LibreOffice 사용")
 
 invoice_generator_bp = Blueprint('invoice_generator', __name__)
 
@@ -585,6 +586,7 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_name:
 
         # 운영체제에 따라 LibreOffice 명령어 찾기
         system = platform.system()
+        print(f"운영체제: {system}")
 
         if system == 'Windows':
             # Windows에서 LibreOffice 경로 시도
@@ -595,16 +597,64 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_name:
             ]
             soffice_cmd = None
             for path in possible_paths:
-                if os.path.exists(path) or path == 'soffice.exe':
+                print(f"Windows LibreOffice 경로 확인 중: {path}")
+                if os.path.exists(path):
                     soffice_cmd = path
+                    print(f"LibreOffice 찾음: {path}")
                     break
+            if not soffice_cmd:
+                soffice_cmd = 'soffice.exe'  # PATH에서 시도
+                print(f"기본 명령어 사용: {soffice_cmd}")
         else:
-            # Linux/Mac에서는 일반적으로 PATH에 있음
-            soffice_cmd = 'libreoffice'
+            # Linux/Mac에서는 여러 가능한 경로 시도
+            possible_commands = ['libreoffice', 'libreoffice7.0', 'libreoffice6.4', 'soffice']
+            soffice_cmd = None
+
+            # which 명령어로 실제 경로 찾기
+            for cmd in possible_commands:
+                try:
+                    result = subprocess.run(
+                        ['which', cmd],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        timeout=5,
+                        check=False
+                    )
+                    if result.returncode == 0:
+                        found_path = result.stdout.decode('utf-8').strip()
+                        if found_path and os.path.exists(found_path):
+                            soffice_cmd = found_path
+                            print(f"LibreOffice 찾음: {found_path}")
+                            break
+                except Exception as e:
+                    print(f"'{cmd}' 명령어 검색 실패: {str(e)}")
+
+            # which로 못 찾은 경우 직접 경로 확인
+            if not soffice_cmd:
+                possible_paths = [
+                    '/usr/bin/libreoffice',
+                    '/usr/local/bin/libreoffice',
+                    '/snap/bin/libreoffice',
+                    '/usr/bin/soffice',
+                    '/usr/local/bin/soffice'
+                ]
+                for path in possible_paths:
+                    print(f"Linux LibreOffice 경로 확인 중: {path}")
+                    if os.path.exists(path):
+                        soffice_cmd = path
+                        print(f"LibreOffice 찾음: {path}")
+                        break
+
+            # 여전히 못 찾은 경우 기본 명령어 사용
+            if not soffice_cmd:
+                soffice_cmd = 'libreoffice'
+                print(f"기본 명령어 사용 (PATH에 있기를 기대): {soffice_cmd}")
 
         if not soffice_cmd:
             print("LibreOffice를 찾을 수 없습니다. PDF 변환을 건너뜁니다.")
             return False
+
+        print(f"최종 LibreOffice 명령어: {soffice_cmd}")
 
         # LibreOffice headless 모드로 PDF 변환
         # --headless: GUI 없이 실행
@@ -621,15 +671,43 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_name:
         ]
 
         print(f"PDF 변환 명령: {' '.join(cmd)}")
+        print(f"Excel 파일 존재 확인: {os.path.exists(abs_excel_path)}")
+        print(f"출력 디렉토리 존재 확인: {os.path.exists(output_dir)}")
+        print(f"Excel 파일 절대 경로: {abs_excel_path}")
+        print(f"출력 디렉토리 절대 경로: {output_dir}")
 
         # 프로세스 실행 (타임아웃 30초)
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=30,
-            check=False
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30,
+                check=False
+            )
+            print(f"subprocess.run 실행 완료, returncode: {result.returncode}")
+        except FileNotFoundError as e:
+            print(f"FileNotFoundError 발생: {str(e)}")
+            print(f"명령어: {soffice_cmd}")
+            print(f"명령어 파일 존재 여부: {os.path.exists(soffice_cmd) if os.path.isabs(soffice_cmd) else 'N/A (relative path)'}")
+            # 임시 파일 정리
+            if temp_excel_path and os.path.exists(temp_excel_path):
+                try:
+                    os.unlink(temp_excel_path)
+                except:
+                    pass
+            return False
+        except Exception as e:
+            print(f"subprocess.run 실행 중 예외 발생: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # 임시 파일 정리
+            if temp_excel_path and os.path.exists(temp_excel_path):
+                try:
+                    os.unlink(temp_excel_path)
+                except:
+                    pass
+            return False
 
         if result.returncode == 0:
             # LibreOffice는 파일명을 자동으로 .pdf로 바꿔서 저장
@@ -674,8 +752,10 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_name:
             except:
                 pass
         return False
-    except FileNotFoundError:
-        print("LibreOffice를 찾을 수 없습니다. PDF 변환을 건너뜁니다.")
+    except FileNotFoundError as e:
+        print(f"LibreOffice를 찾을 수 없습니다: {str(e)}")
+        print(f"사용하려던 명령어: {soffice_cmd if 'soffice_cmd' in locals() else 'N/A'}")
+        print("PDF 변환을 건너뜁니다.")
         print("우분투: sudo apt-get install libreoffice")
         print("Windows: https://www.libreoffice.org/download/download/")
         if temp_excel_path and os.path.exists(temp_excel_path):
