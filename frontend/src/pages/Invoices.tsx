@@ -73,6 +73,15 @@ const Invoices: React.FC = () => {
     fetchInvoices(1);
   }, [perPage]);
 
+  // 검색 필터링
+  const filteredInvoices = searchTerm
+    ? invoices.filter(invoice =>
+        invoice.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        invoice.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        invoice.issue_date?.includes(searchTerm)
+      )
+    : invoices;
+
   return (
     <div className="page-header d-print-none">
       <div className="container-xl">
@@ -161,7 +170,7 @@ const Invoices: React.FC = () => {
                 <span className="visually-hidden">로딩 중...</span>
               </div>
             </div>
-          ) : invoices.length === 0 ? (
+          ) : filteredInvoices.length === 0 ? (
             <div className="text-center py-4">
               <div className="empty">
                 <div className="empty-icon">
@@ -205,7 +214,7 @@ const Invoices: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {invoices.map((invoice) => (
+                          {filteredInvoices.map((invoice) => (
                             <tr key={invoice.id}>
                               <td data-label="거래명세표 번호">
                                 <span className="text-muted fw-bold">

@@ -176,6 +176,21 @@ const InvoiceForm: React.FC = () => {
     }
   }, [invoiceId]);
 
+  // 고객 검색 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (showCustomerDropdown && !target.closest('.position-relative')) {
+        setShowCustomerDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showCustomerDropdown]);
+
   // 고객 선택
   const handleCustomerSelect = (customer: Customer) => {
     setCustomerId(customer.id);
@@ -1228,13 +1243,36 @@ const InvoiceForm: React.FC = () => {
                   <div className="row">
                     <div className="col-md-6 mb-3">
                       <label className="form-label">우편번호</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={newCustomerData.postal_code}
-                        onChange={(e) => setNewCustomerData({...newCustomerData, postal_code: e.target.value})}
-                        placeholder="우편번호 입력..."
-                      />
+                      <div className="input-group">
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={newCustomerData.postal_code}
+                          onChange={(e) => setNewCustomerData({...newCustomerData, postal_code: e.target.value})}
+                          placeholder="우편번호"
+                          readOnly
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary"
+                          onClick={() => {
+                            // @ts-ignore
+                            new window.daum.Postcode({
+                              oncomplete: function(data: any) {
+                                // 도로명 주소 또는 지번 주소 선택
+                                const fullAddress = data.roadAddress || data.jibunAddress;
+                                setNewCustomerData(prev => ({
+                                  ...prev,
+                                  postal_code: data.zonecode,
+                                  address: fullAddress
+                                }));
+                              }
+                            }).open();
+                          }}
+                        >
+                          우편번호 검색
+                        </button>
+                      </div>
                     </div>
                   </div>
 
