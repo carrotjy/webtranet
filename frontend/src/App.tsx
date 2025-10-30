@@ -7,16 +7,18 @@ import {
   Login,
   Dashboard,
   ServiceReports,
-  Customers, 
+  Customers,
   ResourceManagement,
-  SpareParts, 
+  SpareParts,
   UserManagement,
   ServiceReportSettings,
   InvoiceSettings,
   SparePartSettings,
   Invoices,
   InvoiceForm,
-  InvoiceView
+  InvoiceView,
+  MonthlyInventoryPage,
+  YTDSummaryPage
 } from './pages';
 import ResourceSettings from './pages/ResourceSettings';
 import './App.css';
@@ -105,6 +107,12 @@ function App() {
                   <SparePartSettings />
                 </ProtectedRoute>
               } />
+              <Route path="monthly-inventory" element={
+                <ProtectedRoute requiredPermission="spare_parts">
+                  <MonthlyInventoryPage />
+                </ProtectedRoute>
+              } />
+              <Route path="ytd-summary" element={<YTDSummaryPage />} />
             </Route>
           </Routes>
         </div>

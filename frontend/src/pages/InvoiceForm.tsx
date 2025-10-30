@@ -16,6 +16,8 @@ interface InvoiceLineItem {
   isHeader?: boolean;
   isServiceCost?: boolean;
   isPartsCost?: boolean;
+  isNego?: boolean;
+  negoItemType?: 'work' | 'travel' | 'parts'; // 네고 행의 명시적 타입
 }
 
 interface Customer {
@@ -42,6 +44,7 @@ const InvoiceForm: React.FC = () => {
   const [customerAddress, setCustomerAddress] = useState('');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const [isLocked, setIsLocked] = useState(false);
 
   // 고객 목록 및 검색
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -83,6 +86,11 @@ const InvoiceForm: React.FC = () => {
   const [modalPartUnitPrice, setModalPartUnitPrice] = useState(0);
   const [modalPartSearchResults, setModalPartSearchResults] = useState<any[]>([]);
   const [marginRate, setMarginRate] = useState(20); // 기본 마진율 20%
+
+  // 네고 타입 선택 모달
+  const [showNegoTypeModal, setShowNegoTypeModal] = useState(false);
+  const [negoHeaderId, setNegoHeaderId] = useState<string>('');
+  const [negoType, setNegoType] = useState<'work' | 'travel' | 'parts'>('work');
 
   // 고객 목록 로드
   useEffect(() => {
@@ -149,19 +157,55 @@ const InvoiceForm: React.FC = () => {
           setCustomerSearchTerm(invoice.customer_name); // 고객사 검색어 설정
           setIssueDate(invoice.issue_date);
           setNotes(invoice.notes || '');
+          setIsLocked(invoice.is_locked === 1 || invoice.is_locked === true);
 
           // 항목 변환
-          const items: InvoiceLineItem[] = invoice.items.map((item: any) => ({
-            id: `item-${item.id}`,
-            month: item.month || 0,
-            day: item.day || 0,
-            item_name: item.item_name || item.description, // 부품명
-            specification: item.part_number || item.description, // 부품번호 (규격 필드)
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            total_price: item.total_price,
-            part_number: item.part_number || ''
-          }));
+          const items: InvoiceLineItem[] = invoice.items.map((item: any, index: number) => {
+            const isHeader = item.is_header === 1 || item.is_header === true;
+
+            // 헤더인 경우 헤더 타입 판별 (서비스비용 or 부품비용)
+            let isServiceCost = false;
+            let isPartsCost = false;
+
+            if (isHeader) {
+              if (item.item_name && item.item_name.includes('서비스비용')) {
+                isServiceCost = true;
+              } else if (item.item_name && item.item_name.includes('부품비용')) {
+                isPartsCost = true;
+              }
+            } else {
+              // 헤더가 아닌 경우, 바로 위 헤더의 타입을 상속
+              for (let i = index - 1; i >= 0; i--) {
+                const prevItem = invoice.items[i];
+                const prevIsHeader = prevItem.is_header === 1 || prevItem.is_header === true;
+
+                if (prevIsHeader) {
+                  if (prevItem.item_name && prevItem.item_name.includes('서비스비용')) {
+                    isServiceCost = true;
+                  } else if (prevItem.item_name && prevItem.item_name.includes('부품비용')) {
+                    isPartsCost = true;
+                  }
+                  break;
+                }
+              }
+            }
+
+            return {
+              id: `item-${item.id}`,
+              month: item.month || 0,
+              day: item.day || 0,
+              item_name: item.item_name || item.description,
+              specification: item.description || item.part_number || '', // description을 specification으로 로드
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              total_price: item.total_price,
+              part_number: item.part_number || '',
+              isHeader,
+              isServiceCost,
+              isPartsCost,
+              isNego: item.total_price < 0 // 음수 금액이면 네고 행으로 인식
+            };
+          });
 
           setLineItems(items);
         } catch (error) {
@@ -289,7 +333,7 @@ const InvoiceForm: React.FC = () => {
         month: currentMonth,
         day: currentDay,
         item_name: '작업시간',
-        specification: '1인 × 1시간',
+        specification: '1인*1시간(H)',
         quantity: 0,
         unit_price: rates.work_rate,
         total_price: 0,
@@ -301,7 +345,7 @@ const InvoiceForm: React.FC = () => {
         month: currentMonth,
         day: currentDay,
         item_name: '이동시간',
-        specification: '1시간',
+        specification: '1시간(H)',
         quantity: 0,
         unit_price: rates.travel_rate,
         total_price: 0,
@@ -418,28 +462,8 @@ const InvoiceForm: React.FC = () => {
         if (field === 'quantity' || field === 'unit_price') {
           const qty = field === 'quantity' ? parseFloat(value) || 0 : item.quantity;
           const price = field === 'unit_price' ? parseFloat(value) || 0 : item.unit_price;
-          updated.total_price = Math.round(qty * price);
-        }
-
-        // 헤더 행의 월/일이 변경되면 하위 항목에도 적용
-        if (item.isHeader && (field === 'month' || field === 'day')) {
-          const headerIndex = prev.findIndex(i => i.id === id);
-          const groupItems = [];
-
-          // 같은 그룹의 하위 항목들 찾기
-          for (let i = headerIndex + 1; i < prev.length; i++) {
-            if (prev[i].isHeader) break;
-            groupItems.push(i);
-          }
-
-          // 하위 항목들의 월/일도 업데이트
-          const updatedItems = [...prev];
-          updatedItems[headerIndex] = updated;
-          groupItems.forEach(idx => {
-            updatedItems[idx] = { ...updatedItems[idx], [field]: value };
-          });
-
-          return updatedItems[prev.indexOf(item)];
+          // 네고 행은 음수로 계산
+          updated.total_price = item.isNego ? -Math.abs(Math.round(qty * price)) : Math.round(qty * price);
         }
 
         return updated;
@@ -511,6 +535,102 @@ const InvoiceForm: React.FC = () => {
     });
   };
 
+  // 네고 타입 선택 모달 열기
+  const openNegoTypeModal = (headerId: string) => {
+    setNegoHeaderId(headerId);
+    setNegoType('work'); // 기본값
+    setShowNegoTypeModal(true);
+  };
+
+  // 네고 행 추가 (타입 지정)
+  const addNegoRow = () => {
+    if (!negoHeaderId) return;
+
+    setLineItems(prev => {
+      const headerIndex = prev.findIndex(item => item.id === negoHeaderId);
+      if (headerIndex === -1) return prev;
+
+      const header = prev[headerIndex];
+
+      // 해당 헤더의 마지막 데이터 행 찾기
+      let lastDataRowIndex = headerIndex;
+      for (let i = headerIndex + 1; i < prev.length; i++) {
+        if (prev[i].isHeader) break;
+        lastDataRowIndex = i;
+      }
+
+      // 새 네고 행 생성
+      const newRow: InvoiceLineItem = {
+        id: `item-new-${Date.now()}`,
+        month: 0,
+        day: 0,
+        item_name: '네고',
+        specification: '',
+        quantity: 0,
+        unit_price: -10000,
+        total_price: 0,
+        part_number: '',
+        isHeader: false,
+        isServiceCost: header.isServiceCost,
+        isPartsCost: header.isPartsCost,
+        isNego: true,
+        negoItemType: negoType // 선택한 타입 저장
+      };
+
+      // 마지막 데이터 행 다음에 삽입
+      const newItems = [...prev];
+      newItems.splice(lastDataRowIndex + 1, 0, newRow);
+      return newItems;
+    });
+
+    setShowNegoTypeModal(false);
+  };
+
+  // 헤더 행 아래에 데이터 행 추가
+  const addRowAfterHeader = (headerId: string, isNego: boolean = false) => {
+    if (isNego) {
+      // 네고 행은 타입 선택 모달 열기
+      openNegoTypeModal(headerId);
+      return;
+    }
+
+    setLineItems(prev => {
+      const headerIndex = prev.findIndex(item => item.id === headerId);
+      if (headerIndex === -1) return prev;
+
+      const header = prev[headerIndex];
+
+      // 해당 헤더의 마지막 데이터 행 찾기
+      let lastDataRowIndex = headerIndex;
+      for (let i = headerIndex + 1; i < prev.length; i++) {
+        if (prev[i].isHeader) break;
+        lastDataRowIndex = i;
+      }
+
+      // 새 행 생성
+      const newRow: InvoiceLineItem = {
+        id: `item-new-${Date.now()}`,
+        month: 0,
+        day: 0,
+        item_name: header.isServiceCost ? '작업시간' : '',
+        specification: '',
+        quantity: 0,
+        unit_price: header.isServiceCost ? rates.work_rate : 0,
+        total_price: 0,
+        part_number: '',
+        isHeader: false,
+        isServiceCost: header.isServiceCost,
+        isPartsCost: header.isPartsCost,
+        isNego: false
+      };
+
+      // 마지막 데이터 행 다음에 삽입
+      const newItems = [...prev];
+      newItems.splice(lastDataRowIndex + 1, 0, newRow);
+      return newItems;
+    });
+  };
+
   // 합계 계산
   const calculateTotals = () => {
     const total_amount = lineItems
@@ -540,39 +660,79 @@ const InvoiceForm: React.FC = () => {
 
       const { total_amount, vat_amount, grand_total } = calculateTotals();
 
-      // item_type 판단
-      const dbItems = lineItems
-        .filter(item => !item.isHeader)
-        .map(item => {
-          let item_type = 'parts';
-
-          if (item.item_name.includes('작업')) {
-            item_type = 'work';
-          } else if (item.item_name.includes('이동') || item.item_name.includes('출장')) {
-            item_type = 'travel';
-          }
+      // item_type 판단 (헤더 포함)
+      const dbItems = lineItems.map(item => {
+        // 헤더 항목인 경우
+        if (item.isHeader) {
+          // 헤더 타입 결정: 서비스비용이면 'work', 부품비용이면 'parts'
+          const headerType = item.isServiceCost ? 'work' : 'parts';
 
           return {
-            item_type,
-            description: item.specification || item.item_name,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            total_price: item.total_price,
-            month: item.month || null,
-            day: item.day || null,
+            item_type: headerType,
+            description: '',
+            quantity: 0,
+            unit_price: 0,
+            total_price: 0,
+            month: item.month !== undefined && item.month !== null ? item.month : null,
+            day: item.day !== undefined && item.day !== null ? item.day : null,
             item_name: item.item_name,
-            part_number: item.part_number || ''
+            part_number: '',
+            is_header: 1,
+            row_order: lineItems.indexOf(item)
           };
-        });
+        }
+
+        // 일반 항목 타입 결정
+        let item_type = 'parts';
+
+        // 현재 항목이 속한 헤더를 찾아서 타입 결정
+        const currentIndex = lineItems.indexOf(item);
+        let headerType = 'parts'; // 기본값
+
+        // 역순으로 가장 가까운 헤더 행 찾기
+        for (let i = currentIndex - 1; i >= 0; i--) {
+          if (lineItems[i].isHeader) {
+            headerType = lineItems[i].isServiceCost ? 'work' : 'parts';
+            break;
+          }
+        }
+
+        // 네고 행인 경우 명시적으로 선택한 타입 사용
+        if (item.isNego || item.item_name.includes('네고') || item.item_name.includes('NEGO')) {
+          // negoItemType이 지정되어 있으면 그것을 사용, 없으면 헤더 타입 따름
+          item_type = item.negoItemType || headerType;
+        } else if (item.item_name.includes('작업')) {
+          item_type = 'work';
+        } else if (item.item_name.includes('이동') || item.item_name.includes('출장')) {
+          item_type = 'travel';
+        } else {
+          // 일반 항목도 헤더 타입에 따라 결정
+          item_type = headerType;
+        }
+
+        return {
+          item_type,
+          description: item.specification || '',
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+          month: null, // 일반 행에는 월/일 저장하지 않음
+          day: null,
+          item_name: item.item_name,
+          part_number: item.part_number || '',
+          is_header: 0,
+          row_order: lineItems.indexOf(item)
+        };
+      });
 
       const invoiceData = {
         customer_id: customerId,
         customer_name: customerName,
         customer_address: customerAddress,
         issue_date: issueDate,
-        work_subtotal: dbItems.filter(i => i.item_type === 'work').reduce((s, i) => s + i.total_price, 0),
-        travel_subtotal: dbItems.filter(i => i.item_type === 'travel').reduce((s, i) => s + i.total_price, 0),
-        parts_subtotal: dbItems.filter(i => i.item_type === 'parts').reduce((s, i) => s + i.total_price, 0),
+        work_subtotal: dbItems.filter(i => !i.is_header && i.item_type === 'work').reduce((s, i) => s + i.total_price, 0),
+        travel_subtotal: dbItems.filter(i => !i.is_header && i.item_type === 'travel').reduce((s, i) => s + i.total_price, 0),
+        parts_subtotal: dbItems.filter(i => !i.is_header && i.item_type === 'parts').reduce((s, i) => s + i.total_price, 0),
         total_amount,
         vat_amount,
         grand_total,
@@ -693,6 +853,12 @@ const InvoiceForm: React.FC = () => {
               <div className="col">
                 <h2 className="page-title">
                   {invoiceId ? '거래명세서 수정' : '거래명세서 작성'}
+                  {isLocked && (
+                    <span className="badge bg-warning text-dark ms-2">
+                      <i className="bi bi-lock-fill me-1"></i>
+                      잠김 (편집불가)
+                    </span>
+                  )}
                 </h2>
               </div>
               <div className="col-auto ms-auto">
@@ -704,22 +870,11 @@ const InvoiceForm: React.FC = () => {
                   >
                     취소
                   </button>
-                  {invoiceId && (
-                    <button
-                      type="button"
-                      className="btn btn-success"
-                      onClick={handleGenerateExcel}
-                      disabled={loading}
-                    >
-                      Excel 생성
-                    </button>
-                  )}
                   <button
                     type="button"
                     className="btn btn-primary"
                     onClick={handleSave}
-                    disabled={loading}
-                  >
+                    disabled={loading || isLocked}>
                     {loading ? '저장 중...' : '저장'}
                   </button>
                 </div>
@@ -749,6 +904,7 @@ const InvoiceForm: React.FC = () => {
                         }}
                         onFocus={() => setShowCustomerDropdown(true)}
                         placeholder="고객사 검색..."
+                        disabled={isLocked}
                       />
                       {showCustomerDropdown && (
                         <div className="dropdown-menu show w-100" style={{ maxHeight: '300px', overflowY: 'auto' }}>
@@ -802,7 +958,8 @@ const InvoiceForm: React.FC = () => {
                       className="form-control"
                       value={issueDate}
                       onChange={(e) => setIssueDate(e.target.value)}
-                    />
+                    disabled={isLocked}
+                        />
                   </div>
                 </div>
 
@@ -923,9 +1080,12 @@ const InvoiceForm: React.FC = () => {
                                 value={item.item_name}
                                 onChange={(e) => updateLineItem(item.id, 'item_name', e.target.value)}
                                 placeholder="품목명"
+                                style={item.isNego ? { color: 'red' } : {}}
                               />
                             ) : (
-                              item.item_name
+                              <span style={item.isNego ? { color: 'red' } : {}}>
+                                {item.item_name}
+                              </span>
                             )}
                           </td>
 
@@ -950,20 +1110,23 @@ const InvoiceForm: React.FC = () => {
 
                                 {/* 부품 검색 자동완성 드롭다운 */}
                                 {item.isPartsCost && activePartSearchId === item.id && partSearchResults.length > 0 && (
-                                  <div className="dropdown-menu show w-100" style={{ maxHeight: '200px', overflowY: 'auto', position: 'absolute', zIndex: 1000 }}>
+                                  <div className="dropdown-menu show w-100" style={{ maxHeight: '300px', overflowY: 'auto', position: 'absolute', zIndex: 1000, minWidth: '400px' }}>
                                     {partSearchResults.map((part, pidx) => (
                                       <button
                                         key={pidx}
                                         type="button"
                                         className="dropdown-item"
                                         onClick={() => handlePartSelect(item.id, part)}
+                                        style={{ padding: '10px 15px', borderBottom: '1px solid #eee', whiteSpace: 'normal' }}
                                       >
-                                        <div>
-                                          <strong>{part.part_name}</strong> ({part.part_number})
+                                        <div style={{ marginBottom: '5px' }}>
+                                          <strong style={{ fontSize: '14px' }}>{part.part_name}</strong>
                                         </div>
-                                        <small className="text-muted">
-                                          청구가: {(part.charge_price || 0).toLocaleString()}원 | 재고: {part.stock_quantity}
-                                        </small>
+                                        <div style={{ display: 'flex', gap: '15px', fontSize: '13px' }}>
+                                          <span className="text-muted">부품번호: <strong>{part.part_number}</strong></span>
+                                          <span className="text-muted">재고: <strong>{part.stock_quantity}</strong></span>
+                                          <span className="text-success">청구가: <strong>{(part.charge_price || 0).toLocaleString()}원</strong></span>
+                                        </div>
                                       </button>
                                     ))}
                                   </div>
@@ -983,6 +1146,7 @@ const InvoiceForm: React.FC = () => {
                                 placeholder="0"
                                 step={item.isPartsCost ? "1" : "0.1"}
                                 min="0"
+                                style={item.isNego ? { color: 'red' } : {}}
                               />
                             )}
                           </td>
@@ -994,10 +1158,15 @@ const InvoiceForm: React.FC = () => {
                                 type="number"
                                 className="form-control form-control-sm text-end"
                                 value={item.unit_price || ''}
-                                onChange={(e) => updateLineItem(item.id, 'unit_price', parseInt(e.target.value) || 0)}
+                                onChange={(e) => {
+                                  const value = parseInt(e.target.value) || 0;
+                                  // 네고 행은 항상 음수로 변환
+                                  updateLineItem(item.id, 'unit_price', item.isNego ? -Math.abs(value) : value);
+                                }}
                                 placeholder="0"
-                                min="0"
+                                min={item.isNego ? undefined : "0"}
                                 readOnly={item.isServiceCost}
+                                style={item.isNego ? { color: 'red' } : {}}
                               />
                             )}
                           </td>
@@ -1005,20 +1174,51 @@ const InvoiceForm: React.FC = () => {
                           {/* 금액 */}
                           <td className="text-end">
                             {!item.isHeader && (
-                              <strong>{item.total_price.toLocaleString()}</strong>
+                              <strong style={item.isNego ? { color: 'red' } : {}}>
+                                {item.total_price.toLocaleString()}
+                              </strong>
                             )}
                           </td>
 
                           {/* 액션 */}
                           <td className="text-center">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-danger"
-                              onClick={() => removeLineItem(item.id)}
-                              title="삭제"
-                            >
-                              ×
-                            </button>
+                            {item.isHeader ? (
+                              <div className="d-flex gap-1 justify-content-center">
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-success"
+                                  onClick={() => addRowAfterHeader(item.id, false)}
+                                  title="행 추가"
+                                >
+                                  +
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-warning"
+                                  onClick={() => addRowAfterHeader(item.id, true)}
+                                  title="네고 추가"
+                                >
+                                  N
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-danger"
+                                  onClick={() => removeLineItem(item.id)}
+                                  title="삭제"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-danger"
+                                onClick={() => removeLineItem(item.id)}
+                                title="삭제"
+                              >
+                                ×
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1079,20 +1279,23 @@ const InvoiceForm: React.FC = () => {
                       maxLength={16}
                     />
                     {modalPartSearchResults.length > 0 && (
-                      <div className="list-group mt-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                      <div className="list-group mt-2" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                         {modalPartSearchResults.map((part, idx) => (
                           <button
                             key={idx}
                             type="button"
                             className="list-group-item list-group-item-action"
                             onClick={() => handleModalPartSelect(part)}
+                            style={{ padding: '10px 15px' }}
                           >
-                            <div className="d-flex w-100 justify-content-between">
-                              <h6 className="mb-1">{part.part_number}</h6>
-                              <small className="text-success">{part.charge_price?.toLocaleString()}원</small>
+                            <div style={{ marginBottom: '5px' }}>
+                              <strong style={{ fontSize: '14px' }}>{part.part_name}</strong>
                             </div>
-                            <p className="mb-1">{part.part_name}</p>
-                            <small className="text-muted">재고: {part.stock_quantity}</small>
+                            <div style={{ display: 'flex', gap: '15px', fontSize: '13px' }}>
+                              <span className="text-muted">부품번호: <strong>{part.part_number}</strong></span>
+                              <span className="text-muted">재고: <strong>{part.stock_quantity}</strong></span>
+                              <span className="text-success">청구가: <strong>{part.charge_price?.toLocaleString()}원</strong></span>
+                            </div>
                           </button>
                         ))}
                       </div>
@@ -1297,6 +1500,90 @@ const InvoiceForm: React.FC = () => {
                   </button>
                   <button type="button" className="btn btn-primary ms-auto" onClick={handleSaveNewCustomer}>
                     저장
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 네고 타입 선택 모달 */}
+      {showNegoTypeModal && (
+        <>
+          <div className="modal-backdrop fade show"></div>
+          <div className="modal fade show" style={{ display: 'block' }} tabIndex={-1}>
+            <div className="modal-dialog modal-sm modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">네고 항목 타입 선택</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowNegoTypeModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label">네고 항목의 타입을 선택하세요:</label>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="negoType"
+                        id="negoTypeWork"
+                        value="work"
+                        checked={negoType === 'work'}
+                        onChange={(e) => setNegoType('work')}
+                      />
+                      <label className="form-check-label" htmlFor="negoTypeWork">
+                        작업비 (Work)
+                      </label>
+                    </div>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="negoType"
+                        id="negoTypeTravel"
+                        value="travel"
+                        checked={negoType === 'travel'}
+                        onChange={(e) => setNegoType('travel')}
+                      />
+                      <label className="form-check-label" htmlFor="negoTypeTravel">
+                        출장비 (Travel)
+                      </label>
+                    </div>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="negoType"
+                        id="negoTypeParts"
+                        value="parts"
+                        checked={negoType === 'parts'}
+                        onChange={(e) => setNegoType('parts')}
+                      />
+                      <label className="form-check-label" htmlFor="negoTypeParts">
+                        부품비 (Parts)
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-link link-secondary"
+                    onClick={() => setShowNegoTypeModal(false)}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary ms-auto"
+                    disabled={isLocked} onClick={addNegoRow}
+                  >
+                    확인
                   </button>
                 </div>
               </div>

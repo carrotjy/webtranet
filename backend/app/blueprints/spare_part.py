@@ -1,9 +1,12 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from app.models.spare_part import SparePart, StockHistory, PriceHistory
 from app.database.init_db import db
 from datetime import datetime, date, timedelta
-from sqlalchemy import or_
+from sqlalchemy import or_, func, extract
+import os
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 spare_part_bp = Blueprint('spare_parts', __name__)
 
@@ -455,15 +458,175 @@ def delete_spare_part(part_number):
         part = SparePart.query.get(part_number)
         if not part:
             return jsonify({'success': False, 'message': '파트를 찾을 수 없습니다.'}), 404
-        
+
         db.session.delete(part)
         db.session.commit()
-        
+
         return jsonify({
             'success': True,
             'message': '스페어파트가 성공적으로 삭제되었습니다.'
         }), 200
-        
+
     except Exception as e:
         db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@spare_part_bp.route('/inventory/monthly-summary', methods=['GET'])
+@jwt_required()
+def get_monthly_inventory_summary():
+    """연도별 월별 재고 입출고 현황 조회"""
+    try:
+        year = request.args.get('year', date.today().year, type=int)
+
+        # 해당 연도의 모든 파트 조회
+        parts = SparePart.query.order_by(SparePart.part_number).all()
+
+        result = []
+        for part in parts:
+            monthly_data = {
+                'part_number': part.part_number,
+                'part_name': part.part_name,
+                'erp_name': part.erp_name,
+                'category': part.category,
+                'months': {}
+            }
+
+            # 각 월별 입출고 데이터 조회
+            for month in range(1, 13):
+                # 입고 수량
+                inbound = db.session.query(func.sum(StockHistory.quantity)).filter(
+                    StockHistory.part_number == part.part_number,
+                    StockHistory.transaction_type == 'IN',
+                    extract('year', StockHistory.transaction_date) == year,
+                    extract('month', StockHistory.transaction_date) == month
+                ).scalar() or 0
+
+                # 출고 수량
+                outbound = db.session.query(func.sum(StockHistory.quantity)).filter(
+                    StockHistory.part_number == part.part_number,
+                    StockHistory.transaction_type == 'OUT',
+                    extract('year', StockHistory.transaction_date) == year,
+                    extract('month', StockHistory.transaction_date) == month
+                ).scalar() or 0
+
+                monthly_data['months'][str(month)] = {
+                    'inbound': int(inbound),
+                    'outbound': int(outbound)
+                }
+
+            result.append(monthly_data)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'year': year,
+                'parts': result
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@spare_part_bp.route('/inventory/monthly-summary/export', methods=['GET'])
+@jwt_required()
+def export_monthly_inventory_summary():
+    """월별 재고 현황 엑셀 파일 생성 및 다운로드"""
+    try:
+        year = request.args.get('year', date.today().year, type=int)
+
+        # 인스턴스/연도별재고현황 폴더 생성
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        export_dir = os.path.join(base_dir, 'instance', '연도별재고현황')
+        os.makedirs(export_dir, exist_ok=True)
+
+        # 파일명 생성
+        filename = f'{year}-재고현황.xlsx'
+        filepath = os.path.join(export_dir, filename)
+
+        # 엑셀 워크북 생성
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f'{year}년 재고현황'
+
+        # 스타일 정의
+        header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+        header_font = Font(color='FFFFFF', bold=True, size=11)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        center_align = Alignment(horizontal='center', vertical='center')
+
+        # 헤더 작성
+        headers = ['파트번호', '파트명', 'ERP명', '카테고리']
+        for month in range(1, 13):
+            headers.extend([f'{month}월 입고', f'{month}월 출고'])
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = center_align
+            cell.border = border
+
+        # 데이터 조회 및 작성
+        parts = SparePart.query.order_by(SparePart.part_number).all()
+
+        for row_num, part in enumerate(parts, 2):
+            # 기본 정보
+            ws.cell(row=row_num, column=1, value=part.part_number).border = border
+            ws.cell(row=row_num, column=2, value=part.part_name).border = border
+            ws.cell(row=row_num, column=3, value=part.erp_name or '').border = border
+            ws.cell(row=row_num, column=4, value=part.category or '').border = border
+
+            # 월별 입출고 데이터
+            col_num = 5
+            for month in range(1, 13):
+                # 입고 수량
+                inbound = db.session.query(func.sum(StockHistory.quantity)).filter(
+                    StockHistory.part_number == part.part_number,
+                    StockHistory.transaction_type == 'IN',
+                    extract('year', StockHistory.transaction_date) == year,
+                    extract('month', StockHistory.transaction_date) == month
+                ).scalar() or 0
+
+                # 출고 수량
+                outbound = db.session.query(func.sum(StockHistory.quantity)).filter(
+                    StockHistory.part_number == part.part_number,
+                    StockHistory.transaction_type == 'OUT',
+                    extract('year', StockHistory.transaction_date) == year,
+                    extract('month', StockHistory.transaction_date) == month
+                ).scalar() or 0
+
+                in_cell = ws.cell(row=row_num, column=col_num, value=int(inbound))
+                in_cell.border = border
+                in_cell.alignment = center_align
+
+                out_cell = ws.cell(row=row_num, column=col_num + 1, value=int(outbound))
+                out_cell.border = border
+                out_cell.alignment = center_align
+
+                col_num += 2
+
+        # 열 너비 조정
+        ws.column_dimensions['A'].width = 15
+        ws.column_dimensions['B'].width = 30
+        ws.column_dimensions['C'].width = 30
+        ws.column_dimensions['D'].width = 15
+        for col in range(5, 5 + 24):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
+
+        # 파일 저장
+        wb.save(filepath)
+
+        return send_file(
+            filepath,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500

@@ -1,9 +1,11 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, date
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.user import User
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 spare_parts_bp = Blueprint('spare_parts', __name__)
 
@@ -1103,15 +1105,30 @@ def process_service_parts():
             }), 400
         
         conn = get_db_connection()
-        
+
+        # 이미 처리된 부품이 있는지 확인 (중복 출고 방지)
+        existing_history = conn.execute('''
+            SELECT COUNT(*) as count FROM stock_history
+            WHERE notes LIKE ?
+        ''', (f'%서비스 리포트 ID: {service_report_id}%',)).fetchone()
+
+        if existing_history and existing_history['count'] > 0:
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': '이미 처리된 서비스 리포트입니다. 중복 출고를 방지했습니다.',
+                'processed_parts': [],
+                'already_processed': True
+            }), 200
+
         # 서비스 리포트 정보 조회 (작성일과 작성자 정보 가져오기)
         service_report = conn.execute('''
-            SELECT sr.service_date, sr.technician_id, u.name 
+            SELECT sr.service_date, sr.technician_id, u.name
             FROM service_reports sr
             LEFT JOIN users u ON sr.technician_id = u.id
             WHERE sr.id = ?
         ''', (service_report_id,)).fetchone()
-        
+
         if not service_report:
             conn.close()
             return jsonify({
@@ -1272,4 +1289,253 @@ def process_service_parts():
         return jsonify({
             'success': False,
             'error': str(e)
+        }), 500
+@spare_parts_bp.route('/spare-parts/inventory/monthly-summary', methods=['GET'])
+@jwt_required()
+def get_monthly_inventory_summary():
+    """연도별 월별 재고 입출고 현황 조회"""
+    try:
+        year = request.args.get('year', date.today().year, type=int)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 모든 파트 조회
+        cursor.execute("""
+            SELECT part_number, part_name, erp_name
+            FROM spare_parts
+            ORDER BY part_number
+        """)
+        parts = cursor.fetchall()
+
+        result = []
+        for part in parts:
+            # 이월재고 계산 (선택 연도 이전 전체 입고 - 출고)
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN transaction_type = 'IN' THEN quantity ELSE 0 END), 0) -
+                    COALESCE(SUM(CASE WHEN transaction_type = 'OUT' THEN quantity ELSE 0 END), 0) as stock
+                FROM stock_history
+                WHERE part_number = ?
+                  AND strftime('%Y', transaction_date) < ?
+            """, (part['part_number'], str(year)))
+            previous_year_stock = int(cursor.fetchone()['stock'])
+
+            # 현재 재고 계산 (전체 입고 - 출고)
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN transaction_type = 'IN' THEN quantity ELSE 0 END), 0) -
+                    COALESCE(SUM(CASE WHEN transaction_type = 'OUT' THEN quantity ELSE 0 END), 0) as stock
+                FROM stock_history
+                WHERE part_number = ?
+            """, (part['part_number'],))
+            current_stock = int(cursor.fetchone()['stock'])
+
+            # 이월재고 또는 현재재고가 0보다 큰 경우만 포함
+            if previous_year_stock > 0 or current_stock > 0:
+                monthly_data = {}
+
+                # 각 월별 입출고 데이터 조회
+                for month in range(1, 13):
+                    # 입고 수량
+                    cursor.execute("""
+                        SELECT COALESCE(SUM(quantity), 0) as total
+                        FROM stock_history
+                        WHERE part_number = ?
+                          AND transaction_type = 'IN'
+                          AND strftime('%Y', transaction_date) = ?
+                          AND strftime('%m', transaction_date) = ?
+                    """, (part['part_number'], str(year), f'{month:02d}'))
+                    inbound = cursor.fetchone()['total']
+
+                    # 출고 수량
+                    cursor.execute("""
+                        SELECT COALESCE(SUM(quantity), 0) as total
+                        FROM stock_history
+                        WHERE part_number = ?
+                          AND transaction_type = 'OUT'
+                          AND strftime('%Y', transaction_date) = ?
+                          AND strftime('%m', transaction_date) = ?
+                    """, (part['part_number'], str(year), f'{month:02d}'))
+                    outbound = cursor.fetchone()['total']
+
+                    monthly_data[str(month)] = {
+                        'inbound': int(inbound),
+                        'outbound': int(outbound)
+                    }
+
+                result.append({
+                    'part_number': part['part_number'],
+                    'part_name': part['part_name'],
+                    'erp_name': part['erp_name'],
+                    'previous_year_stock': previous_year_stock,
+                    'current_stock': current_stock,
+                    'monthly_data': monthly_data
+                })
+
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'year': year,
+                'parts': result
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@spare_parts_bp.route('/spare-parts/inventory/monthly-summary/export', methods=['GET'])
+@jwt_required()
+def export_monthly_inventory_summary():
+    """월별 재고 현황 엑셀 파일 생성 및 다운로드"""
+    try:
+        year = request.args.get('year', date.today().year, type=int)
+
+        # 인스턴스/연도별재고현황 폴더 생성
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        export_dir = os.path.join(base_dir, 'instance', '연도별재고현황')
+        os.makedirs(export_dir, exist_ok=True)
+
+        # 파일명 생성
+        filename = f'{year}-재고현황.xlsx'
+        filepath = os.path.join(export_dir, filename)
+
+        # 엑셀 워크북 생성
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f'{year}년 재고현황'
+
+        # 스타일 정의
+        header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+        header_font = Font(color='FFFFFF', bold=True, size=11)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        center_align = Alignment(horizontal='center', vertical='center')
+
+        # 헤더 작성
+        headers = ['파트번호', '파트명', 'ERP명', '이월재고', '현재재고']
+        for month in range(1, 13):
+            headers.extend([f'{month}월 입고', f'{month}월 출고'])
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = center_align
+            cell.border = border
+
+        # 데이터 조회 및 작성
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT part_number, part_name, erp_name
+            FROM spare_parts
+            ORDER BY part_number
+        """)
+        parts = cursor.fetchall()
+
+        row_num = 2
+        for part in parts:
+            # 이월재고 계산
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN transaction_type = 'IN' THEN quantity ELSE 0 END), 0) -
+                    COALESCE(SUM(CASE WHEN transaction_type = 'OUT' THEN quantity ELSE 0 END), 0) as stock
+                FROM stock_history
+                WHERE part_number = ?
+                  AND strftime('%Y', transaction_date) < ?
+            """, (part['part_number'], str(year)))
+            previous_year_stock = int(cursor.fetchone()['stock'])
+
+            # 현재 재고 계산
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN transaction_type = 'IN' THEN quantity ELSE 0 END), 0) -
+                    COALESCE(SUM(CASE WHEN transaction_type = 'OUT' THEN quantity ELSE 0 END), 0) as stock
+                FROM stock_history
+                WHERE part_number = ?
+            """, (part['part_number'],))
+            current_stock = int(cursor.fetchone()['stock'])
+
+            # 이월재고 또는 현재재고가 0보다 큰 경우만 포함
+            if previous_year_stock > 0 or current_stock > 0:
+                # 기본 정보
+                ws.cell(row=row_num, column=1, value=part['part_number']).border = border
+                ws.cell(row=row_num, column=2, value=part['part_name']).border = border
+                ws.cell(row=row_num, column=3, value=part['erp_name'] or '').border = border
+                ws.cell(row=row_num, column=4, value=previous_year_stock).border = border
+                ws.cell(row=row_num, column=5, value=current_stock).border = border
+
+                # 월별 입출고 데이터
+                col_num = 6
+                for month in range(1, 13):
+                    # 입고 수량
+                    cursor.execute("""
+                        SELECT COALESCE(SUM(quantity), 0) as total
+                        FROM stock_history
+                        WHERE part_number = ?
+                          AND transaction_type = 'IN'
+                          AND strftime('%Y', transaction_date) = ?
+                          AND strftime('%m', transaction_date) = ?
+                    """, (part['part_number'], str(year), f'{month:02d}'))
+                    inbound = cursor.fetchone()['total']
+
+                    # 출고 수량
+                    cursor.execute("""
+                        SELECT COALESCE(SUM(quantity), 0) as total
+                        FROM stock_history
+                        WHERE part_number = ?
+                          AND transaction_type = 'OUT'
+                          AND strftime('%Y', transaction_date) = ?
+                          AND strftime('%m', transaction_date) = ?
+                    """, (part['part_number'], str(year), f'{month:02d}'))
+                    outbound = cursor.fetchone()['total']
+
+                    in_cell = ws.cell(row=row_num, column=col_num, value=int(inbound))
+                    in_cell.border = border
+                    in_cell.alignment = center_align
+
+                    out_cell = ws.cell(row=row_num, column=col_num + 1, value=int(outbound))
+                    out_cell.border = border
+                    out_cell.alignment = center_align
+
+                    col_num += 2
+
+                row_num += 1
+
+        conn.close()
+
+        # 열 너비 조정
+        ws.column_dimensions['A'].width = 15
+        ws.column_dimensions['B'].width = 30
+        ws.column_dimensions['C'].width = 30
+        ws.column_dimensions['D'].width = 12
+        ws.column_dimensions['E'].width = 12
+        for col in range(6, 6 + 24):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
+
+        # 파일 저장
+        wb.save(filepath)
+
+        return send_file(
+            filepath,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
         }), 500

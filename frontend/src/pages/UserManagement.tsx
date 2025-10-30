@@ -39,6 +39,14 @@ interface User {
   spare_parts_read: boolean;
   spare_parts_update: boolean;
   spare_parts_delete_crud: boolean;
+  // 부품 입출고 권한
+  spare_parts_stock_in: boolean;
+  spare_parts_stock_out: boolean;
+  // 추가 기능 권한
+  service_report_lock: boolean;
+  transaction_excel_export: boolean;
+  transaction_lock: boolean;
+  transaction_bill_view: boolean;
 }
 
 interface UserFormData {
@@ -78,6 +86,14 @@ interface UserFormData {
   spare_parts_read: boolean;
   spare_parts_update: boolean;
   spare_parts_delete_crud: boolean;
+  // 부품 입출고 권한
+  spare_parts_stock_in: boolean;
+  spare_parts_stock_out: boolean;
+  // 추가 기능 권한
+  service_report_lock: boolean;
+  transaction_excel_export: boolean;
+  transaction_lock: boolean;
+  transaction_bill_view: boolean;
 }
 
 const UserManagement: React.FC = () => {
@@ -154,7 +170,15 @@ const UserManagement: React.FC = () => {
     spare_parts_create: false,
     spare_parts_read: false,
     spare_parts_update: false,
-    spare_parts_delete_crud: false
+    spare_parts_delete_crud: false,
+    // 부품 입출고 권한
+    spare_parts_stock_in: true,
+    spare_parts_stock_out: true,
+    // 추가 기능 권한
+    service_report_lock: true,
+    transaction_excel_export: true,
+    transaction_lock: true,
+    transaction_bill_view: true
   });
 
   useEffect(() => {
@@ -248,7 +272,15 @@ const UserManagement: React.FC = () => {
       spare_parts_create: user.spare_parts_create || false,
       spare_parts_read: user.spare_parts_read || false,
       spare_parts_update: user.spare_parts_update || false,
-      spare_parts_delete_crud: user.spare_parts_delete_crud || false
+      spare_parts_delete_crud: user.spare_parts_delete_crud || false,
+      // 부품 입출고 권한
+      spare_parts_stock_in: user.spare_parts_stock_in !== undefined ? user.spare_parts_stock_in : true,
+      spare_parts_stock_out: user.spare_parts_stock_out !== undefined ? user.spare_parts_stock_out : true,
+      // 추가 기능 권한
+      service_report_lock: user.service_report_lock !== undefined ? user.service_report_lock : true,
+      transaction_excel_export: user.transaction_excel_export !== undefined ? user.transaction_excel_export : true,
+      transaction_lock: user.transaction_lock !== undefined ? user.transaction_lock : true,
+      transaction_bill_view: user.transaction_bill_view !== undefined ? user.transaction_bill_view : true
     });
     setShowForm(true);
   };
@@ -318,7 +350,15 @@ const UserManagement: React.FC = () => {
       spare_parts_create: false,
       spare_parts_read: false,
       spare_parts_update: false,
-      spare_parts_delete_crud: false
+      spare_parts_delete_crud: false,
+      // 부품 입출고 권한
+      spare_parts_stock_in: true,
+      spare_parts_stock_out: true,
+      // 추가 기능 권한
+      service_report_lock: true,
+      transaction_excel_export: true,
+    transaction_lock: true,
+    transaction_bill_view: true
     });
   };
 
@@ -330,6 +370,25 @@ const UserManagement: React.FC = () => {
 
   return (
     <>
+      <style>
+        {`
+          /* 홀수 행 배경색 */
+          .table tbody tr:nth-child(odd) {
+            background-color: #ffffff;
+          }
+
+          /* 짝수 행 배경색 */
+          .table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+          }
+
+          /* 모든 행에 hover 효과 적용 */
+          .table tbody tr:hover {
+            background-color: #e3f2fd !important;
+            transition: background-color 0.15s ease-in-out;
+          }
+        `}
+      </style>
       <div className="page-header d-print-none">
         <div className="container-xl">
           <div className="row g-2 align-items-center">
@@ -752,6 +811,17 @@ const UserManagement: React.FC = () => {
                                   <span className="form-check-label">삭제</span>
                                 </label>
                               </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.service_report_lock}
+                                    onChange={(e) => setFormData({...formData, service_report_lock: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">잠금 버튼</span>
+                                </label>
+                              </div>
                             </div>
                           </div>
 
@@ -905,6 +975,39 @@ const UserManagement: React.FC = () => {
                                   <span className="form-check-label">삭제</span>
                                 </label>
                               </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.transaction_excel_export}
+                                    onChange={(e) => setFormData({...formData, transaction_excel_export: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">엑셀 생성 버튼</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.transaction_lock}
+                                    onChange={(e) => setFormData({...formData, transaction_lock: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">잠금 버튼</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.transaction_bill_view}
+                                    onChange={(e) => setFormData({...formData, transaction_bill_view: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">계산서 발행 조회</span>
+                                </label>
+                              </div>
                             </div>
                           </div>
 
@@ -954,6 +1057,28 @@ const UserManagement: React.FC = () => {
                                     onChange={(e) => setFormData({...formData, spare_parts_delete_crud: e.target.checked})}
                                   />
                                   <span className="form-check-label">삭제</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.spare_parts_stock_in}
+                                    onChange={(e) => setFormData({...formData, spare_parts_stock_in: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">입고 버튼</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.spare_parts_stock_out}
+                                    onChange={(e) => setFormData({...formData, spare_parts_stock_out: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">출고 버튼</span>
                                 </label>
                               </div>
                             </div>

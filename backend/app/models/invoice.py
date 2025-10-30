@@ -6,8 +6,9 @@ class Invoice:
     
     def __init__(self, id=None, service_report_id=None, invoice_number=None,
                  customer_id=None, customer_name=None, customer_address=None,
+                 customer_tel=None, customer_fax=None,
                  issue_date=None, due_date=None, work_subtotal=0, travel_subtotal=0,
-                 parts_subtotal=0, total_amount=0, vat_amount=0, 
+                 parts_subtotal=0, total_amount=0, vat_amount=0,
                  grand_total=0, notes=None, created_at=None, updated_at=None):
         self.id = id
         self.service_report_id = service_report_id
@@ -15,6 +16,8 @@ class Invoice:
         self.customer_id = customer_id
         self.customer_name = customer_name
         self.customer_address = customer_address
+        self.customer_tel = customer_tel
+        self.customer_fax = customer_fax
         self.issue_date = issue_date
         self.due_date = due_date
         self.work_subtotal = work_subtotal
@@ -112,9 +115,10 @@ class Invoice:
         vat_amount = total_amount * 0.1  # 10% 부가세
         grand_total = total_amount + vat_amount
         
-        # 거래명세표 번호 생성
-        invoice_number = cls._generate_invoice_number()
-        
+        # 거래명세표 번호 생성 (오늘 날짜 기준)
+        issue_date = datetime.now().strftime('%Y-%m-%d')
+        invoice_number = cls._generate_invoice_number(issue_date)
+
         # 거래명세표 객체 생성
         invoice = cls(
             service_report_id=service_report.id,
@@ -122,7 +126,7 @@ class Invoice:
             customer_id=service_report.customer_id,
             customer_name=getattr(service_report, 'customer_name', ''),
             customer_address=getattr(service_report, 'customer_address', ''),
-            issue_date=datetime.now().strftime('%Y-%m-%d'),
+            issue_date=issue_date,
             work_subtotal=work_subtotal,
             travel_subtotal=travel_subtotal,
             parts_subtotal=parts_subtotal,
@@ -134,26 +138,47 @@ class Invoice:
         return invoice
     
     @classmethod
-    def _generate_invoice_number(cls):
-        """거래명세표 번호 자동 생성"""
-        today = datetime.now()
-        prefix = today.strftime('%Y%m')
-        
-        conn = get_db_connection()
-        last_invoice = conn.execute('''
-            SELECT invoice_number FROM invoices 
-            WHERE invoice_number LIKE ? 
-            ORDER BY invoice_number DESC LIMIT 1
-        ''', (f'{prefix}%',)).fetchone()
-        conn.close()
-        
-        if last_invoice:
-            last_number = int(last_invoice['invoice_number'][-4:])
-            new_number = last_number + 1
+    def _generate_invoice_number(cls, issue_date=None):
+        """거래명세표 번호 자동 생성 (yymmdd## 형식)
+
+        Args:
+            issue_date: 발행일자 (문자열 'YYYY-MM-DD' 형식 또는 datetime 객체). 없으면 오늘 날짜 사용
+
+        Returns:
+            str: 생성된 거래명세표 번호 (예: 25102601)
+        """
+        # 발행일자 처리
+        if issue_date:
+            if isinstance(issue_date, str):
+                target_date = datetime.strptime(issue_date, '%Y-%m-%d')
+            else:
+                target_date = issue_date
         else:
-            new_number = 1
-        
-        return f'{prefix}{new_number:04d}'
+            target_date = datetime.now()
+
+        # yymmdd 형식으로 prefix 생성
+        prefix = target_date.strftime('%y%m%d')
+
+        conn = get_db_connection()
+        try:
+            # 같은 날짜로 시작하는 마지막 번호 조회
+            last_invoice = conn.execute('''
+                SELECT invoice_number FROM invoices
+                WHERE invoice_number LIKE ?
+                ORDER BY invoice_number DESC LIMIT 1
+            ''', (f'{prefix}%',)).fetchone()
+
+            if last_invoice:
+                # 마지막 2자리(인덱스) 추출 후 +1
+                last_number = int(last_invoice['invoice_number'][-2:])
+                new_number = last_number + 1
+            else:
+                # 해당 날짜의 첫 번째 명세서
+                new_number = 1
+
+            return f'{prefix}{new_number:02d}'
+        finally:
+            conn.close()
     
     @classmethod
     def _time_string_to_hours(cls, time_str):
@@ -231,7 +256,7 @@ class Invoice:
     @classmethod
     def _from_db_row(cls, row):
         """데이터베이스 행에서 객체 생성"""
-        return cls(
+        obj = cls(
             id=row['id'],
             service_report_id=row['service_report_id'],
             invoice_number=row['invoice_number'],
@@ -250,6 +275,17 @@ class Invoice:
             created_at=row['created_at'],
             updated_at=row['updated_at']
         )
+        # 새로 추가된 필드들 (있을 경우에만 할당)
+        try:
+            obj.is_locked = row['is_locked'] if 'is_locked' in row.keys() else 0
+            obj.locked_by = row['locked_by'] if 'locked_by' in row.keys() else None
+            obj.locked_at = row['locked_at'] if 'locked_at' in row.keys() else None
+            obj.bill_status = row['bill_status'] if 'bill_status' in row.keys() else 'pending'
+            obj.bill_issued_at = row['bill_issued_at'] if 'bill_issued_at' in row.keys() else None
+            obj.bill_issued_by = row['bill_issued_by'] if 'bill_issued_by' in row.keys() else None
+        except (KeyError, IndexError):
+            pass
+        return obj
     
     def to_dict(self):
         """딕셔너리로 변환"""
@@ -270,7 +306,13 @@ class Invoice:
             'grand_total': self.grand_total,
             'notes': self.notes,
             'created_at': self.created_at,
-            'updated_at': self.updated_at
+            'updated_at': self.updated_at,
+            'is_locked': getattr(self, 'is_locked', 0),
+            'locked_by': getattr(self, 'locked_by', None),
+            'locked_at': getattr(self, 'locked_at', None),
+            'bill_status': getattr(self, 'bill_status', 'pending'),
+            'bill_issued_at': getattr(self, 'bill_issued_at', None),
+            'bill_issued_by': getattr(self, 'bill_issued_by', None)
         }
     
     def get_items(self):
@@ -302,7 +344,9 @@ class Invoice:
                         month=item_info.get('month'),
                         day=item_info.get('day'),
                         item_name=item_info.get('item_name'),
-                        part_number=item_info.get('part_number')
+                        part_number=item_info.get('part_number'),
+                        is_header=item_info.get('is_header', 0),
+                        row_order=item_info.get('row_order', 0)
                     )
                     item.save()
         return True

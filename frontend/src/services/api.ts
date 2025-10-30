@@ -29,18 +29,109 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor to handle token expiration
+// Flag to prevent multiple refresh requests
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: any) => void;
+  reject: (reason?: any) => void;
+}> = [];
+
+const processQueue = (error: any = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve();
+    }
+  });
+  failedQueue = [];
+};
+
+// Add response interceptor to handle token expiration and refresh
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // 로그인 요청 자체는 제외 (로그인 실패 시 리다이렉트하지 않음)
-    const isLoginRequest = error.config?.url?.includes('/auth/login');
+  async (error) => {
+    const originalRequest = error.config;
+    const isLoginRequest = originalRequest?.url?.includes('/auth/login');
+    const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
 
-    if (error.response?.status === 401 && !isLoginRequest) {
+    // 401 에러이고, 로그인/리프레시 요청이 아니며, 재시도하지 않은 요청인 경우
+    if (error.response?.status === 401 && !isLoginRequest && !isRefreshRequest && !originalRequest._retry) {
+      if (isRefreshing) {
+        // 이미 토큰 갱신 중이면 큐에 추가하고 대기
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(() => {
+            originalRequest.headers.Authorization = `Bearer ${localStorage.getItem('token')}`;
+            return api(originalRequest);
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      const refreshToken = localStorage.getItem('refreshToken');
+
+      if (!refreshToken) {
+        // Refresh token이 없으면 로그인 페이지로
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return Promise.reject(error);
+      }
+
+      try {
+        // Refresh token으로 새 access token 발급
+        const response = await axios.post(
+          `${API_BASE_URL}/api/auth/refresh`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${refreshToken}`,
+            },
+          }
+        );
+
+        const { access_token } = response.data;
+        localStorage.setItem('token', access_token);
+
+        // 큐에 있는 요청들 처리
+        processQueue();
+
+        // 원래 요청 재시도
+        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        // Refresh token도 만료되었으면 로그아웃
+        processQueue(refreshError);
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    // 로그인 요청 자체 실패는 그냥 에러 반환
+    if (isLoginRequest) {
+      return Promise.reject(error);
+    }
+
+    // 다른 401 에러나 기타 에러
+    if (error.response?.status === 401) {
       localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+
     return Promise.reject(error);
   }
 );
@@ -204,6 +295,8 @@ export const invoiceAPI = {
   },
   updateInvoice: (id: number, invoiceData: any) => api.put(`/api/invoices/${id}`, invoiceData),
   deleteInvoice: (id: number) => api.delete(`/api/invoices/${id}`),
+  generateExcel: (id: number) => api.post(`/api/invoices/${id}/generate-excel`),
+  getYTDSummary: (year: number) => api.get(`/api/invoices/ytd-summary?year=${year}`),
 };
 
 // Transaction API
@@ -213,6 +306,16 @@ export const transactionAPI = {
   createTransaction: (transactionData: any) => api.post('/api/transactions', transactionData),
   updateTransaction: (id: number, transactionData: any) => api.put(`/api/transactions/${id}`, transactionData),
   deleteTransaction: (id: number) => api.delete(`/api/transactions/${id}`),
+};
+
+// Inventory API
+export const inventoryAPI = {
+  getMonthlySummary: (year: number) => api.get(`/api/spare-parts/inventory/monthly-summary?year=${year}`),
+  exportMonthlySummary: (year: number) => {
+    return api.get(`/api/spare-parts/inventory/monthly-summary/export?year=${year}`, {
+      responseType: 'blob'
+    });
+  }
 };
 
 export default api;

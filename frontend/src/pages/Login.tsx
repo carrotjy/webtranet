@@ -31,7 +31,8 @@ const Login: React.FC = () => {
     setLoginAttempted(true);
 
     try {
-      await login(email, password);
+      // 이메일을 소문자로 변환하여 로그인
+      await login(email.toLowerCase().trim(), password);
       // 성공하면 useEffect에서 자동으로 navigate됨
     } catch (err: any) {
       const errorMessage = err.message || '로그인에 실패했습니다.';

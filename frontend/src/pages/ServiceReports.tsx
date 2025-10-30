@@ -1164,7 +1164,7 @@ const ServiceReports: React.FC = () => {
         month: 0,  // 헤더 다음 행은 월/일 표시 안 함
         day: 0,
         item_name: '작업시간',
-        specification: '1인 1시간',
+        specification: '1인*1시간(H)',
         quantity: workQuantity,
         unit_price: workUnitPrice,
         total_price: workTotalPrice,
@@ -1183,7 +1183,7 @@ const ServiceReports: React.FC = () => {
         month: 0,
         day: 0,
         item_name: '이동시간',
-        specification: '1시간',
+        specification: '1시간(H)',
         quantity: travelQuantity,
         unit_price: travelUnitPrice,
         total_price: travelTotalPrice,
@@ -1443,31 +1443,8 @@ const ServiceReports: React.FC = () => {
 
       // 고객사 정보 찾기
       const customer = customers.find(c => c.company_name === viewingReport.customer_name);
-      const customerAny = customer as any; // 타입 확장을 위해 any로 캐스팅
 
-      // 1. Excel/PDF 파일 생성 (기존 로직)
-      const response = await api.post('/api/generate-invoice', {
-        customer_name: viewingReport.customer_name,
-        service_date: viewingReport.service_date,
-        customer_info: {
-          company_name: viewingReport.customer_name,
-          address: customer?.address || viewingReport.customer_address || '',
-          phone: customerAny?.phone || '',
-          fax: customerAny?.fax || ''
-        },
-        items: invoiceLineItems.map(item => ({
-          month: item.month,
-          day: item.day,
-          item_name: item.item_name,
-          specification: item.specification,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.total_price,
-          vat: item.vat
-        }))
-      });
-
-      // 2. DB에 거래명세서 저장 (신규 기능)
+      // DB에 거래명세서 저장 (파일 생성은 나중에 거래명세서 목록에서)
       try {
         // 거래명세서 항목별 소계 계산
         let work_subtotal = 0;
@@ -1476,8 +1453,26 @@ const ServiceReports: React.FC = () => {
 
         // 거래명세서 항목을 DB 형식으로 변환
         const dbItems = invoiceLineItems
-          .filter(item => !item.isHeader && !item.isBlank) // 헤더와 빈 행 제외
-          .map(item => {
+          .filter(item => !item.isBlank) // 빈 행만 제외, 헤더는 포함
+          .map((item, index) => {
+            // 헤더 행 처리
+            if (item.isHeader) {
+              return {
+                item_type: 'parts', // 헤더는 기본값
+                description: '',
+                quantity: 0,
+                unit_price: 0,
+                total_price: 0,
+                month: item.month || null,
+                day: item.day || null,
+                item_name: item.item_name,
+                part_number: '',
+                is_header: 1,
+                row_order: index
+              };
+            }
+
+            // 일반 항목 처리
             let item_type = 'parts'; // 기본값을 parts로 변경
 
             // nego 항목 확인 (isNego 필드 또는 마이너스 금액)
@@ -1514,7 +1509,9 @@ const ServiceReports: React.FC = () => {
               month: item.month,
               day: item.day,
               item_name: item.item_name,
-              part_number: '' // 서비스 리포트에서는 부품번호가 없음
+              part_number: '', // 서비스 리포트에서는 부품번호가 없음
+              is_header: 0,
+              row_order: index
             };
           });
 
@@ -1539,46 +1536,35 @@ const ServiceReports: React.FC = () => {
 
         await invoiceAPI.createInvoice(invoiceData);
         console.log('거래명세서가 DB에 저장되었습니다.');
-      } catch (dbError: any) {
-        console.error('DB 저장 실패:', dbError);
-        // DB 저장 실패는 경고만 하고 계속 진행
-        console.warn('거래명세서 DB 저장에 실패했지만 파일 생성은 계속 진행합니다.');
-      }
 
-      if (response.data.success) {
-        // PDF가 성공적으로 생성되었으면 새 창에서 열기
-        if (response.data.pdf_url) {
-          const pdfUrl = `${window.location.origin}${response.data.pdf_url}`;
-          window.open(pdfUrl, '_blank');
-        } else if (response.data.excel_url) {
-          // PDF가 없으면 Excel 파일 다운로드
-          const excelUrl = `${window.location.origin}${response.data.excel_url}`;
-          const link = document.createElement('a');
-          link.href = excelUrl;
-          link.download = '';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          alert('거래명세표가 Excel 파일로 생성되었습니다.\n\n(서버에 LibreOffice가 설치되지 않아 PDF 변환은 지원되지 않습니다)');
-        } else {
-          alert(`거래명세표가 생성되었으나 파일을 찾을 수 없습니다.\n\nExcel: ${response.data.excel_path}`);
-        }
-
+        // 성공 메시지 표시
+        alert('거래명세서가 성공적으로 생성되었습니다.\n\n거래명세서 목록에서 "엑셀생성" 버튼을 클릭하여 파일을 생성하세요.');
         setShowInvoiceModal(false);
         setShowViewModal(true);
-      } else {
-        alert(`거래명세표 생성에 실패했습니다: ${response.data.error}`);
+
+      } catch (dbError: any) {
+        console.error('거래명세서 생성 실패:', dbError);
+
+        // 중복 거래명세서 체크 (409 Conflict)
+        if (dbError.response?.status === 409 && dbError.response?.data?.exists) {
+          const invoiceId = dbError.response.data.invoice_id;
+          const invoiceNumber = dbError.response.data.invoice_number;
+
+          if (window.confirm(`이미 거래명세서가 존재합니다.\n\n거래명세서 번호: ${invoiceNumber}\n\n기존 거래명세서를 수정하시겠습니까?`)) {
+            // 수정 페이지로 이동
+            window.location.href = `/invoices/${invoiceId}/edit`;
+          }
+          setLoading(false);
+          setShowInvoiceModal(false);
+          return;
+        }
+
+        // 기타 DB 저장 실패
+        alert(`거래명세서 생성에 실패했습니다:\n\n${dbError.response?.data?.error || dbError.message}`);
       }
     } catch (error: any) {
-      console.error('거래명세서 생성 실패:', error);
-      const errorMessage = error.response?.data?.error || error.message;
-      const errorDetails = error.response?.data?.details || '';
-
-      if (errorDetails) {
-        console.error('상세 에러:', errorDetails);
-      }
-
-      alert(`거래명세서 생성에 실패했습니다:\n\n${errorMessage}\n\n콘솔에서 상세 정보를 확인하세요.`);
+      console.error('오류 발생:', error);
+      alert(`오류가 발생했습니다: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -2036,6 +2022,22 @@ const ServiceReports: React.FC = () => {
           .table-bordered td {
             border-color: #e9ecef;
           }
+
+          /* 홀수 행 배경색 */
+          .table tbody tr:nth-child(odd) {
+            background-color: #ffffff;
+          }
+
+          /* 짝수 행 배경색 */
+          .table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+          }
+
+          /* 모든 행에 hover 효과 적용 */
+          .table tbody tr:hover {
+            background-color: #e3f2fd !important;
+            transition: background-color 0.15s ease-in-out;
+          }
         `}
       </style>
       <div className="container-fluid">
@@ -2151,59 +2153,108 @@ const ServiceReports: React.FC = () => {
             <small className="text-muted">💡 DATE / SN 헤더 클릭 시 정렬 가능</small>
           </div>
           <div className="table-responsive">
-            <table className="table table-vcenter table-striped">
+            <table className="table table-vcenter">
                 <thead>
                   <tr>
                     <th 
                       style={{
                         cursor: 'pointer', 
                         userSelect: 'none',
-                        color: '#206bc4'
+                        color: '#206bc4',
+                        textAlign: 'center'
                       }}
                       onClick={() => handleSort('date')}
                     >
                       작업일자 {getSortIcon('date')}
                     </th>
-                    <th style={{ padding: '0.75rem' }}>Customer</th>
-                    <th style={{ padding: '0.75rem' }}>FSE</th>
-                    <th style={{ padding: '0.75rem' }}>Model</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center' }}>Customer</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center' }}>FSE</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center' }}>Model</th>
                     <th 
                       style={{
                         cursor: 'pointer', 
                         userSelect: 'none',
-                        color: '#206bc4'
+                        color: '#206bc4',
+                        textAlign: 'center'
                       }}
                       onClick={() => handleSort('sn')}
                     >
                       SN {getSortIcon('sn')}
                     </th>
-                    <th>Job Description</th>
-                    <th>액션</th>
+                    <th style={{ textAlign: 'left' }}>Job Description</th>
+                    <th style={{ textAlign: 'center' }}>잠금 상태</th>
+                    <th style={{ textAlign: 'center' }}>작업</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredAndSortedReports.length > 0 ? currentReports.map((report) => (
-                    <tr key={report.id} style={{backgroundColor: '#fdfdfd'}}>
-                      <td className="bg-white text-center">{getLatestWorkDate(report)}</td>
-                      <td className="bg-white fw-medium">{report.customer_name}</td>
-                      <td className="bg-white">{report.technician_name}</td>
-                      <td className="bg-white">{report.machine_model}</td>
-                      <td className="bg-white">{report.machine_serial}</td>
-                      <td className="bg-white text-wrap" style={{maxWidth: '200px'}}>
+                    <tr key={report.id}>
+                      <td style={{textAlign:'center'}} className="text-center">{getLatestWorkDate(report)}</td>
+                      <td style={{textAlign:'center'}} className="fw-medium">{report.customer_name}</td>
+                      <td style={{textAlign:'center'}}>{report.technician_name}</td>
+                      <td style={{textAlign:'center'}}>{report.machine_model}</td>
+                      <td style={{textAlign:'center'}}>{report.machine_serial}</td>
+                      <td className="text-wrap" style={{maxWidth: '200px'}}>
                         {report.problem_description || report.symptom}
                       </td>
-                      <td className="bg-white text-center">
-                        <div className="d-flex gap-1">
+                      <td className="text-center">
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                          {user?.is_admin && (user as any)?.service_report_lock && (
+                            report.is_locked ? (
+                              <button
+                                onClick={() => handleUnlock(report.id)}
+                                className="btn btn-sm btn-warning"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  padding: '0'
+                                }}
+                                title="잠금 해제"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                </svg>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleLock(report.id)}
+                                className="btn btn-sm btn-outline-success"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  padding: '0'
+                                }}
+                                title="잠금"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                  <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                                </svg>
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </td>
+                      <td className="text-center">
+                        <div className="d-flex gap-1" style={{ justifyContent: 'center' }}>
                           {hasPermission('service_report_read') && (
-                            <button 
+                            <button
                               className="btn btn-sm btn-outline-primary"
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
                                 justifyContent: 'center',
                                 width: '32px',
                                 height: '32px',
-                                padding: '0'
+                                padding: '0',
+                                textAlign: 'center'
                               }}
                               onClick={() => handleView(report)}
                               title="보기"
@@ -2215,15 +2266,16 @@ const ServiceReports: React.FC = () => {
                             </button>
                           )}
                           {(user?.is_admin || hasPermission('service_report_update') || user?.name === report.technician_name) && (
-                            <button 
+                            <button
                               className="btn btn-sm btn-outline-secondary"
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
                                 justifyContent: 'center',
                                 width: '32px',
                                 height: '32px',
-                                padding: '0'
+                                padding: '0',
+                                textAlign: 'center'
                               }}
                               onClick={() => handleEdit(report)}
                               title="편집"
@@ -2234,47 +2286,6 @@ const ServiceReports: React.FC = () => {
                               </svg>
                             </button>
                           )}
-                          {user?.is_admin && (
-                            report.is_locked ? (
-                              <button
-                                className="btn btn-sm btn-outline-success"
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  padding: '0'
-                                }}
-                                onClick={() => handleUnlock(report.id)}
-                                title="잠금 해제"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                                  <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
-                                </svg>
-                              </button>
-                            ) : (
-                              <button
-                                className="btn btn-sm btn-outline-warning"
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  padding: '0'
-                                }}
-                                onClick={() => handleLock(report.id)}
-                                title="잠금"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                                </svg>
-                              </button>
-                            )
-                          )}
                           {(hasPermission('service_report_delete') && (user?.is_admin || user?.name === report.technician_name)) && (
                             <button
                               className="btn btn-sm btn-outline-danger"
@@ -2284,7 +2295,8 @@ const ServiceReports: React.FC = () => {
                                 justifyContent: 'center',
                                 width: '32px',
                                 height: '32px',
-                                padding: '0'
+                                padding: '0',
+                                textAlign : 'center'
                               }}
                               onClick={() => handleDelete(report.id)}
                               title="삭제"
@@ -2354,7 +2366,7 @@ const ServiceReports: React.FC = () => {
                   {editingReport?.is_locked ? (
                     <span className="badge bg-warning text-dark ms-2">
                       <i className="bi bi-lock-fill me-1"></i>
-                      읽기전용 (잠금됨)
+                      잠김 (편집불가)
                     </span>
                   ) : null}
                 </h5>
@@ -3810,8 +3822,8 @@ const ServiceReports: React.FC = () => {
               </div>
               <div className="modal-body">
                 <div className="alert alert-info mb-3">
-                  <strong>안내:</strong> 리포트의 시간 및 부품 정보를 기반으로 거래명세서 항목이 자동으로 생성되었습니다.
-                  필요에 따라 수정하거나 네고 항목을 추가할 수 있습니다.
+                  <strong>안내:</strong> 리포트의 시간 및 부품 정보를 기반으로 생성되었습니다.
+                  거래명세표 페이지에서 수정 또는 네고 항목을 추가할 수 있습니다.
                 </div>
 
                 <div className="table-responsive">
@@ -3826,7 +3838,7 @@ const ServiceReports: React.FC = () => {
                         <th style={{width: '120px'}}>단가</th>
                         <th style={{width: '120px'}}>합계</th>
                         <th style={{width: '120px'}}>부가세</th>
-                        <th style={{width: '80px'}}>액션</th>
+                        {/* <th style={{width: '80px'}}>액션</th> */}
                       </tr>
                     </thead>
                     <tbody>
@@ -3836,7 +3848,7 @@ const ServiceReports: React.FC = () => {
                           if (item.isBlank) {
                             return (
                               <tr key={item.id} style={{height: '20px'}}>
-                                <td colSpan={9}></td>
+                                <td colSpan={7}></td>
                               </tr>
                             );
                           }
@@ -3859,7 +3871,7 @@ const ServiceReports: React.FC = () => {
                               >
                                 <td className="text-center">{item.month || ''}</td>
                                 <td className="text-center">{item.day || ''}</td>
-                                <td colSpan={7}>
+                                <td colSpan={6}>
                                   <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                                     {item.item_name}
                                     {isPartsHeader && (
@@ -3982,7 +3994,7 @@ const ServiceReports: React.FC = () => {
                                   <td className="text-end" style={{color: item.isNego ? '#dc3545' : 'inherit'}}>
                                     {item.isNego && item.vat > 0 ? '-' : ''}{Math.abs(item.vat).toLocaleString()}
                                   </td>
-                                  <td className="text-center">
+                                  {/* <td className="text-center">
                                     {item.isNego ? (
                                       <button
                                         className="btn btn-sm btn-outline-danger"
@@ -4006,7 +4018,7 @@ const ServiceReports: React.FC = () => {
                                         </svg>
                                       </button>
                                     )}
-                                  </td>
+                                  </td> */}
                                 </tr>
                           );
                         });
@@ -4015,7 +4027,7 @@ const ServiceReports: React.FC = () => {
                       {/* 합계 행 */}
                       {invoiceLineItems.length > 0 && (
                         <tr style={{backgroundColor: '#e7f5ff', fontWeight: 'bold'}}>
-                          <td colSpan={6} className="text-end">합계</td>
+                          <td colSpan={5} className="text-end">합계</td>
                           <td className="text-end">
                             {invoiceLineItems
                               .filter(item => !item.isHeader && !item.isBlank) // 헤더와 빈 행 제외
@@ -4034,13 +4046,12 @@ const ServiceReports: React.FC = () => {
                                 return sum + amount;
                               }, 0).toLocaleString()}
                           </td>
-                          <td></td>
                         </tr>
                       )}
 
                       {invoiceLineItems.length === 0 && (
                         <tr>
-                          <td colSpan={9} className="text-center text-muted py-4">
+                          <td colSpan={7} className="text-center text-muted py-4">
                             생성된 항목이 없습니다. 리포트에 시간 정보나 부품 정보를 추가해주세요.
                           </td>
                         </tr>

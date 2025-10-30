@@ -87,28 +87,21 @@ const Customers: React.FC = () => {
 
   useEffect(() => {
     loadCustomers();
-  }, [currentPage, searchTerm, perPage]); // currentPage, searchTerm, perPage가 변경될 때마다 호출
+  }, []); // 초기 로드 시 한 번만 실행
 
-  const loadCustomers = async (page: number = currentPage, keyword: string = searchTerm) => {
+  const loadCustomers = async () => {
     try {
       setIsLoading(true);
       const params: any = {
         include_resources: true,
-        page: page,
-        per_page: perPage
+        per_page: 9999 // 전체 데이터 로드
       };
-      
-      if (keyword.trim()) {
-        params.keyword = keyword.trim();
-      }
-      
+
       const response = await customerAPI.getCustomers(params);
-      
+
       const data = response.data;
       setCustomers(data.customers || []);
       setTotalCustomers(data.total || 0);
-      setTotalPages(data.total_pages || 0);
-      setCurrentPage(data.page || 1);
     } catch (error) {
       console.error('고객 정보 로딩 실패:', error);
     } finally {
@@ -161,9 +154,7 @@ const Customers: React.FC = () => {
 
   // 페이지 네비게이션 함수들
   const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
+    setCurrentPage(page);
   };
 
   const handlePreviousPage = () => {
@@ -173,9 +164,7 @@ const Customers: React.FC = () => {
   };
 
   const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
+    setCurrentPage(currentPage + 1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -361,7 +350,7 @@ const Customers: React.FC = () => {
   // 검색어 클리어 함수
   const handleSearchClear = () => {
     setSearchTerm('');
-    setCurrentPage(1);
+    setCurrentPage(1); // 검색 클리어 시 첫 페이지로 이동
   };
 
   if (showForm) {
@@ -963,8 +952,44 @@ const Customers: React.FC = () => {
     );
   }
 
+  // 클라이언트 사이드 검색 필터링
+  const filteredCustomers = searchTerm
+    ? customers.filter(customer =>
+        customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.address?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : customers;
+
+  // 클라이언트 사이드 페이지네이션
+  const totalFilteredCustomers = filteredCustomers.length;
+  const totalPagesCalculated = Math.ceil(totalFilteredCustomers / perPage);
+  const startIndex = (currentPage - 1) * perPage;
+  const endIndex = startIndex + perPage;
+  const currentPageCustomers = filteredCustomers.slice(startIndex, endIndex);
+
   return (
-    <div className="page-header d-print-none">
+    <>
+      <style>
+        {`
+          /* 홀수 행 배경색 */
+          .table tbody tr:nth-child(odd) {
+            background-color: #ffffff;
+          }
+
+          /* 짝수 행 배경색 */
+          .table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+          }
+
+          /* 모든 행에 hover 효과 적용 */
+          .table tbody tr:hover {
+            background-color: #e3f2fd !important;
+            transition: background-color 0.15s ease-in-out;
+          }
+        `}
+      </style>
+      <div className="page-header d-print-none">
       <div className="container-xl">
         <div className="row g-2 align-items-center">
           <div className="col">
@@ -1077,24 +1102,24 @@ const Customers: React.FC = () => {
           ) : (
             <>
             <div className="table-responsive">
-              <table className="table table-vcenter table-striped">
+              <table className="table table-vcenter">
                         <thead>
                           <tr>
-                            <th>회사명</th>
-                            <th>주소</th>
-                            <th>팩스</th>
-                            <th>보유장비</th>
-                            <th>업데이트</th>
-                            <th></th>
+                            <th style={{ textAlign: 'center' }}>회사명</th>
+                            <th style={{ textAlign: 'left' }}>주소</th>
+                            <th style={{ textAlign: 'center' }}>팩스</th>
+                            <th style={{ textAlign: 'center' }}>보유장비</th>
+                            <th style={{ textAlign: 'center' }}>업데이트</th>
+                            <th style={{ textAlign: 'center' }}>작업</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {customers.map((customer) => (
+                          {currentPageCustomers.map((customer) => (
                             <tr key={customer.id}>
-                              <td>
+                              <td style={{ textAlign: 'center' }}>
                                 <div className="text-reset font-weight-medium">{customer.company_name}</div>
                               </td>
-                              <td>
+                              <td style={{ textAlign: 'left' }}>
                                 <div className="d-flex align-items-center gap-2">
                                   <div className="text-muted small" style={{ lineHeight: '1.4' }}>
                                     {customer.address || '주소 없음'}
@@ -1119,8 +1144,8 @@ const Customers: React.FC = () => {
                                   )}
                                 </div>
                               </td>
-                              <td>
-                                <div className="d-flex align-items-center gap-2">
+                              <td style={{ textAlign: 'center' }}>
+                                <div className="d-flex align-items-center gap-2 justify-content-center">
                                   <div className="text-muted small">
                                     {customer.fax || '팩스 없음'}
                                   </div>
@@ -1144,7 +1169,7 @@ const Customers: React.FC = () => {
                                   )}
                                 </div>
                               </td>
-                              <td>
+                              <td style={{ textAlign: 'left' }}>
                                 <div>
                                   {customer.resources?.length ? (
                                     customer.resources.map((resource, index) => (
@@ -1160,7 +1185,7 @@ const Customers: React.FC = () => {
                                   )}
                                 </div>
                               </td>
-                              <td>
+                              <td style={{ textAlign: 'center' }}>
                                 <div className="text-muted small">
                                   {customer.updated_at ? 
                                     new Date(customer.updated_at).toLocaleDateString('ko-KR', {
@@ -1172,8 +1197,8 @@ const Customers: React.FC = () => {
                                   }
                                 </div>
                               </td>
-                              <td>
-                                <div className="d-flex gap-1">
+                              <td style={{ textAlign: 'center' }}>
+                                <div className="d-flex gap-1 justify-content-center">
                                   {hasPermission('customer_read') && (
                                     <button 
                                       className="btn btn-sm btn-outline-primary"
@@ -1244,8 +1269,8 @@ const Customers: React.FC = () => {
                     
                     <Pagination
                       currentPage={currentPage}
-                      totalPages={totalPages}
-                      totalItems={totalCustomers}
+                      totalPages={totalPagesCalculated}
+                      totalItems={totalFilteredCustomers}
                       itemsPerPage={perPage}
                       onPageChange={handlePageChange}
                       onPreviousPage={handlePreviousPage}
@@ -1461,7 +1486,8 @@ const Customers: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

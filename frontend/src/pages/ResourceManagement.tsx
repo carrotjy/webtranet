@@ -875,7 +875,27 @@ const ResourceManagement: React.FC = () => {
     }
 
   return (
-    <div className="page-header d-print-none">
+    <>
+      <style>
+        {`
+          /* 홀수 행 배경색 */
+          .table tbody tr:nth-child(odd) {
+            background-color: #ffffff;
+          }
+
+          /* 짝수 행 배경색 */
+          .table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+          }
+
+          /* 모든 행에 hover 효과 적용 */
+          .table tbody tr:hover {
+            background-color: #e3f2fd !important;
+            transition: background-color 0.15s ease-in-out;
+          }
+        `}
+      </style>
+      <div className="page-header d-print-none">
       <div className="container-xl">
         <div className="row g-2 align-items-center">
           <div className="col">
@@ -982,7 +1002,7 @@ const ResourceManagement: React.FC = () => {
             <small className="text-muted">SN / 보증기한 만료일 헤더 클릭 시 정렬 가능</small>
           </div>
           <div className="table-responsive">
-            <table className="table table-vcenter table-striped">
+            <table className="table table-vcenter">
               <thead>
                 <tr>
                   <th 
@@ -992,15 +1012,15 @@ const ResourceManagement: React.FC = () => {
                     SN {getSortIcon('serial_number')}
                   </th>
                   <th>장비명</th>
-                  <th>카테고리</th>
-                  <th>고객사</th>
+                  <th style={{ textAlign: 'center' }}>카테고리</th>
+                  <th style={{ textAlign: 'center' }}>고객사</th>
                   <th 
-                    style={{ cursor: 'pointer', userSelect: 'none', color: '#206bc4' }}
+                    style={{ textAlign: 'center', cursor: 'pointer', userSelect: 'none', color: '#206bc4' }}
                     onClick={() => handleSort('warranty_expiration')}
                   >
                     보증기한 만료일 {getSortIcon('warranty_expiration')}
                   </th>
-                  <th>작업</th>
+                  <th style={{ textAlign: 'center' }}>작업</th>
                 </tr>
               </thead>
               <tbody>
@@ -1018,11 +1038,11 @@ const ResourceManagement: React.FC = () => {
                     <tr key={resource.id}>
                       <td>{resource.serial_number}</td>
                       <td>{resource.product_name}</td>
-                      <td>{resource.category}</td>
-                      <td>{resource.customer_name}</td>
-                      <td>{getWarrantyExpirationDate(resource.management_history || [])}</td>
-                      <td>
-                        <div className="d-flex gap-1">
+                      <td style={{ textAlign: 'center' }}>{resource.category}</td>
+                      <td style={{ textAlign: 'center' }}>{resource.customer_name}</td>
+                      <td style={{ textAlign: 'center' }}>{getWarrantyExpirationDate(resource.management_history || [])}</td>
+                      <td className="text-center">
+                        <div className="d-flex gap-1" style={{ justifyContent: 'center' }}>
                           {hasPermission('resource_read') && (
                           <button
                             className="btn btn-sm btn-outline-primary"
@@ -1112,7 +1132,8 @@ const ResourceManagement: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

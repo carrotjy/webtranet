@@ -650,7 +650,27 @@ const SpareParts: React.FC = () => {
   }
 
   return (
-    <div className="container-fluid">
+    <>
+      <style>
+        {`
+          /* 홀수 행 배경색 */
+          .table tbody tr:nth-child(odd) {
+            background-color: #ffffff;
+          }
+
+          /* 짝수 행 배경색 */
+          .table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+          }
+
+          /* 모든 행에 hover 효과 적용 */
+          .table tbody tr:hover {
+            background-color: #e3f2fd !important;
+            transition: background-color 0.15s ease-in-out;
+          }
+        `}
+      </style>
+      <div className="container-fluid">
       <div className="page-header d-print-none">
         <div className="container-xl">
           <div className="row g-2 align-items-center">
@@ -786,32 +806,32 @@ const SpareParts: React.FC = () => {
               {error}
             </div>
           )}
-          
+
           <div className="table-responsive">
-            <table className="table table-vcenter table-striped">
+            <table className="table table-vcenter">
               <thead>
                 <tr>
-                  <th>부품번호</th>
-                  <th>부품명</th>
-                  <th>ERP명</th>
-                  <th>재고수량</th>
-                  <th>청구가(KRW)</th>
-                    <th>등록일</th>
-                    <th className="w-1">액션</th>
+                  <th className="text-center">부품번호</th>
+                  <th className="text-center">부품명</th>
+                  <th className="text-center">ERP명</th>
+                  <th className="text-center">재고수량</th>
+                  <th className="text-center">청구가(KRW)</th>
+                  <th className="text-center">등록일</th>
+                  <th className="text-center w-1">액션</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredParts.length > 0 ? (
                     currentParts.map((part) => (
                       <tr key={part.id}>
-                        <td>{part.part_number}</td>
-                        <td>{part.part_name}</td>
-                        <td>{part.erp_name || '-'}</td>
-                        <td>{part.stock_quantity}</td>
-                        <td>₩{partBillingPrices[part.id]?.toLocaleString('ko-KR') || '0'}</td>
-                        <td>{new Date(part.created_at).toLocaleDateString('ko-KR')}</td>
-                        <td>
-                          <div className="d-flex gap-1">
+                        <td className="text-center">{part.part_number}</td>
+                        <td className="text-center">{part.part_name}</td>
+                        <td className="text-center">{part.erp_name || '-'}</td>
+                        <td className="text-center">{part.stock_quantity}</td>
+                        <td className="text-center">₩{partBillingPrices[part.id]?.toLocaleString('ko-KR') || '0'}</td>
+                        <td className="text-center">{new Date(part.created_at).toLocaleDateString('ko-KR')}</td>
+                        <td className="text-center">
+                          <div className="d-flex gap-1 justify-content-center">
                             {hasPermission('spare_parts_read') && (
                             <button
                               className="btn btn-sm btn-outline-primary"
@@ -1562,13 +1582,15 @@ const SpareParts: React.FC = () => {
                           border: '1px solid #ddd',
                           borderTop: 'none',
                           maxHeight: '200px',
-                          overflowY: 'auto'
+                          overflowY: 'auto',
+                          boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
+                          zIndex: 1000
                         }}>
                           {customerSearchResults.map((customer) => (
                             <div
                               key={customer.id}
                               onClick={() => {
-                                setStockTransaction({...stockTransaction, customer_name: customer.customer_name});
+                                setStockTransaction({...stockTransaction, customer_name: customer.company_name});
                                 setCustomerSearchResults([]);
                               }}
                               style={{
@@ -1687,15 +1709,6 @@ const SpareParts: React.FC = () => {
                 </div>
                 <div className="row mt-3">
                   <div className="col-md-6">
-                    <label className="form-label">현재가격(원화)</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={`₩${selectedPart.price?.toLocaleString('ko-KR') || '0'}`}
-                      readOnly
-                    />
-                  </div>
-                  <div className="col-md-6">
                     <label className="form-label">등록일</label>
                     <input
                       type="text"
@@ -1704,9 +1717,7 @@ const SpareParts: React.FC = () => {
                       readOnly
                     />
                   </div>
-                </div>
-                <div className="row mt-3">
-                  <div className="col-md-12">
+                  <div className="col-md-6">
                     <label className="form-label">수정일</label>
                     <input
                       type="text"
@@ -2135,7 +2146,8 @@ const SpareParts: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 
