@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import api, { authAPI } from '../services/api';
+import { authAPI } from '../services/api';
 
 interface User {
   id: number;
@@ -77,19 +77,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               'Authorization': `Bearer ${token}`
             }
           });
-          
+
           if (response.ok) {
             const data = await response.json();
             setUser(data.user);
             localStorage.setItem('user', JSON.stringify(data.user));
           } else {
-            // 토큰이 유효하지 않으면 로컬스토리지에서 가져오기 시도
-            const userDataString = localStorage.getItem('user');
-            if (userDataString) {
-              setUser(JSON.parse(userDataString));
-            } else {
-              throw new Error('Invalid token');
-            }
+            // 토큰이 유효하지 않으면 즉시 로그아웃
+            throw new Error('Invalid or expired token');
           }
         } catch (error) {
           console.error('사용자 정보 조회 실패:', error);
@@ -97,6 +92,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('user');
           setToken(null);
+          setUser(null);
+          // 로그인 페이지로 즉시 리디렉션
+          window.location.href = '/login';
         }
       }
       setLoading(false);
@@ -104,6 +102,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     fetchUser();
   }, [token]);
+
+  // 주기적으로 토큰 유효성 검증 (5분마다)
+  useEffect(() => {
+    if (!token || !user) return;
+
+    const validateToken = async () => {
+      try {
+        const API_BASE_URL = process.env.REACT_APP_API_URL || (
+          process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000'
+        );
+
+        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          // 토큰이 만료되었으면 즉시 로그아웃
+          console.error('토큰이 만료되었습니다. 다시 로그인해주세요.');
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+          setToken(null);
+          setUser(null);
+          alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+          window.location.href = '/login';
+        }
+      } catch (error) {
+        console.error('토큰 검증 실패:', error);
+      }
+    };
+
+    // 5분마다 토큰 유효성 검증
+    const interval = setInterval(validateToken, 5 * 60 * 1000);
+
+    // 컴포넌트 언마운트 시 interval 정리
+    return () => clearInterval(interval);
+  }, [token, user]);
 
   const login = async (email: string, password: string) => {
     try {
