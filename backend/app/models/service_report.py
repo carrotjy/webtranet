@@ -407,5 +407,57 @@ class ServiceReport:
             result['invoice_code'] = self.invoice_code
         if hasattr(self, 'invoice_description'):
             result['invoice_description'] = self.invoice_description
-        
+
         return result
+
+    def lock(self, user_id):
+        """서비스 리포트 잠금"""
+        if not self.id:
+            return False
+
+        conn = get_db_connection()
+        try:
+            conn.execute('''
+                UPDATE service_reports
+                SET is_locked = 1, locked_by = ?, locked_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (user_id, self.id))
+            conn.commit()
+
+            # 객체 상태 업데이트
+            self.is_locked = True
+            self.locked_by = user_id
+            self.locked_at = datetime.now().isoformat()
+
+            return True
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+
+    def unlock(self):
+        """서비스 리포트 잠금 해제"""
+        if not self.id:
+            return False
+
+        conn = get_db_connection()
+        try:
+            conn.execute('''
+                UPDATE service_reports
+                SET is_locked = 0, locked_by = NULL, locked_at = NULL
+                WHERE id = ?
+            ''', (self.id,))
+            conn.commit()
+
+            # 객체 상태 업데이트
+            self.is_locked = False
+            self.locked_by = None
+            self.locked_at = None
+
+            return True
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()

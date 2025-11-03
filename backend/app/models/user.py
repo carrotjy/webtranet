@@ -3,12 +3,12 @@ import bcrypt
 from datetime import datetime
 
 class User:
-    def __init__(self, id=None, name=None, email=None, password=None, 
+    def __init__(self, id=None, name=None, email=None, password=None,
                  contact=None, department=None, service_report_access=False,
-                 transaction_access=False, customer_access=False, 
+                 transaction_access=False, customer_access=False,
                  spare_parts_access=False, resource_access=False,
-                 spare_parts_edit=True, 
-                 spare_parts_delete=True, spare_parts_stock_in=True, 
+                 spare_parts_edit=True,
+                 spare_parts_delete=True, spare_parts_stock_in=True,
                  spare_parts_stock_out=True, is_admin=False,
                  created_at=None,
                  # 서비스 리포트 CRUD 권한
@@ -25,7 +25,10 @@ class User:
                  transaction_update=False, transaction_delete=False,
                  # 부품 CRUD 권한
                  spare_parts_create=False, spare_parts_read=False,
-                 spare_parts_update=False, spare_parts_delete_crud=False):
+                 spare_parts_update=False, spare_parts_delete_crud=False,
+                 # 추가 기능 권한
+                 service_report_lock=True, transaction_excel_export=True,
+                 transaction_lock=True, transaction_bill_view=True):
         self.id = id
         self.name = name
         self.email = email
@@ -68,6 +71,11 @@ class User:
         self.spare_parts_read = spare_parts_read
         self.spare_parts_update = spare_parts_update
         self.spare_parts_delete_crud = spare_parts_delete_crud
+        # 추가 기능 권한
+        self.service_report_lock = service_report_lock
+        self.transaction_excel_export = transaction_excel_export
+        self.transaction_lock = transaction_lock
+        self.transaction_bill_view = transaction_bill_view
     
     @classmethod
     def get_by_email(cls, email):
@@ -128,10 +136,15 @@ class User:
                 spare_parts_read=bool(safe_get('spare_parts_read')),
                 spare_parts_update=bool(safe_get('spare_parts_update')),
                 spare_parts_delete_crud=bool(safe_get('spare_parts_delete_crud')),
+                # 추가 기능 권한
+                service_report_lock=bool(safe_get('service_report_lock', 1)),
+                transaction_excel_export=bool(safe_get('transaction_excel_export', 1)),
+                transaction_lock=bool(safe_get('transaction_lock', 1)),
+                transaction_bill_view=bool(safe_get('transaction_bill_view', 1)),
                 created_at=safe_get('created_at')
             )
         return None
-    
+
     @classmethod
     def get_by_id(cls, user_id):
         """ID로 사용자 조회"""
@@ -191,10 +204,14 @@ class User:
                 spare_parts_read=bool(safe_get('spare_parts_read')),
                 spare_parts_update=bool(safe_get('spare_parts_update')),
                 spare_parts_delete_crud=bool(safe_get('spare_parts_delete_crud')),
+                # 추가 기능 권한
+                service_report_lock=bool(safe_get('service_report_lock', 1)),
+                transaction_excel_export=bool(safe_get('transaction_excel_export', 1)),
+                transaction_lock=bool(safe_get('transaction_lock', 1)),
                 created_at=safe_get('created_at')
             )
         return None
-    
+
     def check_password(self, password):
         """비밀번호 확인"""
         return bcrypt.checkpw(password.encode('utf-8'), self.password.encode('utf-8'))
@@ -207,7 +224,7 @@ class User:
             'SELECT * FROM users ORDER BY name'
         ).fetchall()
         conn.close()
-        
+
         users = []
         for user_data in users_data:
             users.append(cls(
@@ -251,6 +268,9 @@ class User:
                 spare_parts_read=bool(user_data['spare_parts_read'] if user_data['spare_parts_read'] is not None else 0),
                 spare_parts_update=bool(user_data['spare_parts_update'] if user_data['spare_parts_update'] is not None else 0),
                 spare_parts_delete_crud=bool(user_data['spare_parts_delete_crud'] if user_data['spare_parts_delete_crud'] is not None else 0),
+                # 추가 기능 권한
+                service_report_lock=bool(user_data['service_report_lock'] if user_data['service_report_lock'] is not None else 1),
+                transaction_excel_export=bool(user_data['transaction_excel_export'] if user_data['transaction_excel_export'] is not None else 1),
                 created_at=user_data['created_at']
             ))
         return users
@@ -264,7 +284,7 @@ class User:
             (department,)
         ).fetchall()
         conn.close()
-        
+
         users = []
         for user_data in users_data:
             users.append(cls(
@@ -308,6 +328,9 @@ class User:
                 spare_parts_read=bool(user_data['spare_parts_read'] if user_data['spare_parts_read'] is not None else 0),
                 spare_parts_update=bool(user_data['spare_parts_update'] if user_data['spare_parts_update'] is not None else 0),
                 spare_parts_delete_crud=bool(user_data['spare_parts_delete_crud'] if user_data['spare_parts_delete_crud'] is not None else 0),
+                # 추가 기능 권한
+                service_report_lock=bool(user_data['service_report_lock'] if user_data['service_report_lock'] is not None else 1),
+                transaction_excel_export=bool(user_data['transaction_excel_export'] if user_data['transaction_excel_export'] is not None else 1),
                 created_at=user_data['created_at']
             ))
         return users
@@ -325,23 +348,24 @@ class User:
                     conn.execute('''
                     UPDATE users SET name=?, email=?, password=?, contact=?, department=?,
                                    service_report_access=?, transaction_access=?,
-                                   customer_access=?, spare_parts_access=?, 
+                                   customer_access=?, spare_parts_access=?,
                                    resource_access=?, is_admin=?,
-                                   service_report_create=?, service_report_read=?, 
+                                   service_report_create=?, service_report_read=?,
                                    service_report_update=?, service_report_delete=?,
-                                   resource_create=?, resource_read=?, 
+                                   resource_create=?, resource_read=?,
                                    resource_update=?, resource_delete=?,
-                                   customer_create=?, customer_read=?, 
+                                   customer_create=?, customer_read=?,
                                    customer_update=?, customer_delete=?,
-                                   transaction_create=?, transaction_read=?, 
+                                   transaction_create=?, transaction_read=?,
                                    transaction_update=?, transaction_delete=?,
-                                   spare_parts_create=?, spare_parts_read=?, 
+                                   spare_parts_create=?, spare_parts_read=?,
                                    spare_parts_update=?, spare_parts_delete_crud=?,
+                                   service_report_lock=?, transaction_excel_export=?,
                                    updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
                     ''', (self.name, self.email, hashed_password.decode('utf-8'), self.contact, self.department,
                           self.service_report_access, self.transaction_access,
-                          self.customer_access, self.spare_parts_access, 
+                          self.customer_access, self.spare_parts_access,
                           getattr(self, 'resource_access', False), self.is_admin,
                           # 서비스 리포트 CRUD 권한
                           getattr(self, 'service_report_create', False),
@@ -368,29 +392,33 @@ class User:
                           getattr(self, 'spare_parts_read', False),
                           getattr(self, 'spare_parts_update', False),
                           getattr(self, 'spare_parts_delete_crud', False),
+                          # 추가 기능 권한
+                          getattr(self, 'service_report_lock', True),
+                          getattr(self, 'transaction_excel_export', True),
                           self.id))
                 else:
                     # 비밀번호 변경이 없는 경우 기존 쿼리 사용
                     conn.execute('''
                     UPDATE users SET name=?, email=?, contact=?, department=?,
                                    service_report_access=?, transaction_access=?,
-                                   customer_access=?, spare_parts_access=?, 
+                                   customer_access=?, spare_parts_access=?,
                                    resource_access=?, is_admin=?,
-                                   service_report_create=?, service_report_read=?, 
+                                   service_report_create=?, service_report_read=?,
                                    service_report_update=?, service_report_delete=?,
-                                   resource_create=?, resource_read=?, 
+                                   resource_create=?, resource_read=?,
                                    resource_update=?, resource_delete=?,
-                                   customer_create=?, customer_read=?, 
+                                   customer_create=?, customer_read=?,
                                    customer_update=?, customer_delete=?,
-                                   transaction_create=?, transaction_read=?, 
+                                   transaction_create=?, transaction_read=?,
                                    transaction_update=?, transaction_delete=?,
-                                   spare_parts_create=?, spare_parts_read=?, 
+                                   spare_parts_create=?, spare_parts_read=?,
                                    spare_parts_update=?, spare_parts_delete_crud=?,
+                                   service_report_lock=?, transaction_excel_export=?,
                                    updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
                     ''', (self.name, self.email, self.contact, self.department,
                           self.service_report_access, self.transaction_access,
-                          self.customer_access, self.spare_parts_access, 
+                          self.customer_access, self.spare_parts_access,
                           getattr(self, 'resource_access', False), self.is_admin,
                           # 서비스 리포트 CRUD 권한
                           getattr(self, 'service_report_create', False),
@@ -417,6 +445,9 @@ class User:
                           getattr(self, 'spare_parts_read', False),
                           getattr(self, 'spare_parts_update', False),
                           getattr(self, 'spare_parts_delete_crud', False),
+                          # 추가 기능 권한
+                          getattr(self, 'service_report_lock', True),
+                          getattr(self, 'transaction_excel_export', True),
                           self.id))
             else:
                 # 신규 생성
@@ -424,9 +455,9 @@ class User:
                 cursor = conn.execute('''
                 INSERT INTO users (name, email, password, contact, department,
                                  service_report_access, transaction_access,
-                                 customer_access, spare_parts_access, 
+                                 customer_access, spare_parts_access,
                                  resource_access, is_admin, created_at, updated_at, role,
-                                 spare_parts_edit, spare_parts_delete, 
+                                 spare_parts_edit, spare_parts_delete,
                                  spare_parts_stock_in, spare_parts_stock_out,
                                  service_report_create, service_report_read,
                                  service_report_update, service_report_delete,
@@ -437,17 +468,18 @@ class User:
                                  transaction_create, transaction_read,
                                  transaction_update, transaction_delete,
                                  spare_parts_create, spare_parts_read,
-                                 spare_parts_update, spare_parts_delete_crud)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 spare_parts_update, spare_parts_delete_crud,
+                                 service_report_lock, transaction_excel_export)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (self.name, self.email, hashed_password.decode('utf-8'),
                       self.contact, self.department, self.service_report_access,
                       self.transaction_access, self.customer_access,
-                      self.spare_parts_access, getattr(self, 'resource_access', False), 
+                      self.spare_parts_access, getattr(self, 'resource_access', False),
                       self.is_admin, '사용자',  # role
                       # spare_parts 기존 권한들
                       getattr(self, 'spare_parts_edit', True),
                       getattr(self, 'spare_parts_delete', True),
-                      getattr(self, 'spare_parts_stock_in', True), 
+                      getattr(self, 'spare_parts_stock_in', True),
                       getattr(self, 'spare_parts_stock_out', True),
                       # 서비스 리포트 CRUD 권한
                       getattr(self, 'service_report_create', False),
@@ -473,7 +505,10 @@ class User:
                       getattr(self, 'spare_parts_create', False),
                       getattr(self, 'spare_parts_read', False),
                       getattr(self, 'spare_parts_update', False),
-                      getattr(self, 'spare_parts_delete_crud', False)))
+                      getattr(self, 'spare_parts_delete_crud', False),
+                      # 추가 기능 권한
+                      getattr(self, 'service_report_lock', True),
+                      getattr(self, 'transaction_excel_export', True)))
                 self.id = cursor.lastrowid
         
             conn.commit()
@@ -555,5 +590,8 @@ class User:
             'spare_parts_read': getattr(self, 'spare_parts_read', False),
             'spare_parts_update': getattr(self, 'spare_parts_update', False),
             'spare_parts_delete_crud': getattr(self, 'spare_parts_delete_crud', False),
+            # 추가 기능 권한
+            'service_report_lock': getattr(self, 'service_report_lock', True),
+            'transaction_excel_export': getattr(self, 'transaction_excel_export', True),
             'created_at': getattr(self, 'created_at', None)
         }

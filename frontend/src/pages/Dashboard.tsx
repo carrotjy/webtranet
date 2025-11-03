@@ -293,7 +293,8 @@ const Dashboard: React.FC = () => {
                       >
                         v1.0 BETA
                       </span><br />
-                    다섯 가지 섹션(리포트, 거래명세서, 고객정보, 스페어파트, 리소스)에 대한 CRUD 기능 지원
+                    * 다섯 가지 섹션(리포트, 거래명세서, 고객정보, 스페어파트, 리소스)에 대한 CRUD 기능 지원<br />
+                    * 월별재고현황, YTD 레포트 기능 추가 예정
                   </div>
                 </div>
               </div>
@@ -361,6 +362,59 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
                   ) : null}
+                </div>
+              </div>
+            </div>
+
+            {/* 월별 재고현황 바로가기 - 스페어파트 권한이 있는 사용자에게만 표시 */}
+            {hasPermission('spare_parts') && (
+              <div className="col-12 col-md-6 col-lg-3">
+                <div className="card dashboard-card" style={{ cursor: 'pointer' }} onClick={() => window.location.href = '/monthly-inventory'}>
+                  <div className="card-body">
+                    <div className="d-flex align-items-center">
+                      <div className="subheader mb-2">월별 재고현황</div>
+                    </div>
+                    <div className="d-flex align-items-baseline">
+                      <div className="h1 mb-0 me-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-table" width="48" height="48" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                          <rect x="4" y="4" width="16" height="16" rx="2"/>
+                          <line x1="4" y1="10" x2="20" y2="10"/>
+                          <line x1="10" y1="4" x2="10" y2="20"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-muted">파트별 월별 입출고 현황</div>
+                        <div className="text-muted small">연도별 집계 및 엑셀 다운로드</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* YTD 요약 바로가기 - 모든 사용자에게 표시 */}
+            <div className="col-12 col-md-6 col-lg-3">
+              <div className="card dashboard-card" style={{ cursor: 'pointer' }} onClick={() => window.location.href = '/ytd-summary'}>
+                <div className="card-body">
+                  <div className="d-flex align-items-center">
+                    <div className="subheader mb-2">YTD 요약</div>
+                  </div>
+                  <div className="d-flex align-items-baseline">
+                    <div className="h1 mb-0 me-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-chart-bar" width="48" height="48" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <rect x="3" y="12" width="6" height="8" rx="1"/>
+                        <rect x="9" y="8" width="6" height="12" rx="1"/>
+                        <rect x="15" y="4" width="6" height="16" rx="1"/>
+                        <line x1="4" y1="20" x2="18" y2="20"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="text-muted">Invoice Code별 월별/분기별</div>
+                      <div className="text-muted small">Work/Travel/Parts 비용 집계</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

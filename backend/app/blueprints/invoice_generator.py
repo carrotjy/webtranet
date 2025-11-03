@@ -11,7 +11,7 @@ import subprocess
 import platform
 
 # WeasyPrint를 사용한 순수 Python PDF 생성
-# pydyf 버전 호환성 문제로 임시 비활성화 - LibreOffice 사용
+# LibreOffice를 기본 PDF 생성 방식으로 사용하기 위해 비활성화
 HAS_WEASYPRINT = False
 # try:
 #     # Windows가 아닌 경우에만 import 시도
@@ -29,14 +29,83 @@ HAS_WEASYPRINT = False
 # except Exception as e:
 #     HAS_WEASYPRINT = False
 #     print(f"WeasyPrint 로드 실패: {str(e)}")
-print("WeasyPrint 비활성화 (pydyf 버전 호환성 문제) - LibreOffice 사용")
+print("WeasyPrint 비활성화 - LibreOffice를 기본 PDF 생성 방식으로 사용")
 
 invoice_generator_bp = Blueprint('invoice_generator', __name__)
 
 # 상수 정의
 INSTANCE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'instance')
 INVOICE_BASE_DIR = os.path.join(INSTANCE_DIR, '거래명세서')
-TEMPLATE_PATH = os.path.join(INSTANCE_DIR, '거래명세표(cs양식).xlsx')
+TEMPLATE_PATH = os.path.join(INSTANCE_DIR, '거래명세서_신규양식.xlsx')  # 신규 양식 사용
+NETWORK_BASE_DIR = '/mnt/windows/거래명세서'
+
+def get_supplier_info():
+    """공급자 정보 조회 (supplier_info 테이블에서)"""
+    from app.database.init_db import get_db_connection
+
+    conn = get_db_connection()
+    try:
+        supplier = conn.execute('SELECT * FROM supplier_info ORDER BY id DESC LIMIT 1').fetchone()
+        if supplier:
+            return {
+                'company_name': supplier['company_name'],
+                'registration_number': supplier['registration_number'],
+                'ceo_name': supplier['ceo_name'],
+                'address': supplier['address'],
+                'phone': supplier['phone'],
+                'fax': supplier['fax']
+            }
+        return {
+            'company_name': '',
+            'registration_number': '',
+            'ceo_name': '',
+            'address': '',
+            'phone': '',
+            'fax': ''
+        }
+    finally:
+        conn.close()
+
+def is_network_folder_available(network_path: str = NETWORK_BASE_DIR, timeout: int = 3) -> bool:
+    """
+    네트워크 폴더 접근 가능 여부 확인
+
+    Args:
+        network_path: 확인할 네트워크 경로
+        timeout: 타임아웃 시간(초)
+
+    Returns:
+        bool: 접근 가능하면 True, 불가능하면 False
+    """
+    try:
+        # 1. 경로가 존재하는지 확인
+        if not os.path.exists(network_path):
+            print(f"네트워크 폴더가 존재하지 않음: {network_path}")
+            return False
+
+        # 2. 디렉토리인지 확인
+        if not os.path.isdir(network_path):
+            print(f"네트워크 경로가 디렉토리가 아님: {network_path}")
+            return False
+
+        # 3. 쓰기 권한 확인 (테스트 파일 생성 시도)
+        test_file = os.path.join(network_path, '.network_test')
+        try:
+            with open(test_file, 'w') as f:
+                f.write('test')
+            os.remove(test_file)
+            print(f"네트워크 폴더 접근 가능: {network_path}")
+            return True
+        except (IOError, OSError, PermissionError) as e:
+            print(f"네트워크 폴더 쓰기 권한 없음: {network_path} - {str(e)}")
+            return False
+
+        # 4. 빈 폴더인지 확인 (선택적)
+        # 빈 폴더여도 접근 가능하면 True 반환
+
+    except Exception as e:
+        print(f"네트워크 폴더 접근 확인 실패: {network_path} - {str(e)}")
+        return False
 
 def ensure_customer_folder(customer_name: str) -> str:
     """고객사 폴더 생성 또는 확인 - instance/거래명세서/고객사명"""
@@ -65,10 +134,9 @@ def copy_template_file(customer_name: str) -> tuple:
 
     invoice_file_path = get_or_create_invoice_file(customer_name)
 
-    # 파일이 없으면 템플릿 전체 복사
-    if not os.path.exists(invoice_file_path):
-        shutil.copy2(TEMPLATE_PATH, invoice_file_path)
-        print(f"템플릿 파일 복사: {TEMPLATE_PATH} -> {invoice_file_path}")
+    # 항상 템플릿 파일을 새로 복사 (최신 양식 반영)
+    shutil.copy2(TEMPLATE_PATH, invoice_file_path)
+    print(f"템플릿 파일 복사: {TEMPLATE_PATH} -> {invoice_file_path}")
 
     # 복사된 파일 열기
     workbook = load_workbook(invoice_file_path)
@@ -298,52 +366,86 @@ def write_header_info_to_sheet(sheet, service_date: str, customer_info: dict, to
 
 def apply_thick_border_to_range(sheet, start_cell: str = 'B3', end_cell: str = 'AG43'):
     """
-    지정된 영역에 두꺼운 테두리 적용
-    주변 테두리 색상과 동일하게 설정
+    지정된 영역의 외부 테두리 4변만 녹색 thin 스타일로 통일
+    내부 셀의 테두리는 유지
+    병합된 셀의 경우 병합 범위의 왼쪽 상단 셀에 테두리 적용
     """
     from openpyxl.utils import range_boundaries
 
-    # 기존 테두리 색상 가져오기 (B3 셀의 테두리 색상 사용)
-    sample_cell = sheet['B3']
-    border_color = Color(rgb='000000')  # 기본값은 검정색
-
-    # 샘플 셀에서 테두리 색상 객체를 직접 사용
-    if sample_cell.border and sample_cell.border.left and sample_cell.border.left.color:
-        border_color = sample_cell.border.left.color
-
-    # 두꺼운 테두리 스타일 정의 (medium)
-    thick_side = Side(style='medium', color=border_color)
+    # 녹색 thin 테두리 스타일 정의
+    # LibreOffice PDF 변환 시 일관성을 위해 모든 속성 명시
+    green_border_side = Side(style='thin', color='00FF00')  # RGB 16진수 색상
+    no_border_side = Side(style=None, color=None)
 
     # 범위 파싱
     min_col, min_row, max_col, max_row = range_boundaries(f"{start_cell}:{end_cell}")
 
-    # 범위의 모든 셀에 테두리 적용
+    # 병합된 셀 정보를 미리 수집하여 중복 처리 방지
+    processed_merged_cells = set()  # 이미 처리한 병합 셀의 왼쪽 상단 좌표 저장
+
+    def get_merged_cell_info(row_idx, col_idx):
+        """주어진 셀이 병합된 셀의 일부라면 (왼쪽상단 행, 왼쪽상단 열, 병합범위) 반환, 아니면 (원래 행, 원래 열, None) 반환"""
+        cell_coord = sheet.cell(row=row_idx, column=col_idx).coordinate
+        for merged_range in sheet.merged_cells.ranges:
+            if cell_coord in merged_range:
+                # 병합 범위의 왼쪽 상단 셀 반환
+                return merged_range.bounds[1], merged_range.bounds[0], merged_range  # (row, col, range)
+        return row_idx, col_idx, None
+
+    # 범위의 가장자리 셀에만 테두리 적용
     for row_idx in range(min_row, max_row + 1):
         for col_idx in range(min_col, max_col + 1):
-            cell = sheet.cell(row=row_idx, column=col_idx)
+            # 병합된 셀인 경우 왼쪽 상단 셀을 가져옴
+            target_row, target_col, merged_range = get_merged_cell_info(row_idx, col_idx)
 
-            # 기존 테두리 복사
+            # 병합된 셀이고 이미 처리한 경우 스킵
+            if merged_range and (target_row, target_col) in processed_merged_cells:
+                continue
+
+            cell = sheet.cell(row=target_row, column=target_col)
+
+            # 기존 테두리 복사 (내부 테두리 유지)
             if cell.border:
-                left = cell.border.left
-                right = cell.border.right
-                top = cell.border.top
-                bottom = cell.border.bottom
+                left = cell.border.left if cell.border.left else no_border_side
+                right = cell.border.right if cell.border.right else no_border_side
+                top = cell.border.top if cell.border.top else no_border_side
+                bottom = cell.border.bottom if cell.border.bottom else no_border_side
             else:
-                left = right = top = bottom = Side(style=None)
+                left = right = top = bottom = no_border_side
 
-            # 테두리 영역의 가장자리인 경우 두꺼운 테두리 적용
-            # 왼쪽 가장자리
-            if col_idx == min_col:
-                left = thick_side
-            # 오른쪽 가장자리
-            if col_idx == max_col:
-                right = thick_side
-            # 위쪽 가장자리
-            if row_idx == min_row:
-                top = thick_side
-            # 아래쪽 가장자리
-            if row_idx == max_row:
-                bottom = thick_side
+            # 병합된 셀인 경우, 병합 범위 전체를 고려하여 가장자리 테두리 적용
+            if merged_range:
+                merge_min_col, merge_min_row, merge_max_col, merge_max_row = merged_range.bounds
+
+                # 병합 범위의 왼쪽이 전체 범위의 왼쪽 가장자리에 걸치는지
+                if merge_min_col == min_col:
+                    left = green_border_side
+                # 병합 범위의 오른쪽이 전체 범위의 오른쪽 가장자리에 걸치는지
+                if merge_max_col == max_col:
+                    right = green_border_side
+                # 병합 범위의 위쪽이 전체 범위의 위쪽 가장자리에 걸치는지
+                if merge_min_row == min_row:
+                    top = green_border_side
+                # 병합 범위의 아래쪽이 전체 범위의 아래쪽 가장자리에 걸치는지
+                if merge_max_row == max_row:
+                    bottom = green_border_side
+
+                # 처리 완료 표시
+                processed_merged_cells.add((target_row, target_col))
+            else:
+                # 병합되지 않은 셀: 원래 셀의 위치(row_idx, col_idx)를 기준으로 가장자리 여부 판단
+                # 왼쪽 가장자리
+                if col_idx == min_col:
+                    left = green_border_side
+                # 오른쪽 가장자리
+                if col_idx == max_col:
+                    right = green_border_side
+                # 위쪽 가장자리
+                if row_idx == min_row:
+                    top = green_border_side
+                # 아래쪽 가장자리
+                if row_idx == max_row:
+                    bottom = green_border_side
 
             # 새 테두리 적용
             cell.border = Border(left=left, right=right, top=top, bottom=bottom)
@@ -380,29 +482,29 @@ def write_invoice_items_to_sheet(sheet, items: list, start_row: int = 14):
         # 헤더 행은 월, 일, 품목만 입력
         if item.get('isHeader'):
             if item.get('month'):
-                safe_write_to_cell(f'B{current_row}', item.get('month'))
+                safe_write_to_cell(f'A{current_row}', item.get('month'))
             if item.get('day'):
-                safe_write_to_cell(f'C{current_row}', item.get('day'))
-            safe_write_to_cell(f'D{current_row}', item.get('item_name'))
+                safe_write_to_cell(f'B{current_row}', item.get('day'))
+            safe_write_to_cell(f'C{current_row}', item.get('item_name'))
             current_row += 1
             continue
 
         # 일반 데이터 행
-        # 열 주소: B=월, C=일, D=품목, J=규격, O=수량, Q=단가, V=공급가액, AA=부가세
+        # 열 주소: A=월, B=일, C=품목, J=규격, Q=수량, S=단가, X=공급가액, AC=세액
 
         # 월 (0이 아닌 경우에만)
         month = item.get('month')
         if month and month != 0:
-            safe_write_to_cell(f'B{current_row}', month)
+            safe_write_to_cell(f'A{current_row}', month)
 
         # 일 (0이 아닌 경우에만)
         day = item.get('day')
         if day and day != 0:
-            safe_write_to_cell(f'C{current_row}', day)
+            safe_write_to_cell(f'B{current_row}', day)
 
         # 품목 (필수)
         if item.get('item_name'):
-            safe_write_to_cell(f'D{current_row}', item.get('item_name'))
+            safe_write_to_cell(f'C{current_row}', item.get('item_name'))
 
         # 규격 (값이 있을 때만)
         if item.get('specification'):
@@ -411,12 +513,12 @@ def write_invoice_items_to_sheet(sheet, items: list, start_row: int = 14):
         # 수량 (0이 아닌 경우에만)
         quantity = item.get('quantity')
         if quantity and quantity != 0:
-            safe_write_to_cell(f'O{current_row}', quantity)
+            safe_write_to_cell(f'Q{current_row}', quantity)
 
         # 단가 (0이 아닌 경우에만)
         unit_price = item.get('unit_price')
         if unit_price and unit_price != 0:
-            safe_write_to_cell(f'Q{current_row}', unit_price)
+            safe_write_to_cell(f'S{current_row}', unit_price)
 
         # NEGO 항목은 마이너스로 저장
         total_price = item.get('total_price', 0)
@@ -427,15 +529,15 @@ def write_invoice_items_to_sheet(sheet, items: list, start_row: int = 14):
 
         # 공급가액 (0이 아닌 경우에만)
         if total_price and total_price != 0:
-            safe_write_to_cell(f'V{current_row}', total_price)
+            safe_write_to_cell(f'X{current_row}', total_price)
 
         # 부가세 (0이 아닌 경우에만)
         if vat and vat != 0:
-            safe_write_to_cell(f'AA{current_row}', vat)
+            safe_write_to_cell(f'AC{current_row}', vat)
 
         # NEGO 항목인 경우 빨간색 폰트 적용 (기존 폰트 속성 유지)
         if item.get('item_name') == 'NEGO':
-            for col in ['B', 'C', 'D', 'J', 'O', 'Q', 'V', 'AA']:
+            for col in ['A', 'B', 'C', 'J', 'Q', 'S', 'X', 'AC']:
                 cell_ref = f'{col}{current_row}'
                 try:
                     # 병합된 셀 확인
@@ -662,11 +764,12 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_names
         # --headless: GUI 없이 실행
         # --convert-to pdf: PDF로 변환
         # --outdir: 출력 디렉토리 지정
+        # PDF 필터 옵션으로 품질 향상 (UseTaggedPDF=true로 구조화된 PDF 생성)
         cmd = [
             soffice_cmd,
             '--headless',
             '--convert-to',
-            'pdf',
+            'pdf:calc_pdf_Export:{"UseTaggedPDF":true,"ExportFormFields":false,"ReduceImageResolution":false,"MaxImageResolution":300}',
             '--outdir',
             output_dir,
             abs_excel_path
@@ -678,13 +781,13 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_names
         print(f"Excel 파일 절대 경로: {abs_excel_path}")
         print(f"출력 디렉토리 절대 경로: {output_dir}")
 
-        # 프로세스 실행 (타임아웃 30초)
+        # 프로세스 실행 (타임아웃 90초)
         try:
             result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=30,
+                timeout=90,
                 check=False
             )
             print(f"subprocess.run 실행 완료, returncode: {result.returncode}")
@@ -747,7 +850,7 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_names
             return False
 
     except subprocess.TimeoutExpired:
-        print("PDF 변환 타임아웃 (30초 초과)")
+        print("PDF 변환 타임아웃 (90초 초과)")
         if temp_excel_path and os.path.exists(temp_excel_path):
             try:
                 os.unlink(temp_excel_path)
@@ -822,20 +925,24 @@ def generate_invoice():
         workbook.save(invoice_file_path)
         workbook.close()
 
-        # 네트워크 공유 폴더에 복사
-        network_base_dir = '/mnt/windows/거래명세서'
-        try:
-            # 네트워크 폴더 구조 생성
-            network_customer_dir = os.path.join(network_base_dir, customer_name)
-            os.makedirs(network_customer_dir, exist_ok=True)
+        # 네트워크 공유 폴더에 복사 (네트워크 사용 가능할 때만)
+        network_copy_success = False
+        if is_network_folder_available(NETWORK_BASE_DIR):
+            try:
+                # 네트워크 폴더 구조 생성
+                network_customer_dir = os.path.join(NETWORK_BASE_DIR, customer_name)
+                os.makedirs(network_customer_dir, exist_ok=True)
 
-            # Excel 파일 복사
-            network_excel_path = os.path.join(network_customer_dir, f'거래명세표({customer_name}).xlsx')
-            shutil.copy2(invoice_file_path, network_excel_path)
-            print(f"네트워크 공유 폴더에 Excel 복사 성공: {network_excel_path}")
-        except Exception as e:
-            print(f"네트워크 공유 폴더 복사 실패: {str(e)}")
-            # 복사 실패해도 계속 진행
+                # Excel 파일 복사
+                network_excel_path = os.path.join(network_customer_dir, f'거래명세표({customer_name}).xlsx')
+                shutil.copy2(invoice_file_path, network_excel_path)
+                network_copy_success = True
+                print(f"✅ 네트워크 공유 폴더에 Excel 복사 성공: {network_excel_path}")
+            except Exception as e:
+                print(f"❌ 네트워크 공유 폴더 Excel 복사 실패: {str(e)}")
+                # 복사 실패해도 계속 진행
+        else:
+            print(f"⚠️ 네트워크 폴더 사용 불가 - 로컬에만 저장: {NETWORK_BASE_DIR}")
 
         # PDF 변환 (순수 Python 방식 우선, LibreOffice는 백업)
         pdf_filename = f'거래명세표({customer_name})-{sheet_name}.pdf'
@@ -863,31 +970,43 @@ def generate_invoice():
             pdf_success = convert_excel_to_pdf_libreoffice(invoice_file_path, pdf_path, sheet_names_for_pdf)
             print(f"LibreOffice PDF 생성 결과: {pdf_success}")
 
-        # PDF를 네트워크 폴더에도 복사
+        # PDF를 네트워크 폴더에도 복사 (네트워크 사용 가능하고 PDF 생성 성공 시)
         if pdf_success:
             # 상대 경로 생성 (customer_name/filename)
             pdf_url = f'/api/invoice-pdf/{customer_name}/{pdf_filename}'
 
-            try:
-                network_pdf_path = os.path.join(network_customer_dir, pdf_filename)
-                shutil.copy2(pdf_path, network_pdf_path)
-                print(f"네트워크 공유 폴더에 PDF 복사 성공: {network_pdf_path}")
-            except Exception as e:
-                print(f"네트워크 공유 폴더 PDF 복사 실패: {str(e)}")
+            if network_copy_success:
+                try:
+                    network_customer_dir = os.path.join(NETWORK_BASE_DIR, customer_name)
+                    network_pdf_path = os.path.join(network_customer_dir, pdf_filename)
+                    shutil.copy2(pdf_path, network_pdf_path)
+                    print(f"✅ 네트워크 공유 폴더에 PDF 복사 성공: {network_pdf_path}")
+                except Exception as e:
+                    print(f"❌ 네트워크 공유 폴더 PDF 복사 실패: {str(e)}")
+            else:
+                print(f"⚠️ 네트워크 폴더 사용 불가 - PDF는 로컬에만 저장")
 
         # Excel 파일 다운로드 URL 추가
         excel_filename = f'거래명세표({customer_name}).xlsx'
         excel_url = f'/api/invoice-excel/{customer_name}/{excel_filename}'
 
+        # 성공 메시지 구성
+        success_message = '거래명세표가 성공적으로 생성되었습니다.'
+        if network_copy_success:
+            success_message += ' (네트워크 폴더에도 저장됨)'
+        else:
+            success_message += ' (로컬에만 저장됨)'
+
         return jsonify({
             'success': True,
-            'message': '거래명세표가 성공적으로 생성되었습니다.',
+            'message': success_message,
             'excel_path': invoice_file_path,
             'excel_url': excel_url,
             'pdf_path': pdf_path if pdf_success else None,
             'pdf_url': pdf_url,
             'sheet_name': sheet_name,
-            'has_pdf': pdf_success
+            'has_pdf': pdf_success,
+            'network_copy_success': network_copy_success
         })
 
     except Exception as e:

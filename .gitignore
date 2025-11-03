@@ -245,7 +245,7 @@
 **/Thumbs.db
 
 # Database files (keep sample files for reference)
-backend/app/database/user.db
+backend/app/database/webtranet.db
 !backend/sample_customers*.xlsx
 !backend/test_with_empty_cells.xlsx
 

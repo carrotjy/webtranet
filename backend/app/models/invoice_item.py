@@ -6,7 +6,8 @@ class InvoiceItem:
     def __init__(self, id=None, invoice_id=None, item_type=None,
                  description=None, quantity=None, unit_price=None,
                  total_price=None, month=None, day=None, item_name=None,
-                 part_number=None, created_at=None, updated_at=None):
+                 part_number=None, is_header=None, row_order=None,
+                 created_at=None, updated_at=None):
         self.id = id
         self.invoice_id = invoice_id
         self.item_type = item_type  # 'work', 'travel', 'parts', 'nego'
@@ -18,6 +19,8 @@ class InvoiceItem:
         self.day = day
         self.item_name = item_name
         self.part_number = part_number
+        self.is_header = is_header if is_header is not None else 0
+        self.row_order = row_order if row_order is not None else 0
         self.created_at = created_at
         self.updated_at = updated_at
     
@@ -26,17 +29,17 @@ class InvoiceItem:
         """거래명세표 ID로 항목들 조회"""
         conn = get_db_connection()
         items_data = conn.execute('''
-            SELECT * FROM invoice_items 
-            WHERE invoice_id = ? 
-            ORDER BY item_type, id
+            SELECT * FROM invoice_items
+            WHERE invoice_id = ?
+            ORDER BY row_order, id
         ''', (invoice_id,)).fetchall()
         conn.close()
-        
+
         items = []
         for data in items_data:
             item = cls._from_db_row(data)
             items.append(item)
-        
+
         return items
     
     @classmethod
@@ -125,21 +128,21 @@ class InvoiceItem:
                 conn.execute('''
                     UPDATE invoice_items SET
                     item_type=?, description=?, quantity=?, unit_price=?,
-                    total_price=?, month=?, day=?, item_name=?, part_number=?,
+                    total_price=?, month=?, day=?, item_name=?, part_number=?, is_header=?, row_order=?,
                     updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
                 ''', (self.item_type, self.description, self.quantity,
                      self.unit_price, self.total_price, self.month, self.day,
-                     self.item_name, self.part_number, self.id))
+                     self.item_name, self.part_number, self.is_header, self.row_order, self.id))
             else:
                 # 신규 생성
                 cursor = conn.execute('''
                     INSERT INTO invoice_items (invoice_id, item_type, description,
-                    quantity, unit_price, total_price, month, day, item_name, part_number)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    quantity, unit_price, total_price, month, day, item_name, part_number, is_header, row_order)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (self.invoice_id, self.item_type, self.description,
                      self.quantity, self.unit_price, self.total_price,
-                     self.month, self.day, self.item_name, self.part_number))
+                     self.month, self.day, self.item_name, self.part_number, self.is_header, self.row_order))
                 self.id = cursor.lastrowid
 
             conn.commit()
@@ -196,6 +199,8 @@ class InvoiceItem:
             day=row['day'] if 'day' in row.keys() else None,
             item_name=row['item_name'] if 'item_name' in row.keys() else None,
             part_number=row['part_number'] if 'part_number' in row.keys() else None,
+            is_header=row['is_header'] if 'is_header' in row.keys() else 0,
+            row_order=row['row_order'] if 'row_order' in row.keys() else 0,
             created_at=row['created_at'],
             updated_at=row['updated_at']
         )
@@ -214,6 +219,8 @@ class InvoiceItem:
             'day': self.day,
             'item_name': self.item_name,
             'part_number': self.part_number,
+            'is_header': self.is_header,
+            'row_order': self.row_order,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

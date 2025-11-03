@@ -42,22 +42,6 @@ interface SparePartConfig {
   consumablePartsConfig: QuadraticFactorConfig;
 }
 
-// 권한 관리 인터페이스 (사용자별)
-interface UserPermissions {
-  userId: number;
-  username: string;
-  role: string;
-  canEdit: boolean;      // 수정 권한
-  canDelete: boolean;    // 삭제 권한
-  canInbound: boolean;   // 입고 권한 (파트등록 포함)
-  canOutbound: boolean;  // 출고 권한
-}
-
-// 기본 권한 설정 (전역)
-interface GlobalPermissions {
-  canView: boolean;      // 목록보기 권한 (항상 true)
-  canViewHistory: boolean; // 입출고내역 보기 권한 (항상 true)
-}
 
 const SparePartSettings: React.FC = () => {
   // localStorage에서 설정 불러오기
@@ -94,10 +78,6 @@ const SparePartSettings: React.FC = () => {
   const [calculationResult, setCalculationResult] = useState<any>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-  // 사용자별 권한 관리 상태
-  const [users, setUsers] = useState<UserPermissions[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(true);
-
   // 초기 설정 로드 (API에서)
   useEffect(() => {
     const loadSettingsFromAPI = async () => {
@@ -131,45 +111,6 @@ const SparePartSettings: React.FC = () => {
     };
 
     loadSettingsFromAPI();
-  }, []);
-
-  // 사용자 목록 로드
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        setLoadingUsers(true);
-        const response = await fetch('/api/user-permissions');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setUsers(data.data);
-          }
-        } else {
-          // API 실패 시 기본 mock 데이터 사용
-          const mockUsers: UserPermissions[] = [
-            { userId: 1, username: 'admin', role: '관리자', canEdit: true, canDelete: true, canInbound: true, canOutbound: true },
-            { userId: 2, username: 'operator1', role: '운영자', canEdit: true, canDelete: false, canInbound: true, canOutbound: true },
-            { userId: 3, username: 'technician1', role: '기술자', canEdit: false, canDelete: false, canInbound: false, canOutbound: true },
-            { userId: 4, username: 'viewer1', role: '조회자', canEdit: false, canDelete: false, canInbound: false, canOutbound: false },
-          ];
-          setUsers(mockUsers);
-        }
-      } catch (error) {
-        console.error('사용자 목록 로드 실패:', error);
-        // 에러 시에도 기본 데이터 표시
-        const mockUsers: UserPermissions[] = [
-          { userId: 1, username: 'admin', role: '관리자', canEdit: true, canDelete: true, canInbound: true, canOutbound: true },
-          { userId: 2, username: 'operator1', role: '운영자', canEdit: true, canDelete: false, canInbound: true, canOutbound: true },
-          { userId: 3, username: 'technician1', role: '기술자', canEdit: false, canDelete: false, canInbound: false, canOutbound: true },
-          { userId: 4, username: 'viewer1', role: '조회자', canEdit: false, canDelete: false, canInbound: false, canOutbound: false },
-        ];
-        setUsers(mockUsers);
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
-
-    loadUsers();
   }, []);
 
   // Excel 수식 기반 2차함수 팩터 계산 (2차함수 특성 반영)
@@ -233,20 +174,11 @@ const SparePartSettings: React.FC = () => {
     setConfig(prev => ({ ...prev, marginRate: value }));
   };
 
-  // 사용자별 권한 변경
-  const updateUserPermission = (userId: number, permission: keyof Omit<UserPermissions, 'userId' | 'username' | 'role'>, value: boolean) => {
-    setUsers(prev => prev.map(user => 
-      user.userId === userId 
-        ? { ...user, [permission]: value, ...(permission === 'canInbound' && value ? { canEdit: true } : {}) }
-        : user
-    ));
-  };
-
   // 설정 저장
   const handleSaveSettings = async () => {
     try {
       console.log('저장할 설정:', config);
-      
+
       // 부품 관리 설정 저장 (API 호출)
       const sparePartResponse = await fetch('/api/admin/spare-part-settings', {
         method: 'POST',
@@ -256,21 +188,11 @@ const SparePartSettings: React.FC = () => {
         },
         body: JSON.stringify(config),
       });
-      
+
       console.log('부품 설정 저장 응답 상태:', sparePartResponse.status);
-      
-      // 사용자별 권한 설정 저장 (API 호출)
-      const permissionResponse = await fetch('/api/user-permissions/batch', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ users }),
-      });
-      
+
       let settingsSaved = false;
-      let permissionsSaved = false;
-      
+
       // 부품 설정 저장 결과 확인
       if (sparePartResponse.ok) {
         const sparePartData = await sparePartResponse.json();
@@ -285,41 +207,23 @@ const SparePartSettings: React.FC = () => {
         const errorText = await sparePartResponse.text();
         console.error('부품 설정 API 호출 실패:', sparePartResponse.status, errorText);
       }
-      
-      // 권한 설정 저장 결과 확인
-      if (permissionResponse.ok) {
-        const permissionData = await permissionResponse.json();
-        if (permissionData.success) {
-          permissionsSaved = true;
-          console.log('권한 설정 저장 성공');
-        } else {
-          console.error('권한 설정 저장 실패:', permissionData.error);
-        }
-      } else {
-        console.error('권한 설정 API 호출 실패');
-      }
-      
+
       // 로컬스토리지에 백업 저장
       localStorage.setItem('sparePartConfig', JSON.stringify(config));
-      localStorage.setItem('userPermissions', JSON.stringify(users));
       setLastSaved(new Date());
-      
+
       // 결과에 따른 메시지 표시
-      if (settingsSaved && permissionsSaved) {
-        alert('모든 설정이 성공적으로 저장되었습니다!\n이제 가격 계산에 새로운 설정이 적용됩니다.');
-      } else if (settingsSaved || permissionsSaved) {
-        alert('일부 설정만 저장되었습니다.\n로컬 백업은 완료되었습니다.');
+      if (settingsSaved) {
+        alert('설정이 성공적으로 저장되었습니다!\n이제 가격 계산에 새로운 설정이 적용됩니다.');
       } else {
         alert('서버 저장에 실패했습니다.\n로컬 백업은 완료되었습니다.');
       }
-      
+
       console.log('현재 설정:', config);
-      console.log('사용자별 권한 설정:', users);
     } catch (error) {
       console.error('설정 저장 실패:', error);
       // 에러 시 로컬스토리지에만 저장
       localStorage.setItem('sparePartConfig', JSON.stringify(config));
-      localStorage.setItem('userPermissions', JSON.stringify(users));
       setLastSaved(new Date());
       alert('네트워크 오류가 발생했습니다.\n로컬 백업은 완료되었습니다.');
     }
@@ -537,122 +441,6 @@ const SparePartSettings: React.FC = () => {
             >
               설정 저장
             </button>
-          </div>
-
-          {/* 사용자별 권한 관리 */}
-          <div className="card mb-4">
-            <div className="card-header">
-              <h5 className="mb-0">� 사용자별 스페어파트 권한 관리</h5>
-            </div>
-            <div className="card-body">
-              {loadingUsers ? (
-                <div className="text-center">
-                  <div className="spinner-border" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="alert alert-info mb-3">
-                    <strong>ℹ️ 권한 설정 안내:</strong><br/>
-                    • <strong>목록보기/입출고내역</strong>: 모든 사용자 기본 권한 (변경 불가)<br/>
-                    • <strong>수정</strong>: 스페어파트 정보 편집 권한<br/>
-                    • <strong>삭제</strong>: 스페어파트 삭제 권한 (주의: 복구 불가)<br/>
-                    • <strong>입고</strong>: 재고 입고 및 신규 파트 등록 권한<br/>
-                    • <strong>출고</strong>: 재고 출고 처리 권한
-                  </div>
-
-                  <div className="table-responsive">
-                    <table className="table table-bordered table-hover">
-                      <thead className="table-dark">
-                        <tr>
-                          <th>사용자명</th>
-                          <th>역할</th>
-                          <th className="text-center">목록보기</th>
-                          <th className="text-center">입출고내역</th>
-                          <th className="text-center">수정</th>
-                          <th className="text-center">삭제</th>
-                          <th className="text-center">입고*</th>
-                          <th className="text-center">출고</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {users.map((user) => (
-                          <tr key={user.userId}>
-                            <td>
-                              <div className="d-flex align-items-center">
-                                <strong>{user.username}</strong>
-                                {user.role === '관리자' && (
-                                  <span className="badge bg-primary ms-2">Admin</span>
-                                )}
-                              </div>
-                            </td>
-                            <td>{user.role}</td>
-                            <td className="text-center">
-                              <span className="badge bg-success">✓</span>
-                            </td>
-                            <td className="text-center">
-                              <span className="badge bg-success">✓</span>
-                            </td>
-                            <td className="text-center">
-                              <div className="form-check d-flex justify-content-center">
-                                <input
-                                  className="form-check-input"
-                                  type="checkbox"
-                                  checked={user.canEdit}
-                                  onChange={(e) => updateUserPermission(user.userId, 'canEdit', e.target.checked)}
-                                  disabled={user.role === '관리자'}
-                                />
-                              </div>
-                            </td>
-                            <td className="text-center">
-                              <div className="form-check d-flex justify-content-center">
-                                <input
-                                  className="form-check-input"
-                                  type="checkbox"
-                                  checked={user.canDelete}
-                                  onChange={(e) => updateUserPermission(user.userId, 'canDelete', e.target.checked)}
-                                  disabled={user.role === '관리자'}
-                                />
-                              </div>
-                            </td>
-                            <td className="text-center">
-                              <div className="form-check d-flex justify-content-center">
-                                <input
-                                  className="form-check-input"
-                                  type="checkbox"
-                                  checked={user.canInbound}
-                                  onChange={(e) => updateUserPermission(user.userId, 'canInbound', e.target.checked)}
-                                  disabled={user.role === '관리자'}
-                                />
-                              </div>
-                            </td>
-                            <td className="text-center">
-                              <div className="form-check d-flex justify-content-center">
-                                <input
-                                  className="form-check-input"
-                                  type="checkbox"
-                                  checked={user.canOutbound}
-                                  onChange={(e) => updateUserPermission(user.userId, 'canOutbound', e.target.checked)}
-                                  disabled={user.role === '관리자'}
-                                />
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="mt-3">
-                    <small className="text-muted">
-                      * 입고 권한이 있는 사용자는 신규 파트 등록도 자동으로 가능합니다.<br/>
-                      ** 관리자는 모든 권한을 가지며 변경할 수 없습니다.
-                    </small>
-                  </div>
-                </>
-              )}
-            </div>
           </div>
 
           {/* 환율 및 마진율 설정 */}

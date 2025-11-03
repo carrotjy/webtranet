@@ -8,6 +8,8 @@ export { default as Login } from './Login';
 export { default as Invoices } from './Invoices';
 export { default as InvoiceForm } from './InvoiceForm';
 export { default as InvoiceView } from './InvoiceView';
+export { default as MonthlyInventoryPage } from './MonthlyInventoryPage';
+export { default as YTDSummaryPage } from './YTDSummaryPage';
 
 // Admin pages
 export { default as ServiceReportSettings } from './admin/ServiceReportSettings';

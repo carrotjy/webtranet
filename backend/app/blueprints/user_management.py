@@ -38,14 +38,17 @@ def create_user():
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'{field}는 필수 항목입니다.'}), 400
-        
+
+        # 이메일을 소문자로 변환
+        email = data['email'].lower().strip()
+
         # 이메일 중복 확인
-        if User.get_by_email(data['email']):
+        if User.get_by_email(email):
             return jsonify({'error': '이미 존재하는 이메일입니다.'}), 400
-        
+
         user = User(
             name=data['name'],
-            email=data['email'],
+            email=email,
             password=data['password'],
             contact=data.get('contact', ''),
             department=data.get('department', ''),
@@ -107,16 +110,21 @@ def update_user(user_id):
             return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
         
         data = request.get_json()
-        
+
+        # 이메일을 소문자로 변환
+        new_email = data.get('email')
+        if new_email:
+            new_email = new_email.lower().strip()
+
         # 이메일 중복 확인 (자신 제외)
-        if data.get('email') and data['email'] != user.email:
-            existing_user = User.get_by_email(data['email'])
+        if new_email and new_email != user.email:
+            existing_user = User.get_by_email(new_email)
             if existing_user:
                 return jsonify({'error': '이미 존재하는 이메일입니다.'}), 400
-        
+
         # 필드 업데이트
         user.name = data.get('name', user.name)
-        user.email = data.get('email', user.email)
+        user.email = new_email if new_email else user.email
         user.contact = data.get('contact', user.contact)
         user.department = data.get('department', user.department)
         
