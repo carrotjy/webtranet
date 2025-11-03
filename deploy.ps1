@@ -93,19 +93,16 @@ if ($backend) {
         } else {
             Write-Host "  - 가상환경 이미 존재함" -ForegroundColor Gray
         }
-        
-        # 3. 가상환경 활성화
-        & ".\venv\Scripts\Activate.ps1"
-        
-        # 4. 의존성 설치
+
+        # 3. 의존성 설치 (가상환경의 pip를 직접 사용)
         Write-Host "  - Python 패키지 설치 중..." -ForegroundColor Yellow
-        pip install -r requirements.txt --quiet
-        
+        & ".\venv\Scripts\python.exe" -m pip install -r requirements.txt --quiet
+
         if (Test-Path "requirements_pdf.txt") {
-            pip install -r requirements_pdf.txt --quiet
+            & ".\venv\Scripts\python.exe" -m pip install -r requirements_pdf.txt --quiet
         }
-        
-        # 5. 실행 중인 백엔드 프로세스 확인
+
+        # 4. 실행 중인 백엔드 프로세스 확인
         $pythonProcesses = Get-Process python -ErrorAction SilentlyContinue | 
             Where-Object { $_.Path -like "*webtranet\backend\venv*" }
         
