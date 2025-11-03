@@ -535,6 +535,58 @@ const InvoiceForm: React.FC = () => {
     });
   };
 
+  // 명세서 저장 후 부품 출고 처리
+  const processInvoiceParts = async (invoiceId: number) => {
+    try {
+      // 부품비용 항목만 필터링
+      const partItems = lineItems.filter(item => 
+        !item.isHeader && 
+        item.isPartsCost && 
+        item.part_number && 
+        item.quantity > 0
+      );
+
+      if (partItems.length === 0) {
+        console.log('출고할 부품이 없습니다.');
+        return;
+      }
+
+      // 부품 처리 데이터 준비
+      const processData = {
+        invoice_id: invoiceId,
+        customer_name: customerName,
+        used_parts: partItems.map(item => ({
+          part_number: item.part_number || '',
+          part_name: item.item_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price
+        }))
+      };
+
+      console.log('부품 출고 처리 시작:', processData);
+
+      const response = await sparePartsAPI.processInvoiceParts(processData);
+
+      if (response.data.success) {
+        console.log('부품 처리 완료:', response.data.message);
+        console.log('처리된 부품들:', response.data.processed_parts);
+
+        // 처리 결과를 사용자에게 알림 (선택사항)
+        const processedInfo = response.data.processed_parts
+          .map((p: any) => `${p.part_name} (${p.quantity}개) - ${p.action}`)
+          .join('\n');
+
+        if (processedInfo) {
+          console.log('부품 출고/등록 완료:\n', processedInfo);
+        }
+      }
+    } catch (error) {
+      console.error('부품 처리 중 오류:', error);
+      // 부품 처리 실패는 명세서 저장을 방해하지 않도록 경고만 표시
+      alert('거래명세서는 저장되었으나 부품 출고 처리 중 오류가 발생했습니다.');
+    }
+  };
+
   // 네고 타입 선택 모달 열기
   const openNegoTypeModal = (headerId: string) => {
     setNegoHeaderId(headerId);
@@ -743,19 +795,22 @@ const InvoiceForm: React.FC = () => {
       if (invoiceId) {
         // 수정
         await invoiceAPI.updateInvoice(parseInt(invoiceId), invoiceData);
+        
+        // 부품 출고 처리 (수정 시에도)
+        await processInvoiceParts(parseInt(invoiceId));
+        
         alert('거래명세서가 수정되었습니다.');
       } else {
         // 신규 생성
         const createResponse = await invoiceAPI.createInvoice(invoiceData);
+        const newInvoiceId = createResponse.data.invoice_id;
 
-        // Excel 파일 생성 (거래명세서 생성 후)
-        try {
-          await generateExcelInvoice();
-          alert('거래명세서와 Excel 파일이 생성되었습니다.');
-        } catch (excelError) {
-          console.error('Excel 생성 실패:', excelError);
-          alert('거래명세서는 생성되었으나 Excel 파일 생성에 실패했습니다.');
+        // 부품 출고 처리 (신규 생성 시)
+        if (newInvoiceId) {
+          await processInvoiceParts(newInvoiceId);
         }
+
+        alert('거래명세서가 생성되었습니다.');
       }
 
       navigate('/invoices');

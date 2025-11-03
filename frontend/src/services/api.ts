@@ -275,6 +275,18 @@ export const sparePartsAPI = {
       unit_price: number;
     }>;
   }) => api.post('/api/spare-parts/process-service-parts', data),
+
+  // 거래명세서 저장 시 부품 처리
+  processInvoiceParts: (data: {
+    invoice_id: number;
+    customer_name: string;
+    used_parts: Array<{
+      part_number?: string;
+      part_name: string;
+      quantity: number;
+      unit_price: number;
+    }>;
+  }) => api.post('/api/spare-parts/process-invoice-parts', data),
 };
 
 // Invoice API

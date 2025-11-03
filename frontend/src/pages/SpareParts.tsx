@@ -817,7 +817,7 @@ const SpareParts: React.FC = () => {
                   <th className="text-center">재고수량</th>
                   <th className="text-center">청구가(KRW)</th>
                   <th className="text-center">등록일</th>
-                  <th className="text-center w-1">액션</th>
+                  <th className="text-center w-1">작업</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1026,9 +1026,9 @@ const SpareParts: React.FC = () => {
                                   {record.transaction_type === 'OUT' && record.customer_name ? (
                                     <div>
                                       <div className="text-primary">{record.customer_name}</div>
-                                      {record.reference_number && (
+                                      {/* {record.reference_number && (
                                         <small className="text-muted">({record.reference_number})</small>
-                                      )}
+                                      )} */}
                                     </div>
                                   ) : record.reference_number ? (
                                     <small className="text-muted">{record.reference_number}</small>
@@ -1273,9 +1273,19 @@ const SpareParts: React.FC = () => {
                         value={stockTransaction.part_number}
                         onChange={(e) => {
                           const value = e.target.value;
-                          setStockTransaction({...stockTransaction, part_number: value});
-                          searchPartByNumber(value);
-                          searchPartNumberSuggestions(value);
+                          setStockTransaction({
+                            ...stockTransaction, 
+                            part_number: value,
+                            part_name: '',
+                            erp_name: '',
+                            is_existing_part: false
+                          });
+                          
+                          if (value.trim()) {
+                            searchPartNumberSuggestions(value);
+                          } else {
+                            setShowPartSuggestions(false);
+                          }
                         }}
                         onFocus={() => {
                           if (stockTransaction.part_number.trim()) {
@@ -1284,7 +1294,7 @@ const SpareParts: React.FC = () => {
                         }}
                         onBlur={() => {
                           // 약간의 지연을 두어 클릭 이벤트가 처리되도록 함
-                          setTimeout(() => setShowPartSuggestions(false), 200);
+                          setTimeout(() => setShowPartSuggestions(false), 300);
                         }}
                         placeholder="부품번호를 입력하세요"
                       />
@@ -1300,12 +1310,14 @@ const SpareParts: React.FC = () => {
                           borderTop: 'none',
                           maxHeight: '200px',
                           overflowY: 'auto',
-                          boxShadow: '0 2px 5px rgba(0,0,0,0.15)'
+                          boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
+                          zIndex: 1000
                         }}>
                           {partNumberSuggestions.map((part) => (
                             <div
                               key={part.id}
-                              onClick={() => {
+                              onMouseDown={(e) => {
+                                e.preventDefault(); // blur 이벤트 방지
                                 setStockTransaction({
                                   ...stockTransaction, 
                                   part_number: part.part_number,
@@ -1319,14 +1331,19 @@ const SpareParts: React.FC = () => {
                               style={{
                                 padding: '10px',
                                 cursor: 'pointer',
-                                borderBottom: '1px solid #eee'
+                                borderBottom: '1px solid #eee',
+                                transition: 'background-color 0.15s'
                               }}
-                              onMouseOver={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
-                              onMouseOut={(e) => (e.target as HTMLElement).style.backgroundColor = 'white'}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#f5f5f5';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'white';
+                              }}
                             >
-                              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{part.part_number}</div>
-                              <div style={{ fontSize: '12px', color: '#666' }}>{part.part_name}</div>
-                              <div style={{ fontSize: '11px', color: '#999' }}>재고: {part.stock_quantity}개</div>
+                              <div style={{ fontWeight: 'bold', fontSize: '14px', pointerEvents: 'none' }}>{part.part_number}</div>
+                              <div style={{ fontSize: '12px', color: '#666', pointerEvents: 'none' }}>{part.part_name}</div>
+                              <div style={{ fontSize: '11px', color: '#999', pointerEvents: 'none' }}>재고: {part.stock_quantity}개</div>
                             </div>
                           ))}
                         </div>
@@ -1435,13 +1452,17 @@ const SpareParts: React.FC = () => {
                         value={stockTransaction.part_number}
                         onChange={(e) => {
                           const value = e.target.value;
-                          setStockTransaction({...stockTransaction, part_number: value});
+                          setStockTransaction({
+                            ...stockTransaction, 
+                            part_number: value,
+                            part_name: '',
+                            erp_name: '',
+                            is_existing_part: false
+                          });
                           
                           if (value.trim()) {
-                            searchPartByNumber(value);
                             searchPartNumberSuggestions(value);
                           } else {
-                            setStockTransaction({...stockTransaction, part_number: value, part_name: '', erp_name: ''});
                             setShowPartSuggestions(false);
                           }
                         }}
@@ -1452,7 +1473,7 @@ const SpareParts: React.FC = () => {
                         }}
                         onBlur={() => {
                           // 약간의 지연을 두어 클릭 이벤트가 처리되도록 함
-                          setTimeout(() => setShowPartSuggestions(false), 200);
+                          setTimeout(() => setShowPartSuggestions(false), 300);
                         }}
                         placeholder="부품번호 입력"
                       />
@@ -1468,12 +1489,14 @@ const SpareParts: React.FC = () => {
                           borderTop: 'none',
                           maxHeight: '200px',
                           overflowY: 'auto',
-                          boxShadow: '0 2px 5px rgba(0,0,0,0.15)'
+                          boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
+                          zIndex: 1000
                         }}>
                           {partNumberSuggestions.map((part) => (
                             <div
                               key={part.id}
-                              onClick={() => {
+                              onMouseDown={(e) => {
+                                e.preventDefault(); // blur 이벤트 방지
                                 setStockTransaction({
                                   ...stockTransaction, 
                                   part_number: part.part_number,
@@ -1487,14 +1510,19 @@ const SpareParts: React.FC = () => {
                               style={{
                                 padding: '10px',
                                 cursor: 'pointer',
-                                borderBottom: '1px solid #eee'
+                                borderBottom: '1px solid #eee',
+                                transition: 'background-color 0.15s'
                               }}
-                              onMouseOver={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
-                              onMouseOut={(e) => (e.target as HTMLElement).style.backgroundColor = 'white'}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#f5f5f5';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'white';
+                              }}
                             >
-                              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{part.part_number}</div>
-                              <div style={{ fontSize: '12px', color: '#666' }}>{part.part_name}</div>
-                              <div style={{ fontSize: '11px', color: '#999' }}>재고: {part.stock_quantity}개</div>
+                              <div style={{ fontWeight: 'bold', fontSize: '14px', pointerEvents: 'none' }}>{part.part_number}</div>
+                              <div style={{ fontSize: '12px', color: '#666', pointerEvents: 'none' }}>{part.part_name}</div>
+                              <div style={{ fontSize: '11px', color: '#999', pointerEvents: 'none' }}>재고: {part.stock_quantity}개</div>
                             </div>
                           ))}
                         </div>
@@ -1509,6 +1537,7 @@ const SpareParts: React.FC = () => {
                       value={stockTransaction.part_name}
                       onChange={(e) => setStockTransaction({...stockTransaction, part_name: e.target.value})}
                       placeholder="부품명"
+                      disabled={stockTransaction.is_existing_part}
                     />
                   </div>
                 </div>
@@ -1630,6 +1659,12 @@ const SpareParts: React.FC = () => {
                     />
                   </div>
                 </div>
+                
+                {stockTransaction.is_existing_part && (
+                  <div className="alert alert-info mt-3" role="alert">
+                    기존 부품에서 출고 처리됩니다.
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={closeStockOutModal}>
