@@ -371,6 +371,10 @@ const ServiceReports: React.FC = () => {
   const [draggedItem, setDraggedItem] = useState<InvoiceLineItem | null>(null);
   const [dragOverDateGroup, setDragOverDateGroup] = useState<string | null>(null);
 
+  // 부품 자동완성 관련 상태
+  const [partSearchResults, setPartSearchResults] = useState<any[]>([]);
+  const [activePartSearchIndex, setActivePartSearchIndex] = useState<number | null>(null);
+
   useEffect(() => {
     loadReports();
     loadCustomers();
@@ -927,61 +931,59 @@ const ServiceReports: React.FC = () => {
     }
   };
 
-  // 파트번호로 부품 검색
+  // 파트번호로 부품 검색 (자동완성용)
   const searchPartByNumber = async (index: number, partNumber: string) => {
     console.log('searchPartByNumber 호출됨:', partNumber);
+
+    // 검색어가 비어있으면 결과 초기화
+    if (!partNumber || partNumber.length < 1) {
+      setPartSearchResults([]);
+      setActivePartSearchIndex(null);
+      return;
+    }
+
     try {
       console.log('API 호출 시작');
       const response = await sparePartsAPI.searchPartByNumber(partNumber);
       console.log('API 응답:', response.data);
-      
-      if (response.data.success) {
-        setFormData(prev => {
-          const updatedParts = [...prev.used_parts];
-          
-          if (response.data.found) {
-            // 부품을 찾은 경우
-            const part = response.data.part;
-            updatedParts[index] = {
-              ...updatedParts[index],
-              part_name: part.part_name,
-              unit_price: part.billing_price,
-              total_price: updatedParts[index].quantity * part.billing_price,
-              isFoundInDB: true,
-              currentStock: part.current_stock,
-              sparePart_id: part.id,
-              searchMessage: `현재 재고: ${part.current_stock}개`
-            };
-          } else {
-            // 부품을 찾지 못한 경우
-            updatedParts[index] = {
-              ...updatedParts[index],
-              part_name: '',
-              isFoundInDB: false,
-              searchMessage: response.data.message,
-              currentStock: undefined,
-              sparePart_id: undefined
-            };
-          }
-          
-          return { ...prev, used_parts: updatedParts };
-        });
+
+      if (response.data.success && response.data.spare_parts) {
+        // 검색 결과를 state에 저장하고 드롭다운 활성화
+        setPartSearchResults(response.data.spare_parts);
+        setActivePartSearchIndex(index);
+      } else {
+        setPartSearchResults([]);
+        setActivePartSearchIndex(null);
       }
     } catch (error) {
       console.error('부품 검색 중 오류:', error);
       console.error('오류 상세:', (error as any)?.response?.data);
-      setFormData(prev => {
-        const updatedParts = [...prev.used_parts];
-        updatedParts[index] = {
-          ...updatedParts[index],
-          isFoundInDB: false,
-          searchMessage: '부품 검색 중 오류가 발생했습니다.',
-          currentStock: undefined,
-          sparePart_id: undefined
-        };
-        return { ...prev, used_parts: updatedParts };
-      });
+      setPartSearchResults([]);
+      setActivePartSearchIndex(null);
     }
+  };
+
+  // 자동완성에서 부품 선택
+  const selectPartFromAutocomplete = (index: number, part: any) => {
+    setFormData(prev => {
+      const updatedParts = [...prev.used_parts];
+      updatedParts[index] = {
+        ...updatedParts[index],
+        part_number: part.part_number,
+        part_name: part.part_name,
+        unit_price: part.charge_price || 0,
+        total_price: updatedParts[index].quantity * (part.charge_price || 0),
+        isFoundInDB: true,
+        currentStock: part.stock_quantity,
+        sparePart_id: part.id,
+        searchMessage: `현재 재고: ${part.stock_quantity}개`
+      };
+      return { ...prev, used_parts: updatedParts };
+    });
+
+    // 드롭다운 닫기
+    setPartSearchResults([]);
+    setActivePartSearchIndex(null);
   };
 
   // 시간 기록 관련 함수들 (새로운 테이블 형태)
@@ -2744,13 +2746,45 @@ const ServiceReports: React.FC = () => {
                             {formData.used_parts.map((part, index) => (
                               <tr key={index}>
                                 <td>
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    value={part.part_number || ''}
-                                    onChange={(e) => updateUsedPart(index, 'part_number', e.target.value)}
-                                    placeholder="파트번호 입력"
-                                  />
+                                  <div style={{ position: 'relative' }}>
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      value={part.part_number || ''}
+                                      onChange={(e) => updateUsedPart(index, 'part_number', e.target.value)}
+                                      placeholder="파트번호 입력"
+                                    />
+
+                                    {/* 자동완성 드롭다운 */}
+                                    {activePartSearchIndex === index && partSearchResults.length > 0 && (
+                                      <div
+                                        className="dropdown-menu show w-100"
+                                        style={{
+                                          maxHeight: '200px',
+                                          overflowY: 'auto',
+                                          position: 'absolute',
+                                          zIndex: 1000
+                                        }}
+                                      >
+                                        {partSearchResults.map((searchPart, pidx) => (
+                                          <button
+                                            key={pidx}
+                                            type="button"
+                                            className="dropdown-item"
+                                            onClick={() => selectPartFromAutocomplete(index, searchPart)}
+                                          >
+                                            <div>
+                                              <strong>{searchPart.part_name}</strong> ({searchPart.part_number})
+                                            </div>
+                                            <small className="text-muted">
+                                              청구가: {(searchPart.charge_price || 0).toLocaleString()}원 | 재고: {searchPart.stock_quantity}
+                                            </small>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
                                   {part.isFoundInDB === false && part.part_number && (
                                     <small className="text-info d-block mt-1">
                                       신규 부품으로 등록됩니다
