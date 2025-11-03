@@ -323,6 +323,7 @@ class Invoice:
     def save_items(self, items_data):
         """거래명세표 항목 저장 (기존 항목 삭제 후 새로 저장)"""
         from app.models.invoice_item import InvoiceItem
+        from datetime import datetime
 
         if not self.id:
             return False
@@ -330,23 +331,96 @@ class Invoice:
         # 기존 항목 삭제
         InvoiceItem.delete_by_invoice_id(self.id)
 
-        # 새 항목 저장
-        if items_data and isinstance(items_data, list):
-            for item_info in items_data:
-                if item_info.get('description') or item_info.get('item_name'):  # 설명 또는 품목이 있는 경우만 저장
-                    item = InvoiceItem(
-                        invoice_id=self.id,
-                        item_type=item_info.get('item_type', 'parts'),
-                        description=item_info.get('description', ''),
-                        quantity=float(item_info.get('quantity', 0)),
-                        unit_price=float(item_info.get('unit_price', 0)),
-                        total_price=float(item_info.get('total_price', 0)),
-                        month=item_info.get('month'),
-                        day=item_info.get('day'),
-                        item_name=item_info.get('item_name'),
-                        part_number=item_info.get('part_number'),
-                        is_header=item_info.get('is_header', 0),
-                        row_order=item_info.get('row_order', 0)
-                    )
-                    item.save()
-        return True
+        # 데이터베이스 연결 (부품 출고 처리용)
+        conn = get_db_connection()
+        try:
+            # 기존 출고 내역 조회 및 재고 복구
+            existing_outbound_records = conn.execute(
+                "SELECT part_number, quantity FROM stock_history WHERE notes LIKE ? AND transaction_type = 'OUT'",
+                (f'거래명세서 ID: {self.id}%',)
+            ).fetchall()
+
+            # 재고 복구 (기존 출고 수량만큼 다시 더해줌)
+            for record in existing_outbound_records:
+                part_number = record['part_number']
+                quantity = record['quantity']
+
+                conn.execute(
+                    'UPDATE spare_parts SET stock_quantity = stock_quantity + ? WHERE part_number = ?',
+                    (quantity, part_number)
+                )
+
+            # 기존 출고 내역 삭제
+            conn.execute(
+                "DELETE FROM stock_history WHERE notes LIKE ?",
+                (f'거래명세서 ID: {self.id}%',)
+            )
+            conn.commit()
+
+            # 새 항목 저장
+            if items_data and isinstance(items_data, list):
+                for item_info in items_data:
+                    if item_info.get('description') or item_info.get('item_name'):  # 설명 또는 품목이 있는 경우만 저장
+                        item = InvoiceItem(
+                            invoice_id=self.id,
+                            item_type=item_info.get('item_type', 'parts'),
+                            description=item_info.get('description', ''),
+                            quantity=float(item_info.get('quantity', 0)),
+                            unit_price=float(item_info.get('unit_price', 0)),
+                            total_price=float(item_info.get('total_price', 0)),
+                            month=item_info.get('month'),
+                            day=item_info.get('day'),
+                            item_name=item_info.get('item_name'),
+                            part_number=item_info.get('part_number')
+                        )
+                        item.save()
+
+                        # 부품 출고 처리 (item_type이 'parts'이고 part_number가 있는 경우)
+                        if item_info.get('item_type') == 'parts' and item_info.get('part_number'):
+                            part_number = item_info.get('part_number')
+                            quantity = int(item_info.get('quantity', 0))
+
+                            if quantity > 0:
+                                # 기존 부품 확인
+                                existing_part = conn.execute(
+                                    'SELECT * FROM spare_parts WHERE part_number = ?',
+                                    (part_number,)
+                                ).fetchone()
+
+                                if existing_part:
+                                    # 재고 업데이트
+                                    current_stock = existing_part['stock_quantity']
+                                    new_stock = current_stock - quantity
+
+                                    conn.execute(
+                                        'UPDATE spare_parts SET stock_quantity = ?, updated_at = ? WHERE part_number = ?',
+                                        (new_stock, datetime.now().isoformat(), part_number)
+                                    )
+
+                                    # 출고 내역 기록 (customer_name에 고객사명 저장)
+                                    conn.execute('''
+                                        INSERT INTO stock_history
+                                        (part_number, transaction_type, quantity, previous_stock, new_stock,
+                                         transaction_date, customer_name, reference_number, notes, created_by)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    ''', (
+                                        part_number,
+                                        'OUT',
+                                        quantity,
+                                        current_stock,
+                                        new_stock,
+                                        datetime.now().isoformat(),
+                                        self.customer_name,  # 고객사명을 customer_name에 저장
+                                        self.invoice_number,  # 거래명세서 번호를 reference_number에 저장
+                                        f'거래명세서 ID: {self.id}',
+                                        'system'
+                                    ))
+
+                                    conn.commit()
+
+            return True
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
