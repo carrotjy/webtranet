@@ -286,6 +286,35 @@ const SpareParts: React.FC = () => {
     }
   };
 
+  // 입출고 내역 삭제 (관리자만 가능)
+  const deleteStockHistory = async (historyId: number) => {
+    if (!user || user.role !== 'admin') {
+      alert('관리자만 입출고 내역을 삭제할 수 있습니다.');
+      return;
+    }
+
+    if (!window.confirm('이 입출고 내역을 삭제하시겠습니까?\n삭제 시 재고가 자동으로 복구됩니다.')) {
+      return;
+    }
+
+    try {
+      const response = await api.delete(`/api/spare-parts/history/${historyId}`);
+
+      if (response.data.success) {
+        alert('입출고 내역이 삭제되었습니다.');
+        // 입출고 내역 새로고침
+        await loadAllHistory();
+        // 부품 목록도 새로고침 (재고가 변경되었으므로)
+        await loadSpareParts();
+      } else {
+        alert(response.data.message || '삭제에 실패했습니다.');
+      }
+    } catch (err: any) {
+      console.error('Error deleting stock history:', err);
+      alert(err.response?.data?.message || '입출고 내역 삭제 중 오류가 발생했습니다.');
+    }
+  };
+
   const fetchPriceHistory = async (partId: number) => {
     console.log('Fetching price history for part ID:', partId);
     setPriceHistoryLoading(true);
@@ -983,6 +1012,7 @@ const SpareParts: React.FC = () => {
                           <th>현재재고</th>
                           <th>요청자</th>
                           <th>사용처/참조</th>
+                          {user?.role === 'admin' && <th style={{width: '60px'}}>삭제</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -1036,11 +1066,26 @@ const SpareParts: React.FC = () => {
                                     <span className="text-muted">-</span>
                                   )}
                                 </td>
+                                {user?.role === 'admin' && (
+                                  <td>
+                                    <button
+                                      className="btn btn-sm btn-ghost-danger"
+                                      onClick={() => deleteStockHistory(record.id)}
+                                      title="삭제"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-x" width="20" height="20" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                        <path d="M18 6l-12 12"></path>
+                                        <path d="M6 6l12 12"></path>
+                                      </svg>
+                                    </button>
+                                  </td>
+                                )}
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan={8} className="text-center text-muted">
+                              <td colSpan={user?.role === 'admin' ? 9 : 8} className="text-center text-muted">
                                 입출고 내역이 없습니다.
                               </td>
                             </tr>

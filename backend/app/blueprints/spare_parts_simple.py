@@ -1773,3 +1773,82 @@ def export_monthly_inventory_summary():
             'success': False,
             'message': str(e)
         }), 500
+
+@spare_parts_bp.route('/spare-parts/history/<int:history_id>', methods=['DELETE'])
+@jwt_required()
+def delete_stock_history(history_id):
+    """입출고 내역 삭제 (관리자만 가능)"""
+    try:
+        # 현재 사용자 정보 가져오기
+        current_user_id = get_jwt_identity()
+        user = User.get_by_id(current_user_id)
+
+        if not user or user.role != 'admin':
+            return jsonify({
+                'success': False,
+                'message': '관리자만 입출고 내역을 삭제할 수 있습니다.'
+            }), 403
+
+        conn = get_db_connection()
+
+        try:
+            # 입출고 내역 조회
+            history = conn.execute(
+                'SELECT * FROM stock_history WHERE id = ?',
+                (history_id,)
+            ).fetchone()
+
+            if not history:
+                return jsonify({
+                    'success': False,
+                    'message': '입출고 내역을 찾을 수 없습니다.'
+                }), 404
+
+            # 재고 복구 처리
+            part_number = history['part_number']
+            transaction_type = history['transaction_type']
+            quantity = history['quantity']
+
+            # 부품 정보 조회
+            part = conn.execute(
+                'SELECT * FROM spare_parts WHERE part_number = ?',
+                (part_number,)
+            ).fetchone()
+
+            if part:
+                current_stock = part['stock_quantity']
+
+                # 출고 내역 삭제 시: 재고 증가 (출고한 수량만큼 다시 더해줌)
+                # 입고 내역 삭제 시: 재고 감소 (입고한 수량만큼 빼줌)
+                if transaction_type == 'OUT':
+                    new_stock = current_stock + quantity
+                else:  # IN
+                    new_stock = current_stock - quantity
+
+                # 재고 업데이트
+                conn.execute(
+                    'UPDATE spare_parts SET stock_quantity = ?, updated_at = ? WHERE part_number = ?',
+                    (new_stock, datetime.now().isoformat(), part_number)
+                )
+
+            # 입출고 내역 삭제
+            conn.execute('DELETE FROM stock_history WHERE id = ?', (history_id,))
+
+            conn.commit()
+
+            return jsonify({
+                'success': True,
+                'message': '입출고 내역이 삭제되었습니다.'
+            })
+
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500

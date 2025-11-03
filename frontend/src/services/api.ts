@@ -287,6 +287,10 @@ export const sparePartsAPI = {
       unit_price: number;
     }>;
   }) => api.post('/api/spare-parts/process-invoice-parts', data),
+
+  // 입출고 내역 삭제
+  deleteStockHistory: (historyId: number) =>
+    api.delete(`/api/spare-parts/history/${historyId}`),
 };
 
 // Invoice API
