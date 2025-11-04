@@ -616,9 +616,79 @@ const Invoices: React.FC = () => {
                             <th style={{ textAlign: 'center' }} className="w-1">잠금 상태</th>
                             <th style={{ textAlign: 'center' }} className="w-1">
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                <span>Excel 파일</span>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm"
+                                  onClick={handleSelectAllExcel}
+                                  style={{
+                                    color: excelSelectAll ? '#ffffff' : '#28a745',
+                                    fontSize: '1.5rem',
+                                    padding: '2px 2px',
+                                    lineHeight: '1'
+                                  }}
+                                  title={excelSelectAll ? 'Excel 선택 해제' : 'Excel 전체 선택'}
+                                >
+                                  {excelSelectAll ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0,0,256,256" width="20" height="20">
+                                      <g fill="#40c057" fillRule="nonzero">
+                                        <g transform="scale(5.12,5.12)">
+                                          <path d="M7,2c-2.80078,0 -5,2.19922 -5,5v27c0,2.80078 2.19922,5 5,5h27c2.80078,0 5,-2.19922 5,-5v-24.1875l-2,2.1875v22c0,1.69922 -1.30078,3 -3,3h-27c-1.69922,0 -3,-1.30078 -3,-3v-27c0,-1.69922 1.30078,-3 3,-3h26.40625l1.6875,-1.90625c-0.39844,0 -0.69531,-0.09375 -1.09375,-0.09375zM36.25,5.34375l-17.3125,19.25l-8.28125,-7.34375l-1.3125,1.5l9,8l0.75,0.65625l0.65625,-0.75l18,-20zM41,11v2h2c1.69922,0 3,1.30078 3,3v27c0,1.69922 -1.30078,3 -3,3h-27c-1.69922,0 -3,-1.30078 -3,-3v-2h-2v2c0,2.80078 2.19922,5 5,5h27c2.80078,0 5,-2.19922 5,-5v-27c0,-2.80078 -2.19922,-5 -5,-5z" />
+                                        </g>
+                                      </g>
+                                    </svg>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0,0,256,256" width="20" height="20">
+                                      <g fill="#40c057" fillRule="nonzero">
+                                        <g transform="scale(5.12,5.12)">
+                                          <path d="M7,2c-2.80078,0 -5,2.19922 -5,5v27c0,2.80078 2.19922,5 5,5h27c2.80078,0 5,-2.19922 5,-5v-27c0,-0.5 -0.08594,-1 -0.1875,-1.5l-19.71875,21.90625l-9.6875,-8.71875l1.28125,-1.5l8.3125,7.3125l18.6875,-20.8125c-0.89844,-1 -2.1875,-1.6875 -3.6875,-1.6875zM41,11v24c0,3.30078 -2.69922,6 -6,6h-24v2c0,2.80078 2.19922,5 5,5h27c2.80078,0 5,-2.19922 5,-5v-27c0,-2.80078 -2.19922,-5 -5,-5z" />
+                                        </g>
+                                      </g>
+                                    </svg>
+                                  )}
+                                </button>
+                              </div>
+                            </th>
+                            <th style={{ textAlign: 'center' }} className="w-1">
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span>파일보기</span>
-                                  <button
+                                  <span>PDF 파일</span>
+
+                                </div>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm"
+                                  onClick={handleSelectAllPdf}
+                                  style={{
+                                    fontSize: '1.5rem',
+                                    padding: '2px 2px',
+                                    lineHeight: '1'
+                                  }}
+                                  title={pdfSelectAll ? 'PDF 선택 해제' : 'PDF 전체 선택'}
+                                >
+                                  {pdfSelectAll ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0,0,256,256" width="20" height="20">
+                                      <g fill="#dc3545" fillRule="nonzero">
+                                        <g transform="scale(5.12,5.12)">
+                                          <path d="M7,2c-2.80078,0 -5,2.19922 -5,5v27c0,2.80078 2.19922,5 5,5h27c2.80078,0 5,-2.19922 5,-5v-24.1875l-2,2.1875v22c0,1.69922 -1.30078,3 -3,3h-27c-1.69922,0 -3,-1.30078 -3,-3v-27c0,-1.69922 1.30078,-3 3,-3h26.40625l1.6875,-1.90625c-0.39844,0 -0.69531,-0.09375 -1.09375,-0.09375zM36.25,5.34375l-17.3125,19.25l-8.28125,-7.34375l-1.3125,1.5l9,8l0.75,0.65625l0.65625,-0.75l18,-20zM41,11v2h2c1.69922,0 3,1.30078 3,3v27c0,1.69922 -1.30078,3 -3,3h-27c-1.69922,0 -3,-1.30078 -3,-3v-2h-2v2c0,2.80078 2.19922,5 5,5h27c2.80078,0 5,-2.19922 5,-5v-27c0,-2.80078 -2.19922,-5 -5,-5z" />
+                                        </g>
+                                      </g>
+                                    </svg>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0,0,256,256" width="20" height="20">
+                                      <g fill="#dc3545" fillRule="nonzero">
+                                        <g transform="scale(5.12,5.12)">
+                                          <path d="M7,2c-2.80078,0 -5,2.19922 -5,5v27c0,2.80078 2.19922,5 5,5h27c2.80078,0 5,-2.19922 5,-5v-27c0,-0.5 -0.08594,-1 -0.1875,-1.5l-19.71875,21.90625l-9.6875,-8.71875l1.28125,-1.5l8.3125,7.3125l18.6875,-20.8125c-0.89844,-1 -2.1875,-1.6875 -3.6875,-1.6875zM41,11v24c0,3.30078 -2.69922,6 -6,6h-24v2c0,2.80078 2.19922,5 5,5h27c2.80078,0 5,-2.19922 5,-5v-27c0,-2.80078 -2.19922,-5 -5,-5z" />
+                                        </g>
+                                      </g>
+                                    </svg>
+                                  )}
+                                </button>
+                              </div>
+                            </th>
+                            <th style={{ textAlign: 'center' }} className="w-1">
+                              <div style={{textAlign: 'left'}}>
+                              <button
                                     type="button"
                                     className="btn btn-sm btn-outline-primary"
                                     onClick={handleBulkDownload}
@@ -627,42 +697,9 @@ const Invoices: React.FC = () => {
                                   >
                                     일괄다운로드
                                   </button>
-                                </div>
-                                <div style={{ display: 'flex', gap: '4px' }}>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm"
-                                    onClick={handleSelectAllExcel}
-                                    style={{
-                                      backgroundColor: excelSelectAll ? '#28a745' : 'transparent',
-                                      color: excelSelectAll ? '#ffffff' : '#28a745',
-                                      fontSize: '1.2rem',
-                                      padding: '4px 8px',
-                                      border: 'none'
-                                    }}
-                                    title={excelSelectAll ? 'Excel 선택 해제' : 'Excel 전체 선택'}
-                                  >
-                                    <i className={excelSelectAll ? 'fa fa-minus-square' : 'fa fa-check-square-o'}></i>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm"
-                                    onClick={handleSelectAllPdf}
-                                    style={{
-                                      backgroundColor: pdfSelectAll ? '#dc3545' : 'transparent',
-                                      color: pdfSelectAll ? '#ffffff' : '#dc3545',
-                                      fontSize: '1.2rem',
-                                      padding: '4px 8px',
-                                      border: 'none'
-                                    }}
-                                    title={pdfSelectAll ? 'PDF 선택 해제' : 'PDF 전체 선택'}
-                                  >
-                                    <i className={pdfSelectAll ? 'fa fa-minus-square' : 'fa fa-check-square-o'}></i>
-                                  </button>
-                                </div>
-                              </div>
+                                  </div>
+                                  작업
                             </th>
-                            <th style={{ textAlign: 'center' }} className="w-1">작업</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -768,68 +805,67 @@ const Invoices: React.FC = () => {
                                   )}
                                 </div>
                               </td>
-                              <td data-label="파일보기" className="text-center">
-                                <div className="d-flex gap-2 justify-content-center align-items-center">
-                                  {invoice.has_excel !== false ? (
-                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedExcelIds.includes(invoice.id)}
-                                        onChange={() => toggleSelectExcel(invoice.id)}
-                                      />
-                                      <span
-                                        onClick={() => handleDownloadExcel(invoice.customer_name)}
-                                        className="badge"
-                                        style={{
-                                          cursor: 'pointer',
-                                          fontSize: '0.75rem',
-                                          padding: '0.35rem 0.5rem',
-                                          backgroundColor: '#ffffffff',
-                                          border: '1px solid #009714ff',
-                                          color: '#00ac17d2'
-                                        }}
-                                        title="Excel 파일 다운로드"
-                                      >
-                                        .xlsx
-                                      </span>
-                                    </label>
-                                  ) : (
-                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: 0.5 }}>
-                                      <input type="checkbox" disabled />
-                                      <span className="badge bg-secondary" style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }} title="Excel 파일 없음">N/A</span>
-                                    </label>
-                                  )}
-
-                                  {invoice.has_pdf !== false ? (
-                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedPdfIds.includes(invoice.id)}
-                                        onChange={() => toggleSelectPdf(invoice.id)}
-                                      />
-                                      <span
-                                        onClick={() => handleDownloadPDF(invoice.customer_name)}
-                                        className="badge"
-                                        style={{
-                                          cursor: 'pointer',
-                                          fontSize: '0.75rem',
-                                          padding: '0.35rem 0.5rem',
-                                          backgroundColor: '#ffffffff',
-                                          border: '1px solid #ff0000ff',
-                                          color: '#ff0000ff'
-                                        }}
-                                        title="PDF 파일 다운로드"
-                                      >
-                                        .pdf
-                                      </span>
-                                    </label>
-                                  ) : (
-                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: 0.5 }}>
-                                      <input type="checkbox" disabled />
-                                      <span className="badge bg-secondary" style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }} title="PDF 파일 없음">N/A</span>
-                                    </label>
-                                  )}
-                                </div>
+                              <td data-label="Excel 파일" className="text-center" >
+                                {invoice.has_excel !== false ? (
+                                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedExcelIds.includes(invoice.id)}
+                                      onChange={() => toggleSelectExcel(invoice.id)}
+                                    />
+                                    <span
+                                      onClick={() => handleDownloadExcel(invoice.customer_name)}
+                                      className="badge"
+                                      style={{
+                                        cursor: 'pointer',
+                                        fontSize: '0.75rem',
+                                        padding: '0.35rem 0.5rem',
+                                        backgroundColor: '#ffffffff',
+                                        border: '1px solid #009714ff',
+                                        color: '#00ac17d2'
+                                      }}
+                                      title="Excel 파일 다운로드"
+                                    >
+                                      .xlsx
+                                    </span>
+                                  </label>
+                                ) : (
+                                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: 0.5 }}>
+                                    <input type="checkbox" disabled />
+                                    <span className="badge bg-secondary" style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }} title="Excel 파일 없음">N/A</span>
+                                  </label>
+                                )}
+                              </td>
+                              <td data-label="PDF 파일" className="text-center">
+                                {invoice.has_pdf !== false ? (
+                                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedPdfIds.includes(invoice.id)}
+                                      onChange={() => toggleSelectPdf(invoice.id)}
+                                    />
+                                    <span
+                                      onClick={() => handleDownloadPDF(invoice.customer_name)}
+                                      className="badge"
+                                      style={{
+                                        cursor: 'pointer',
+                                        fontSize: '0.75rem',
+                                        padding: '0.35rem 0.5rem',
+                                        backgroundColor: '#ffffffff',
+                                        border: '1px solid #ff0000ff',
+                                        color: '#ff0000ff'
+                                      }}
+                                      title="PDF 파일 다운로드"
+                                    >
+                                      .pdf
+                                    </span>
+                                  </label>
+                                ) : (
+                                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: 0.5 }}>
+                                    <input type="checkbox" disabled />
+                                    <span className="badge bg-secondary" style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }} title="PDF 파일 없음">N/A</span>
+                                  </label>
+                                )}
                               </td>
                               <td className="text-center">
                                 <div className="d-flex gap-1 justify-content-center">

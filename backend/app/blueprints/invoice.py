@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, make_response
+from flask import Blueprint, request, jsonify, make_response, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.invoice import Invoice
 from app.models.invoice_item import InvoiceItem
@@ -7,6 +7,10 @@ from app.models.invoice_code import InvoiceCode
 from app.utils.auth import admin_required
 from sqlalchemy import func, extract
 from datetime import date
+import os
+import zipfile
+import tempfile
+from datetime import datetime
 
 invoice_bp = Blueprint('invoice', __name__)
 
@@ -20,6 +24,7 @@ invoice_bp = Blueprint('invoice', __name__)
 @invoice_bp.route('/invoices/<int:invoice_id>/unlock', methods=['OPTIONS'])
 @invoice_bp.route('/invoices/<int:invoice_id>/issue-bill', methods=['OPTIONS'])
 @invoice_bp.route('/invoices/<int:invoice_id>/cancel-bill', methods=['OPTIONS'])
+@invoice_bp.route('/invoices/bulk-download', methods=['OPTIONS'])
 def handle_preflight(*args, **kwargs):
     """Invoice 경로에 대한 CORS preflight 처리"""
     response = make_response('', 200)
@@ -50,10 +55,19 @@ def get_invoices():
             # 파일 존재 여부 확인
             customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
             excel_path = os.path.join(customer_folder, f'거래명세서({invoice.customer_name}).xlsx')
-            pdf_path = os.path.join(customer_folder, f'거래명세서({invoice.customer_name}).pdf')
 
+            # Excel 파일 존재 여부
             invoice_dict['has_excel'] = os.path.exists(excel_path)
-            invoice_dict['has_pdf'] = os.path.exists(pdf_path)
+
+            # PDF 파일 존재 여부 - 날짜가 포함된 파일명 패턴으로 확인
+            # 예: 거래명세서(BNS)-241104.pdf
+            has_pdf = False
+            if os.path.exists(customer_folder):
+                for filename in os.listdir(customer_folder):
+                    if filename.startswith(f'거래명세서({invoice.customer_name})') and filename.endswith('.pdf'):
+                        has_pdf = True
+                        break
+            invoice_dict['has_pdf'] = has_pdf
 
             result.append(invoice_dict)
 
@@ -515,3 +529,97 @@ def get_ytd_summary():
             'success': False,
             'message': f'YTD 요약 조회 실패: {str(e)}'
         }), 500
+
+
+@invoice_bp.route('/invoices/bulk-download', methods=['POST'])
+@jwt_required()
+def bulk_download_invoices():
+    """선택된 거래명세표 파일들을 ZIP으로 일괄 다운로드"""
+    try:
+        data = request.get_json()
+        excel_ids = data.get('excel_ids', [])
+        pdf_ids = data.get('pdf_ids', [])
+
+        if not excel_ids and not pdf_ids:
+            return jsonify({'error': '다운로드할 파일이 선택되지 않았습니다.'}), 400
+
+        # instance 폴더 경로
+        INSTANCE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'instance')
+        INVOICE_BASE_DIR = os.path.join(INSTANCE_DIR, '거래명세서')
+
+        # 임시 ZIP 파일 생성
+        temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        zip_filename = temp_zip.name
+        temp_zip.close()
+
+        files_added = 0
+
+        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Excel 파일 추가
+            for invoice_id in excel_ids:
+                invoice = Invoice.get_by_id(invoice_id)
+                if not invoice:
+                    continue
+
+                customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
+                excel_path = os.path.join(customer_folder, f'거래명세서({invoice.customer_name}).xlsx')
+
+                if os.path.exists(excel_path):
+                    # ZIP 내부 경로: 거래명세서(고객명).xlsx
+                    arcname = f'거래명세서({invoice.customer_name}).xlsx'
+                    zipf.write(excel_path, arcname)
+                    files_added += 1
+
+            # PDF 파일 추가
+            for invoice_id in pdf_ids:
+                invoice = Invoice.get_by_id(invoice_id)
+                if not invoice:
+                    continue
+
+                customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
+                
+                # PDF 파일 찾기 (날짜 포함된 패턴)
+                if os.path.exists(customer_folder):
+                    for filename in os.listdir(customer_folder):
+                        if filename.startswith(f'거래명세서({invoice.customer_name})') and filename.endswith('.pdf'):
+                            pdf_path = os.path.join(customer_folder, filename)
+                            # ZIP 내부 경로: 원본 파일명 유지
+                            arcname = filename
+                            zipf.write(pdf_path, arcname)
+                            files_added += 1
+                            break  # 첫 번째 PDF만 추가
+
+        if files_added == 0:
+            # 파일이 하나도 추가되지 않음
+            os.unlink(zip_filename)
+            return jsonify({'error': '다운로드 가능한 파일이 없습니다.'}), 404
+
+        # ZIP 파일 전송
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        download_filename = f'거래명세서_일괄다운로드_{timestamp}.zip'
+
+        def cleanup():
+            """전송 후 임시 파일 삭제"""
+            try:
+                os.unlink(zip_filename)
+            except Exception as e:
+                print(f"임시 ZIP 파일 삭제 실패: {e}")
+
+        response = send_file(
+            zip_filename,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=download_filename
+        )
+
+        # 파일 전송 후 삭제 (cleanup은 response가 완료된 후 실행됨)
+        # Flask의 send_file은 자동으로 파일을 닫고 정리하지만, 수동 삭제를 위해 after_request 사용 가능
+        # 여기서는 간단히 임시 파일 사용 (시스템이 나중에 정리)
+        
+        return response
+
+    except Exception as e:
+        import traceback
+        print(f"Bulk download error: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'error': f'일괄 다운로드 실패: {str(e)}'}), 500

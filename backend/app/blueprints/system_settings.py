@@ -147,3 +147,100 @@ def set_fax_printer():
             'success': False,
             'message': f'팩스 프린터 설정 실패: {str(e)}'
         }), 500
+
+
+@system_settings_bp.route('/system/libreoffice-path', methods=['GET'])
+@jwt_required()
+def get_libreoffice_path():
+    """저장된 LibreOffice 경로 설정 조회"""
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.get_by_id(current_user_id)
+
+        if not user or not user.is_admin:
+            return jsonify({
+                'success': False,
+                'message': '관리자만 접근할 수 있습니다.'
+            }), 403
+
+        conn = get_db_connection()
+        setting = conn.execute(
+            "SELECT value FROM system_settings WHERE key = 'libreoffice_path'"
+        ).fetchone()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'libreoffice_path': setting['value'] if setting else None
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'LibreOffice 경로 조회 실패: {str(e)}'
+        }), 500
+
+
+@system_settings_bp.route('/system/libreoffice-path', methods=['POST'])
+@jwt_required()
+def set_libreoffice_path():
+    """LibreOffice 경로 설정 저장"""
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.get_by_id(current_user_id)
+
+        if not user or not user.is_admin:
+            return jsonify({
+                'success': False,
+                'message': '관리자만 접근할 수 있습니다.'
+            }), 403
+
+        data = request.get_json()
+        libreoffice_path = data.get('libreoffice_path')
+
+        if not libreoffice_path:
+            return jsonify({
+                'success': False,
+                'message': 'LibreOffice 경로가 필요합니다.'
+            }), 400
+
+        # 경로 유효성 검증
+        if not os.path.exists(libreoffice_path):
+            return jsonify({
+                'success': False,
+                'message': '입력한 경로가 존재하지 않습니다. 경로를 확인해주세요.'
+            }), 400
+
+        conn = get_db_connection()
+
+        # 기존 설정 확인
+        existing = conn.execute(
+            "SELECT * FROM system_settings WHERE key = 'libreoffice_path'"
+        ).fetchone()
+
+        if existing:
+            # 업데이트
+            conn.execute(
+                "UPDATE system_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'libreoffice_path'",
+                (libreoffice_path,)
+            )
+        else:
+            # 새로 생성
+            conn.execute(
+                "INSERT INTO system_settings (key, value) VALUES ('libreoffice_path', ?)",
+                (libreoffice_path,)
+            )
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'LibreOffice 경로가 설정되었습니다.'
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'LibreOffice 경로 설정 실패: {str(e)}'
+        }), 500

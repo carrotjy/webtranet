@@ -63,7 +63,9 @@ const SpareParts: React.FC = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
   const [selectedPart, setSelectedPart] = useState<SparePart | null>(null);
+  const [selectedHistory, setSelectedHistory] = useState<SparePartHistory | null>(null);
   const [history, setHistory] = useState<SparePartHistory[]>([]);
   
   // 입출고 내역 페이지네이션 상태
@@ -100,7 +102,8 @@ const SpareParts: React.FC = () => {
     quantity: 0,
     reference_number: '',
     customer_name: '',
-    is_existing_part: false
+    is_existing_part: false,
+    transaction_date: new Date().toISOString().split('T')[0]
   });
   const [stockModalError, setStockModalError] = useState<string>('');
   const [customers, setCustomers] = useState<any[]>([]);
@@ -216,7 +219,8 @@ const SpareParts: React.FC = () => {
       quantity: 0,
       reference_number: '',
       customer_name: '',
-      is_existing_part: false
+      is_existing_part: false,
+      transaction_date: new Date().toISOString().split('T')[0]
     });
     setStockModalError('');
   };
@@ -233,7 +237,8 @@ const SpareParts: React.FC = () => {
       quantity: 0,
       reference_number: '',
       customer_name: '',
-      is_existing_part: false
+      is_existing_part: false,
+      transaction_date: new Date().toISOString().split('T')[0]
     });
     setStockModalError('');
   };
@@ -316,6 +321,65 @@ const SpareParts: React.FC = () => {
       alert(`삭제 실패: ${errorMsg}`);
     } finally {
       setDeletingHistoryId(null);
+    }
+  };
+
+  // 입출고 내역 수정 모달 열기
+  const openEditHistoryModal = (record: SparePartHistory) => {
+    setSelectedHistory(record);
+    setStockTransaction({
+      part_number: record.part_number,
+      part_name: record.part_name || '',
+      erp_name: '',
+      quantity: record.quantity,
+      reference_number: record.reference_number || '',
+      customer_name: record.customer_name || '',
+      is_existing_part: true,
+      transaction_date: record.transaction_date.split('T')[0]
+    });
+    setShowEditHistoryModal(true);
+  };
+
+  // 입출고 내역 수정 처리
+  const handleEditHistory = async () => {
+    if (!selectedHistory || !user?.is_admin) {
+      alert('관리자만 입출고 내역을 수정할 수 있습니다.');
+      return;
+    }
+
+    try {
+      const response = await api.put(`/api/spare-parts/history/${selectedHistory.id}`, {
+        quantity: stockTransaction.quantity,
+        transaction_date: stockTransaction.transaction_date,
+        reference_number: stockTransaction.reference_number,
+        customer_name: stockTransaction.customer_name
+      });
+
+      if (response.data.success) {
+        alert('입출고 내역이 수정되었습니다.');
+        setShowEditHistoryModal(false);
+        setSelectedHistory(null);
+        setStockTransaction({
+          part_number: '',
+          part_name: '',
+          erp_name: '',
+          quantity: 0,
+          reference_number: '',
+          customer_name: '',
+          is_existing_part: false,
+          transaction_date: new Date().toISOString().split('T')[0]
+        });
+        setStockModalError('');
+        // 입출고 내역 새로고침
+        await fetchAllHistory();
+        // 부품 목록도 새로고침 (재고가 변경되었을 수 있으므로)
+        await fetchSpareParts();
+      } else {
+        setStockModalError(response.data.message || '수정에 실패했습니다.');
+      }
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || err.message || '입출고 내역 수정 중 오류가 발생했습니다.';
+      setStockModalError(errorMsg);
     }
   };
 
@@ -521,7 +585,8 @@ const SpareParts: React.FC = () => {
           part_number: stockTransaction.part_number,
           transaction_type: 'IN',
           quantity: stockTransaction.quantity,
-          transaction_date: new Date().toISOString().split('T')[0]
+          reference_number: stockTransaction.reference_number,
+          transaction_date: stockTransaction.transaction_date
         });
       } else {
         // 새 부품 등록 후 입고
@@ -537,7 +602,8 @@ const SpareParts: React.FC = () => {
           part_number: stockTransaction.part_number,
           transaction_type: 'IN',
           quantity: stockTransaction.quantity,
-          transaction_date: new Date().toISOString().split('T')[0]
+          reference_number: stockTransaction.reference_number,
+          transaction_date: stockTransaction.transaction_date
         });
       }
 
@@ -551,7 +617,8 @@ const SpareParts: React.FC = () => {
         quantity: 0,
         reference_number: '',
         customer_name: '',
-        is_existing_part: false
+        is_existing_part: false,
+        transaction_date: new Date().toISOString().split('T')[0]
       });
       setStockModalError('');
 
@@ -576,9 +643,9 @@ const SpareParts: React.FC = () => {
         quantity: stockTransaction.quantity,
         reference_number: stockTransaction.reference_number,
         customer_name: stockTransaction.customer_name,
-        transaction_date: new Date().toISOString().split('T')[0]
+        transaction_date: stockTransaction.transaction_date
       });
-      
+
       setShowStockOutModal(false);
       setShowPartSuggestions(false);
       setPartNumberSuggestions([]);
@@ -590,7 +657,8 @@ const SpareParts: React.FC = () => {
         quantity: 0,
         reference_number: '',
         customer_name: '',
-        is_existing_part: false
+        is_existing_part: false,
+        transaction_date: new Date().toISOString().split('T')[0]
       });
       setStockModalError('');
 
@@ -981,7 +1049,7 @@ const SpareParts: React.FC = () => {
                           <th>현재재고</th>
                           <th>요청자</th>
                           <th>사용처/참조</th>
-                          {user?.is_admin && <th style={{width: '60px'}}>삭제</th>}
+                          {user?.is_admin && <th style={{width: '100px'}}>작업</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -1037,18 +1105,32 @@ const SpareParts: React.FC = () => {
                                 </td>
                                 {user?.is_admin && (
                                   <td>
-                                    <button
-                                      className="btn btn-sm btn-ghost-danger"
-                                      onClick={() => deleteStockHistory(record.id)}
-                                      disabled={deletingHistoryId === record.id}
-                                      title="삭제"
-                                    >
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-x" width="20" height="20" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                                        <path d="M18 6l-12 12"></path>
-                                        <path d="M6 6l12 12"></path>
-                                      </svg>
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                      <button
+                                        className="btn btn-sm btn-ghost-primary"
+                                        onClick={() => openEditHistoryModal(record)}
+                                        title="수정"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-edit" width="20" height="20" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                                          <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                          <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1"></path>
+                                          <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z"></path>
+                                          <path d="M16 5l3 3"></path>
+                                        </svg>
+                                      </button>
+                                      <button
+                                        className="btn btn-sm btn-ghost-danger"
+                                        onClick={() => deleteStockHistory(record.id)}
+                                        disabled={deletingHistoryId === record.id}
+                                        title="삭제"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-x" width="20" height="20" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                                          <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                          <path d="M18 6l-12 12"></path>
+                                          <path d="M6 6l12 12"></path>
+                                        </svg>
+                                      </button>
+                                    </div>
                                   </td>
                                 )}
                               </tr>
@@ -1387,7 +1469,7 @@ const SpareParts: React.FC = () => {
                   </div>
                 </div>
                 <div className="row mt-3">
-                  <div className="col-md-6">
+                  <div className="col-md-4">
                     <label className="form-label">입고 수량</label>
                     <input
                       type="number"
@@ -1397,7 +1479,16 @@ const SpareParts: React.FC = () => {
                       min="1"
                     />
                   </div>
-                  <div className="col-md-6">
+                  <div className="col-md-4">
+                    <label className="form-label">입고일자</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={stockTransaction.transaction_date}
+                      onChange={(e) => setStockTransaction({...stockTransaction, transaction_date: e.target.value})}
+                    />
+                  </div>
+                  <div className="col-md-4">
                     <label className="form-label">참조번호 (선택사항)</label>
                     <input
                       type="text"
@@ -2175,6 +2266,140 @@ const SpareParts: React.FC = () => {
                   disabled={newPrice.price <= 0}
                 >
                   가격 추가
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 입출고 내역 수정 모달 */}
+      {showEditHistoryModal && selectedHistory && (
+        <div
+          className="modal modal-blur fade show"
+          style={{ display: 'block' }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
+        >
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">입출고 내역 수정</h5>
+                <button type="button" className="btn-close" onClick={() => {
+                  setShowEditHistoryModal(false);
+                  setSelectedHistory(null);
+                  setStockModalError('');
+                  setStockTransaction({
+                    part_number: '',
+                    part_name: '',
+                    erp_name: '',
+                    quantity: 0,
+                    reference_number: '',
+                    customer_name: '',
+                    is_existing_part: false,
+                    transaction_date: new Date().toISOString().split('T')[0]
+                  });
+                }}></button>
+              </div>
+              <div className="modal-body">
+                {stockModalError && (
+                  <div className="alert alert-danger" role="alert">
+                    {stockModalError}
+                  </div>
+                )}
+                <div className="row">
+                  <div className="col-md-6">
+                    <label className="form-label">부품번호</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={stockTransaction.part_number}
+                      disabled
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">부품명</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={stockTransaction.part_name}
+                      disabled
+                    />
+                  </div>
+                </div>
+                <div className="row mt-3">
+                  <div className="col-md-6">
+                    <label className="form-label">구분</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={selectedHistory.transaction_type === 'IN' ? '입고' : '출고'}
+                      disabled
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">수량</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={stockTransaction.quantity}
+                      onChange={(e) => setStockTransaction({...stockTransaction, quantity: parseInt(e.target.value) || 0})}
+                      min="1"
+                    />
+                  </div>
+                </div>
+                <div className="row mt-3">
+                  <div className="col-md-6">
+                    <label className="form-label">{selectedHistory.transaction_type === 'IN' ? '입고일자' : '출고일자'}</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={stockTransaction.transaction_date}
+                      onChange={(e) => setStockTransaction({...stockTransaction, transaction_date: e.target.value})}
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">{selectedHistory.transaction_type === 'IN' ? '참조번호' : '사용처/고객명'}</label>
+                    {selectedHistory.transaction_type === 'IN' ? (
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={stockTransaction.reference_number}
+                        onChange={(e) => setStockTransaction({...stockTransaction, reference_number: e.target.value})}
+                        placeholder="인보이스 번호 등"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={stockTransaction.customer_name}
+                        onChange={(e) => setStockTransaction({...stockTransaction, customer_name: e.target.value})}
+                        placeholder="고객명"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => {
+                  setShowEditHistoryModal(false);
+                  setSelectedHistory(null);
+                  setStockModalError('');
+                  setStockTransaction({
+                    part_number: '',
+                    part_name: '',
+                    erp_name: '',
+                    quantity: 0,
+                    reference_number: '',
+                    customer_name: '',
+                    is_existing_part: false,
+                    transaction_date: new Date().toISOString().split('T')[0]
+                  });
+                }}>
+                  취소
+                </button>
+                <button type="button" className="btn btn-primary" onClick={handleEditHistory}>
+                  수정 완료
                 </button>
               </div>
             </div>

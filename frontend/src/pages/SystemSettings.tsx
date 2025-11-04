@@ -14,6 +14,11 @@ const SystemSettings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // LibreOffice 경로 설정
+  const [libreOfficePath, setLibreOfficePath] = useState<string>('');
+  const [libreOfficeLoading, setLibreOfficeLoading] = useState(false);
+  const [libreOfficeSaveMessage, setLibreOfficeSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   // Check if user is admin
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -25,6 +30,7 @@ const SystemSettings: React.FC = () => {
 
     fetchPrinters();
     fetchCurrentFaxPrinter();
+    fetchLibreOfficePath();
   }, [navigate]);
 
   const fetchPrinters = async () => {
@@ -60,6 +66,22 @@ const SystemSettings: React.FC = () => {
     }
   };
 
+  const fetchLibreOfficePath = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/system/libreoffice-path', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.data.success && response.data.libreoffice_path) {
+        setLibreOfficePath(response.data.libreoffice_path);
+      }
+    } catch (error: any) {
+      console.error('LibreOffice 경로 조회 실패:', error);
+    }
+  };
+
   const handleSaveFaxPrinter = async () => {
     if (!selectedPrinter) {
       setSaveMessage({ type: 'error', text: '프린터를 선택해주세요.' });
@@ -91,6 +113,40 @@ const SystemSettings: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveLibreOfficePath = async () => {
+    if (!libreOfficePath.trim()) {
+      setLibreOfficeSaveMessage({ type: 'error', text: 'LibreOffice 경로를 입력해주세요.' });
+      return;
+    }
+
+    setLibreOfficeLoading(true);
+    setLibreOfficeSaveMessage(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/system/libreoffice-path', {
+        libreoffice_path: libreOfficePath
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.data.success) {
+        setLibreOfficeSaveMessage({ type: 'success', text: 'LibreOffice 경로가 설정되었습니다.' });
+        setTimeout(() => setLibreOfficeSaveMessage(null), 3000);
+      }
+    } catch (error: any) {
+      console.error('LibreOffice 경로 설정 실패:', error);
+      setLibreOfficeSaveMessage({
+        type: 'error',
+        text: error.response?.data?.message || '설정 저장에 실패했습니다.'
+      });
+    } finally {
+      setLibreOfficeLoading(false);
     }
   };
 
@@ -181,7 +237,70 @@ const SystemSettings: React.FC = () => {
         </div>
       </div>
 
-      {/* 추가 설정 섹션은 여기에 추가 가능 */}
+      {/* LibreOffice 경로 설정 섹션 */}
+      <div className="card mb-4">
+        <div className="card-header bg-success text-white">
+          <h5 className="mb-0">
+            <i className="bi bi-file-earmark-pdf me-2"></i>
+            LibreOffice 경로 설정
+          </h5>
+        </div>
+        <div className="card-body">
+          <p className="text-muted">
+            거래명세표 PDF 생성 시 사용할 LibreOffice 프로그램의 soffice.exe 경로를 입력하세요.
+          </p>
+
+          <div className="alert alert-info">
+            <strong>Windows 기본 설치 경로:</strong>
+            <ul className="mb-0 mt-2">
+              <li><code>C:\Program Files\LibreOffice\program\soffice.exe</code> (64비트)</li>
+              <li><code>C:\Program Files (x86)\LibreOffice\program\soffice.exe</code> (32비트)</li>
+            </ul>
+          </div>
+
+          <div className="mb-3">
+            <label htmlFor="libreoffice-path" className="form-label fw-bold">
+              LibreOffice 경로
+            </label>
+            <input
+              type="text"
+              id="libreoffice-path"
+              className="form-control"
+              placeholder="예: C:\Program Files\LibreOffice\program\soffice.exe"
+              value={libreOfficePath}
+              onChange={(e) => setLibreOfficePath(e.target.value)}
+            />
+            <small className="text-muted">
+              LibreOffice가 설치되지 않은 경우 <a href="https://www.libreoffice.org/download/download/" target="_blank" rel="noopener noreferrer">여기서 다운로드</a>하세요.
+            </small>
+          </div>
+
+          {libreOfficeSaveMessage && (
+            <div className={`alert alert-${libreOfficeSaveMessage.type === 'success' ? 'success' : 'danger'}`}>
+              <i className={`bi bi-${libreOfficeSaveMessage.type === 'success' ? 'check-circle' : 'exclamation-circle'} me-2`}></i>
+              {libreOfficeSaveMessage.text}
+            </div>
+          )}
+
+          <button
+            className="btn btn-success"
+            onClick={handleSaveLibreOfficePath}
+            disabled={libreOfficeLoading || !libreOfficePath.trim()}
+          >
+            {libreOfficeLoading ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                저장 중...
+              </>
+            ) : (
+              <>
+                <i className="bi bi-save me-2"></i>
+                경로 저장
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

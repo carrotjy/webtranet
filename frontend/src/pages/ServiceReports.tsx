@@ -3990,7 +3990,12 @@ const ServiceReports: React.FC = () => {
                                       step="0.1"
                                       className="form-control form-control-sm"
                                       style={{color: item.isNego ? '#dc3545' : 'inherit'}}
-                                      value={item.quantity}
+                                      value={
+                                        // 서비스 비용 항목(작업시간, 이동시간)은 소수점 1자리까지 표시
+                                        (item.item_name === '작업시간' || item.item_name === '이동시간')
+                                          ? Number(item.quantity).toFixed(1)
+                                          : item.quantity
+                                      }
                                       onChange={(e) => updateLineItem(item.id, 'quantity', e.target.value)}
                                     />
                                   </td>

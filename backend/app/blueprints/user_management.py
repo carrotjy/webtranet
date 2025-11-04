@@ -82,7 +82,19 @@ def create_user():
             spare_parts_create=data.get('spare_parts_create', False),
             spare_parts_read=data.get('spare_parts_read', False),
             spare_parts_update=data.get('spare_parts_update', False),
-            spare_parts_delete_crud=data.get('spare_parts_delete_crud', False)
+            spare_parts_delete_crud=data.get('spare_parts_delete_crud', False),
+            # 부품 입출고 권한
+            spare_parts_stock_in=data.get('spare_parts_stock_in', True),
+            spare_parts_stock_out=data.get('spare_parts_stock_out', True),
+            spare_parts_stock_history_edit=data.get('spare_parts_stock_history_edit', False),
+            spare_parts_stock_history_delete=data.get('spare_parts_stock_history_delete', False),
+            # 추가 기능 권한
+            service_report_lock=data.get('service_report_lock', True),
+            transaction_excel_export=data.get('transaction_excel_export', True),
+            transaction_lock=data.get('transaction_lock', True),
+            transaction_bill_view=data.get('transaction_bill_view', True),
+            transaction_fax_send=data.get('transaction_fax_send', True),
+            transaction_file_download=data.get('transaction_file_download', True)
         )
         
         user_id = user.save()
@@ -168,6 +180,20 @@ def update_user(user_id):
         user.spare_parts_read = data.get('spare_parts_read', getattr(user, 'spare_parts_read', False))
         user.spare_parts_update = data.get('spare_parts_update', getattr(user, 'spare_parts_update', False))
         user.spare_parts_delete_crud = data.get('spare_parts_delete_crud', getattr(user, 'spare_parts_delete_crud', False))
+        
+        # 부품 입출고 권한 업데이트
+        user.spare_parts_stock_in = data.get('spare_parts_stock_in', getattr(user, 'spare_parts_stock_in', True))
+        user.spare_parts_stock_out = data.get('spare_parts_stock_out', getattr(user, 'spare_parts_stock_out', True))
+        user.spare_parts_stock_history_edit = data.get('spare_parts_stock_history_edit', getattr(user, 'spare_parts_stock_history_edit', False))
+        user.spare_parts_stock_history_delete = data.get('spare_parts_stock_history_delete', getattr(user, 'spare_parts_stock_history_delete', False))
+        
+        # 추가 기능 권한 업데이트
+        user.service_report_lock = data.get('service_report_lock', getattr(user, 'service_report_lock', True))
+        user.transaction_excel_export = data.get('transaction_excel_export', getattr(user, 'transaction_excel_export', True))
+        user.transaction_lock = data.get('transaction_lock', getattr(user, 'transaction_lock', True))
+        user.transaction_bill_view = data.get('transaction_bill_view', getattr(user, 'transaction_bill_view', True))
+        user.transaction_fax_send = data.get('transaction_fax_send', getattr(user, 'transaction_fax_send', True))
+        user.transaction_file_download = data.get('transaction_file_download', getattr(user, 'transaction_file_download', True))
         
         if user.save():
             return jsonify({

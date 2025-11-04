@@ -1,3 +1,14 @@
+"""
+거래명세서 생성 모듈
+
+⚠️ 중요: 이 파일은 현재 직접적으로 사용되지 않습니다.
+실제 거래명세서 생성은 invoice_generator_v2.py를 사용합니다.
+(참조: invoice.py:312에서 generate_invoice_excel_v2 import)
+
+이 파일은 참고용으로 유지되며, 향후 수정이 필요할 경우
+invoice_generator_v2.py를 수정해야 합니다.
+"""
+
 from flask import Blueprint, request, jsonify, send_file
 import os
 import shutil
@@ -640,6 +651,31 @@ def convert_to_pdf_weasyprint(items: list, service_date: str, customer_info: dic
         traceback.print_exc()
         return False
 
+def get_libreoffice_path_from_settings():
+    """시스템 설정에서 LibreOffice 경로 조회"""
+    try:
+        import sqlite3
+        # webtranet.db에 연결 (system_settings 테이블이 있는 DB)
+        db_path = os.path.join('app', 'database', 'webtranet.db')
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+
+        setting = conn.execute(
+            "SELECT value FROM system_settings WHERE key = 'libreoffice_path'"
+        ).fetchone()
+        conn.close()
+
+        if setting and setting['value']:
+            print(f"✅ DB에서 LibreOffice 경로 조회 성공: {setting['value']}")
+            return setting['value']
+        else:
+            print("❌ DB에 LibreOffice 경로가 저장되지 않음")
+        return None
+    except Exception as e:
+        print(f"❌ LibreOffice 경로 설정 조회 실패: {str(e)}")
+        return None
+
+
 def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_names: list = None) -> bool:
     """
     LibreOffice를 사용하여 Excel 파일을 PDF로 변환
@@ -692,67 +728,79 @@ def convert_excel_to_pdf_libreoffice(excel_path: str, pdf_path: str, sheet_names
         system = platform.system()
         print(f"운영체제: {system}")
 
-        if system == 'Windows':
-            # Windows에서 LibreOffice 경로 시도
-            possible_paths = [
-                r'C:\Program Files\LibreOffice\program\soffice.exe',
-                r'C:\Program Files (x86)\LibreOffice\program\soffice.exe',
-                'soffice.exe'  # PATH에 있는 경우
-            ]
-            soffice_cmd = None
-            for path in possible_paths:
-                print(f"Windows LibreOffice 경로 확인 중: {path}")
-                if os.path.exists(path):
-                    soffice_cmd = path
-                    print(f"LibreOffice 찾음: {path}")
-                    break
-            if not soffice_cmd:
-                soffice_cmd = 'soffice.exe'  # PATH에서 시도
-                print(f"기본 명령어 사용: {soffice_cmd}")
-        else:
-            # Linux/Mac에서는 여러 가능한 경로 시도
-            possible_commands = ['libreoffice', 'libreoffice7.0', 'libreoffice6.4', 'soffice']
-            soffice_cmd = None
+        soffice_cmd = None
 
-            # which 명령어로 실제 경로 찾기
-            for cmd in possible_commands:
-                try:
-                    result = subprocess.run(
-                        ['which', cmd],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        timeout=5,
-                        check=False
-                    )
-                    if result.returncode == 0:
-                        found_path = result.stdout.decode('utf-8').strip()
-                        if found_path and os.path.exists(found_path):
-                            soffice_cmd = found_path
-                            print(f"LibreOffice 찾음: {found_path}")
-                            break
-                except Exception as e:
-                    print(f"'{cmd}' 명령어 검색 실패: {str(e)}")
+        # 1순위: 시스템 설정에서 저장된 경로 확인
+        custom_path = get_libreoffice_path_from_settings()
+        if custom_path:
+            print(f"시스템 설정에서 LibreOffice 경로 발견: {custom_path}")
+            if os.path.exists(custom_path):
+                soffice_cmd = custom_path
+                print(f"사용자 지정 LibreOffice 경로 사용: {soffice_cmd}")
+            else:
+                print(f"경고: 설정된 경로가 존재하지 않음: {custom_path}")
 
-            # which로 못 찾은 경우 직접 경로 확인
-            if not soffice_cmd:
+        # 2순위: 기본 경로들 확인
+        if not soffice_cmd:
+            if system == 'Windows':
+                # Windows에서 LibreOffice 경로 시도
                 possible_paths = [
-                    '/usr/bin/libreoffice',
-                    '/usr/local/bin/libreoffice',
-                    '/snap/bin/libreoffice',
-                    '/usr/bin/soffice',
-                    '/usr/local/bin/soffice'
+                    r'C:\Program Files\LibreOffice\program\soffice.exe',
+                    r'C:\Program Files (x86)\LibreOffice\program\soffice.exe',
+                    'soffice.exe'  # PATH에 있는 경우
                 ]
                 for path in possible_paths:
-                    print(f"Linux LibreOffice 경로 확인 중: {path}")
+                    print(f"Windows LibreOffice 경로 확인 중: {path}")
                     if os.path.exists(path):
                         soffice_cmd = path
                         print(f"LibreOffice 찾음: {path}")
                         break
+                if not soffice_cmd:
+                    soffice_cmd = 'soffice.exe'  # PATH에서 시도
+                    print(f"기본 명령어 사용: {soffice_cmd}")
+            else:
+                # Linux/Mac에서는 여러 가능한 경로 시도
+                possible_commands = ['libreoffice', 'libreoffice7.0', 'libreoffice6.4', 'soffice']
 
-            # 여전히 못 찾은 경우 기본 명령어 사용
-            if not soffice_cmd:
-                soffice_cmd = 'libreoffice'
-                print(f"기본 명령어 사용 (PATH에 있기를 기대): {soffice_cmd}")
+                # which 명령어로 실제 경로 찾기
+                for cmd in possible_commands:
+                    try:
+                        result = subprocess.run(
+                            ['which', cmd],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            timeout=5,
+                            check=False
+                        )
+                        if result.returncode == 0:
+                            found_path = result.stdout.decode('utf-8').strip()
+                            if found_path and os.path.exists(found_path):
+                                soffice_cmd = found_path
+                                print(f"LibreOffice 찾음: {found_path}")
+                                break
+                    except Exception as e:
+                        print(f"'{cmd}' 명령어 검색 실패: {str(e)}")
+
+                # which로 못 찾은 경우 직접 경로 확인
+                if not soffice_cmd:
+                    possible_paths = [
+                        '/usr/bin/libreoffice',
+                        '/usr/local/bin/libreoffice',
+                        '/snap/bin/libreoffice',
+                        '/usr/bin/soffice',
+                        '/usr/local/bin/soffice'
+                    ]
+                    for path in possible_paths:
+                        print(f"Linux LibreOffice 경로 확인 중: {path}")
+                        if os.path.exists(path):
+                            soffice_cmd = path
+                            print(f"LibreOffice 찾음: {path}")
+                            break
+
+                # 여전히 못 찾은 경우 기본 명령어 사용
+                if not soffice_cmd:
+                    soffice_cmd = 'libreoffice'
+                    print(f"기본 명령어 사용 (PATH에 있기를 기대): {soffice_cmd}")
 
         if not soffice_cmd:
             print("LibreOffice를 찾을 수 없습니다. PDF 변환을 건너뜁니다.")
@@ -1019,12 +1067,21 @@ def generate_invoice():
             'details': error_traceback
         }), 500
 
-@invoice_generator_bp.route('/invoice-excel/<customer_name>/<filename>', methods=['GET'])
+@invoice_generator_bp.route('/invoice-excel/<path:customer_name>/<path:filename>', methods=['GET'])
 def serve_invoice_excel(customer_name, filename):
     """생성된 Excel 파일 제공"""
     try:
+        from urllib.parse import unquote
+
+        # URL 디코딩
+        customer_name = unquote(customer_name)
+        filename = unquote(filename)
+
         # instance/거래명세서/고객사명/filename 경로
         excel_path = os.path.join(INVOICE_BASE_DIR, customer_name, filename)
+        print(f"Excel 다운로드 요청: {excel_path}")
+        print(f"파일 존재 여부: {os.path.exists(excel_path)}")
+
         if os.path.exists(excel_path):
             return send_file(
                 excel_path,
@@ -1035,28 +1092,41 @@ def serve_invoice_excel(customer_name, filename):
         else:
             return jsonify({
                 'success': False,
-                'error': 'Excel 파일을 찾을 수 없습니다.'
+                'error': f'Excel 파일을 찾을 수 없습니다: {excel_path}'
             }), 404
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
 
-@invoice_generator_bp.route('/invoice-pdf/<customer_name>/<filename>', methods=['GET'])
+@invoice_generator_bp.route('/invoice-pdf/<path:customer_name>/<path:filename>', methods=['GET'])
 def serve_invoice_pdf(customer_name, filename):
-    """생성된 PDF 파일 제공 (Excel이 설치된 경우에만)"""
+    """생성된 PDF 파일 제공"""
     try:
+        from urllib.parse import unquote
+
+        # URL 디코딩
+        customer_name = unquote(customer_name)
+        filename = unquote(filename)
+
         # instance/거래명세서/고객사명/filename 경로
         pdf_path = os.path.join(INVOICE_BASE_DIR, customer_name, filename)
+        print(f"PDF 다운로드 요청: {pdf_path}")
+        print(f"파일 존재 여부: {os.path.exists(pdf_path)}")
+
         if os.path.exists(pdf_path):
             return send_file(pdf_path, mimetype='application/pdf')
         else:
             return jsonify({
                 'success': False,
-                'error': 'PDF 파일을 찾을 수 없습니다.'
+                'error': f'PDF 파일을 찾을 수 없습니다: {pdf_path}'
             }), 404
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)

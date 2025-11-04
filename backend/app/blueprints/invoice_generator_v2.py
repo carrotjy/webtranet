@@ -41,6 +41,30 @@ def get_supplier_info():
         'fax': ''
     }
 
+def get_libreoffice_path_from_settings():
+    """시스템 설정에서 LibreOffice 경로 조회"""
+    try:
+        import sqlite3
+        # webtranet.db에 연결 (system_settings 테이블이 있는 DB)
+        db_path = os.path.join('app', 'database', 'webtranet.db')
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+
+        setting = conn.execute(
+            "SELECT value FROM system_settings WHERE key = 'libreoffice_path'"
+        ).fetchone()
+        conn.close()
+
+        if setting and setting['value']:
+            print(f"✅ DB에서 LibreOffice 경로 조회 성공: {setting['value']}")
+            return setting['value']
+        else:
+            print("❌ DB에 LibreOffice 경로가 저장되지 않음")
+        return None
+    except Exception as e:
+        print(f"❌ LibreOffice 경로 설정 조회 실패: {str(e)}")
+        return None
+
 def convert_excel_to_pdf(excel_path, pdf_path):
     """
     LibreOffice를 사용하여 Excel을 PDF로 변환
@@ -53,11 +77,47 @@ def convert_excel_to_pdf(excel_path, pdf_path):
         bool: 성공 여부
     """
     try:
+        import platform
         output_dir = os.path.dirname(pdf_path)
+
+        # 1순위: 시스템 설정에서 LibreOffice 경로 확인
+        soffice_cmd = None
+        custom_path = get_libreoffice_path_from_settings()
+        if custom_path:
+            print(f"시스템 설정에서 LibreOffice 경로 발견: {custom_path}")
+            if os.path.exists(custom_path):
+                soffice_cmd = custom_path
+                print(f"사용자 지정 LibreOffice 경로 사용: {soffice_cmd}")
+            else:
+                print(f"경고: 설정된 경로가 존재하지 않음: {custom_path}")
+
+        # 2순위: 기본 경로 확인
+        if not soffice_cmd:
+            system = platform.system()
+            if system == 'Windows':
+                possible_paths = [
+                    r'C:\Program Files\LibreOffice\program\soffice.exe',
+                    r'C:\Program Files (x86)\LibreOffice\program\soffice.exe',
+                ]
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        soffice_cmd = path
+                        print(f"기본 경로에서 LibreOffice 찾음: {path}")
+                        break
+                if not soffice_cmd:
+                    soffice_cmd = 'libreoffice'  # PATH에서 시도
+            else:
+                soffice_cmd = 'libreoffice'  # Linux/Mac
+
+        if not soffice_cmd:
+            print("❌ LibreOffice를 찾을 수 없습니다")
+            return False
+
+        print(f"최종 LibreOffice 명령어: {soffice_cmd}")
 
         # LibreOffice 명령어 실행
         cmd = [
-            'libreoffice',
+            soffice_cmd,
             '--headless',
             '--convert-to', 'pdf',
             '--outdir', output_dir,

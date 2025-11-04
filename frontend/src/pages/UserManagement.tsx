@@ -42,11 +42,15 @@ interface User {
   // 부품 입출고 권한
   spare_parts_stock_in: boolean;
   spare_parts_stock_out: boolean;
+  spare_parts_stock_history_edit: boolean;  // 입출고 내역 수정 권한
+  spare_parts_stock_history_delete: boolean;  // 입출고 내역 삭제 권한
   // 추가 기능 권한
   service_report_lock: boolean;
   transaction_excel_export: boolean;
   transaction_lock: boolean;
   transaction_bill_view: boolean;
+  transaction_fax_send: boolean;  // 팩스 전송 권한
+  transaction_file_download: boolean;  // 파일 다운로드 권한
 }
 
 interface UserFormData {
@@ -89,11 +93,15 @@ interface UserFormData {
   // 부품 입출고 권한
   spare_parts_stock_in: boolean;
   spare_parts_stock_out: boolean;
+  spare_parts_stock_history_edit: boolean;  // 입출고 내역 수정 권한
+  spare_parts_stock_history_delete: boolean;  // 입출고 내역 삭제 권한
   // 추가 기능 권한
   service_report_lock: boolean;
   transaction_excel_export: boolean;
   transaction_lock: boolean;
   transaction_bill_view: boolean;
+  transaction_fax_send: boolean;  // 팩스 전송 권한
+  transaction_file_download: boolean;  // 파일 다운로드 권한
 }
 
 const UserManagement: React.FC = () => {
@@ -174,11 +182,15 @@ const UserManagement: React.FC = () => {
     // 부품 입출고 권한
     spare_parts_stock_in: true,
     spare_parts_stock_out: true,
+    spare_parts_stock_history_edit: false,
+    spare_parts_stock_history_delete: false,
     // 추가 기능 권한
     service_report_lock: true,
     transaction_excel_export: true,
     transaction_lock: true,
-    transaction_bill_view: true
+    transaction_bill_view: true,
+    transaction_fax_send: true,
+    transaction_file_download: true
   });
 
   useEffect(() => {
@@ -276,11 +288,15 @@ const UserManagement: React.FC = () => {
       // 부품 입출고 권한
       spare_parts_stock_in: user.spare_parts_stock_in !== undefined ? user.spare_parts_stock_in : true,
       spare_parts_stock_out: user.spare_parts_stock_out !== undefined ? user.spare_parts_stock_out : true,
+      spare_parts_stock_history_edit: user.spare_parts_stock_history_edit !== undefined ? user.spare_parts_stock_history_edit : false,
+      spare_parts_stock_history_delete: user.spare_parts_stock_history_delete !== undefined ? user.spare_parts_stock_history_delete : false,
       // 추가 기능 권한
       service_report_lock: user.service_report_lock !== undefined ? user.service_report_lock : true,
       transaction_excel_export: user.transaction_excel_export !== undefined ? user.transaction_excel_export : true,
       transaction_lock: user.transaction_lock !== undefined ? user.transaction_lock : true,
-      transaction_bill_view: user.transaction_bill_view !== undefined ? user.transaction_bill_view : true
+      transaction_bill_view: user.transaction_bill_view !== undefined ? user.transaction_bill_view : true,
+      transaction_fax_send: user.transaction_fax_send !== undefined ? user.transaction_fax_send : true,
+      transaction_file_download: user.transaction_file_download !== undefined ? user.transaction_file_download : true
     });
     setShowForm(true);
   };
@@ -354,11 +370,15 @@ const UserManagement: React.FC = () => {
       // 부품 입출고 권한
       spare_parts_stock_in: true,
       spare_parts_stock_out: true,
+      spare_parts_stock_history_edit: false,
+      spare_parts_stock_history_delete: false,
       // 추가 기능 권한
       service_report_lock: true,
       transaction_excel_export: true,
-    transaction_lock: true,
-    transaction_bill_view: true
+      transaction_lock: true,
+      transaction_bill_view: true,
+      transaction_fax_send: true,
+      transaction_file_download: true
     });
   };
 
@@ -999,7 +1019,29 @@ const UserManagement: React.FC = () => {
                                     checked={formData.transaction_bill_view}
                                     onChange={(e) => setFormData({...formData, transaction_bill_view: e.target.checked})}
                                   />
-                                  <span className="form-check-label">계산서 발행 조회</span>
+                                  <span className="form-check-label">계산서 발행 처리</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.transaction_fax_send}
+                                    onChange={(e) => setFormData({...formData, transaction_fax_send: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">팩스 전송 버튼</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.transaction_file_download}
+                                    onChange={(e) => setFormData({...formData, transaction_file_download: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">파일 다운로드 버튼</span>
                                 </label>
                               </div>
                             </div>
@@ -1073,6 +1115,28 @@ const UserManagement: React.FC = () => {
                                     onChange={(e) => setFormData({...formData, spare_parts_stock_out: e.target.checked})}
                                   />
                                   <span className="form-check-label">출고 버튼</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.spare_parts_stock_history_edit}
+                                    onChange={(e) => setFormData({...formData, spare_parts_stock_history_edit: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">입출고내역 수정 버튼</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.spare_parts_stock_history_delete}
+                                    onChange={(e) => setFormData({...formData, spare_parts_stock_history_delete: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">입출고내역 삭제 버튼</span>
                                 </label>
                               </div>
                             </div>

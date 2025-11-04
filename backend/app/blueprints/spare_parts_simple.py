@@ -1774,6 +1774,120 @@ def export_monthly_inventory_summary():
             'message': str(e)
         }), 500
 
+@spare_parts_bp.route('/spare-parts/history/<int:history_id>', methods=['PUT'])
+@jwt_required()
+def update_stock_history(history_id):
+    """입출고 내역 수정 (관리자만 가능)"""
+    try:
+        # 현재 사용자 정보 가져오기
+        current_user_id = get_jwt_identity()
+        user = User.get_by_id(current_user_id)
+
+        if not user or not user.is_admin:
+            return jsonify({
+                'success': False,
+                'message': '관리자만 입출고 내역을 수정할 수 있습니다.'
+            }), 403
+
+        data = request.get_json()
+        new_quantity = data.get('quantity')
+        new_transaction_date = data.get('transaction_date')
+        new_reference_number = data.get('reference_number', '')
+        new_customer_name = data.get('customer_name', '')
+
+        if not new_quantity or new_quantity <= 0:
+            return jsonify({
+                'success': False,
+                'message': '유효한 수량을 입력해주세요.'
+            }), 400
+
+        conn = get_db_connection()
+
+        try:
+            # 기존 입출고 내역 조회
+            history = conn.execute(
+                'SELECT * FROM stock_history WHERE id = ?',
+                (history_id,)
+            ).fetchone()
+
+            if not history:
+                return jsonify({
+                    'success': False,
+                    'message': '입출고 내역을 찾을 수 없습니다.'
+                }), 404
+
+            part_number = history['part_number']
+            old_quantity = history['quantity']
+            transaction_type = history['transaction_type']
+
+            # 부품 정보 조회
+            part = conn.execute(
+                'SELECT * FROM spare_parts WHERE part_number = ?',
+                (part_number,)
+            ).fetchone()
+
+            if not part:
+                return jsonify({
+                    'success': False,
+                    'message': '부품을 찾을 수 없습니다.'
+                }), 404
+
+            # 수량이 변경된 경우 재고 조정
+            if old_quantity != new_quantity:
+                current_stock = part['stock_quantity']
+                quantity_diff = new_quantity - old_quantity
+
+                # 입고: 재고 증가, 출고: 재고 감소
+                if transaction_type == 'IN':
+                    new_stock = current_stock + quantity_diff
+                else:  # OUT
+                    new_stock = current_stock - quantity_diff
+
+                # 재고가 음수가 되는지 확인
+                if new_stock < 0:
+                    return jsonify({
+                        'success': False,
+                        'message': f'재고가 부족합니다. 현재 재고: {current_stock}개'
+                    }), 400
+
+                # 재고 업데이트
+                conn.execute(
+                    'UPDATE spare_parts SET stock_quantity = ?, updated_at = ? WHERE part_number = ?',
+                    (new_stock, datetime.now().isoformat(), part_number)
+                )
+
+            # 입출고 내역 업데이트
+            conn.execute(
+                '''UPDATE stock_history
+                   SET quantity = ?, transaction_date = ?, reference_number = ?, customer_name = ?
+                   WHERE id = ?''',
+                (new_quantity, new_transaction_date, new_reference_number, new_customer_name, history_id)
+            )
+
+            conn.commit()
+
+            return jsonify({
+                'success': True,
+                'message': '입출고 내역이 수정되었습니다.'
+            })
+
+        except Exception as e:
+            print(f"Error in update operation: {e}")
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+
+    except Exception as e:
+        print(f"Exception caught: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
 @spare_parts_bp.route('/spare-parts/history/<int:history_id>', methods=['DELETE'])
 @jwt_required()
 def delete_stock_history(history_id):

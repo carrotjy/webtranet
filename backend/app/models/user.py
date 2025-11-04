@@ -28,7 +28,9 @@ class User:
                  spare_parts_update=False, spare_parts_delete_crud=False,
                  # 추가 기능 권한
                  service_report_lock=True, transaction_excel_export=True,
-                 transaction_lock=True, transaction_bill_view=True):
+                 transaction_lock=True, transaction_bill_view=True,
+                 transaction_fax_send=True, transaction_file_download=True,
+                 spare_parts_stock_history_edit=False, spare_parts_stock_history_delete=False):
         self.id = id
         self.name = name
         self.email = email
@@ -76,6 +78,10 @@ class User:
         self.transaction_excel_export = transaction_excel_export
         self.transaction_lock = transaction_lock
         self.transaction_bill_view = transaction_bill_view
+        self.transaction_fax_send = transaction_fax_send
+        self.transaction_file_download = transaction_file_download
+        self.spare_parts_stock_history_edit = spare_parts_stock_history_edit
+        self.spare_parts_stock_history_delete = spare_parts_stock_history_delete
     
     @classmethod
     def get_by_email(cls, email):
@@ -141,6 +147,10 @@ class User:
                 transaction_excel_export=bool(safe_get('transaction_excel_export', 1)),
                 transaction_lock=bool(safe_get('transaction_lock', 1)),
                 transaction_bill_view=bool(safe_get('transaction_bill_view', 1)),
+                transaction_fax_send=bool(safe_get('transaction_fax_send', 1)),
+                transaction_file_download=bool(safe_get('transaction_file_download', 1)),
+                spare_parts_stock_history_edit=bool(safe_get('spare_parts_stock_history_edit', 0)),
+                spare_parts_stock_history_delete=bool(safe_get('spare_parts_stock_history_delete', 0)),
                 created_at=safe_get('created_at')
             )
         return None
@@ -208,6 +218,11 @@ class User:
                 service_report_lock=bool(safe_get('service_report_lock', 1)),
                 transaction_excel_export=bool(safe_get('transaction_excel_export', 1)),
                 transaction_lock=bool(safe_get('transaction_lock', 1)),
+                transaction_bill_view=bool(safe_get('transaction_bill_view', 1)),
+                transaction_fax_send=bool(safe_get('transaction_fax_send', 1)),
+                transaction_file_download=bool(safe_get('transaction_file_download', 1)),
+                spare_parts_stock_history_edit=bool(safe_get('spare_parts_stock_history_edit', 0)),
+                spare_parts_stock_history_delete=bool(safe_get('spare_parts_stock_history_delete', 0)),
                 created_at=safe_get('created_at')
             )
         return None
@@ -271,6 +286,12 @@ class User:
                 # 추가 기능 권한
                 service_report_lock=bool(user_data['service_report_lock'] if user_data['service_report_lock'] is not None else 1),
                 transaction_excel_export=bool(user_data['transaction_excel_export'] if user_data['transaction_excel_export'] is not None else 1),
+                transaction_lock=bool(user_data['transaction_lock'] if user_data['transaction_lock'] is not None else 1),
+                transaction_bill_view=bool(user_data['transaction_bill_view'] if user_data['transaction_bill_view'] is not None else 1),
+                transaction_fax_send=bool(user_data['transaction_fax_send'] if user_data['transaction_fax_send'] is not None else 1),
+                transaction_file_download=bool(user_data['transaction_file_download'] if user_data['transaction_file_download'] is not None else 1),
+                spare_parts_stock_history_edit=bool(user_data['spare_parts_stock_history_edit'] if user_data['spare_parts_stock_history_edit'] is not None else 0),
+                spare_parts_stock_history_delete=bool(user_data['spare_parts_stock_history_delete'] if user_data['spare_parts_stock_history_delete'] is not None else 0),
                 created_at=user_data['created_at']
             ))
         return users
@@ -331,6 +352,12 @@ class User:
                 # 추가 기능 권한
                 service_report_lock=bool(user_data['service_report_lock'] if user_data['service_report_lock'] is not None else 1),
                 transaction_excel_export=bool(user_data['transaction_excel_export'] if user_data['transaction_excel_export'] is not None else 1),
+                transaction_lock=bool(user_data['transaction_lock'] if user_data['transaction_lock'] is not None else 1),
+                transaction_bill_view=bool(user_data['transaction_bill_view'] if user_data['transaction_bill_view'] is not None else 1),
+                transaction_fax_send=bool(user_data['transaction_fax_send'] if user_data['transaction_fax_send'] is not None else 1),
+                transaction_file_download=bool(user_data['transaction_file_download'] if user_data['transaction_file_download'] is not None else 1),
+                spare_parts_stock_history_edit=bool(user_data['spare_parts_stock_history_edit'] if user_data['spare_parts_stock_history_edit'] is not None else 0),
+                spare_parts_stock_history_delete=bool(user_data['spare_parts_stock_history_delete'] if user_data['spare_parts_stock_history_delete'] is not None else 0),
                 created_at=user_data['created_at']
             ))
         return users
@@ -360,7 +387,11 @@ class User:
                                    transaction_update=?, transaction_delete=?,
                                    spare_parts_create=?, spare_parts_read=?,
                                    spare_parts_update=?, spare_parts_delete_crud=?,
+                                   spare_parts_stock_in=?, spare_parts_stock_out=?,
+                                   spare_parts_stock_history_edit=?, spare_parts_stock_history_delete=?,
                                    service_report_lock=?, transaction_excel_export=?,
+                                   transaction_lock=?, transaction_bill_view=?,
+                                   transaction_fax_send=?, transaction_file_download=?,
                                    updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
                     ''', (self.name, self.email, hashed_password.decode('utf-8'), self.contact, self.department,
@@ -392,9 +423,18 @@ class User:
                           getattr(self, 'spare_parts_read', False),
                           getattr(self, 'spare_parts_update', False),
                           getattr(self, 'spare_parts_delete_crud', False),
+                          # 부품 입출고 권한
+                          getattr(self, 'spare_parts_stock_in', True),
+                          getattr(self, 'spare_parts_stock_out', True),
+                          getattr(self, 'spare_parts_stock_history_edit', False),
+                          getattr(self, 'spare_parts_stock_history_delete', False),
                           # 추가 기능 권한
                           getattr(self, 'service_report_lock', True),
                           getattr(self, 'transaction_excel_export', True),
+                          getattr(self, 'transaction_lock', True),
+                          getattr(self, 'transaction_bill_view', True),
+                          getattr(self, 'transaction_fax_send', True),
+                          getattr(self, 'transaction_file_download', True),
                           self.id))
                 else:
                     # 비밀번호 변경이 없는 경우 기존 쿼리 사용
@@ -413,7 +453,11 @@ class User:
                                    transaction_update=?, transaction_delete=?,
                                    spare_parts_create=?, spare_parts_read=?,
                                    spare_parts_update=?, spare_parts_delete_crud=?,
+                                   spare_parts_stock_in=?, spare_parts_stock_out=?,
+                                   spare_parts_stock_history_edit=?, spare_parts_stock_history_delete=?,
                                    service_report_lock=?, transaction_excel_export=?,
+                                   transaction_lock=?, transaction_bill_view=?,
+                                   transaction_fax_send=?, transaction_file_download=?,
                                    updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
                     ''', (self.name, self.email, self.contact, self.department,
@@ -445,9 +489,18 @@ class User:
                           getattr(self, 'spare_parts_read', False),
                           getattr(self, 'spare_parts_update', False),
                           getattr(self, 'spare_parts_delete_crud', False),
+                          # 부품 입출고 권한
+                          getattr(self, 'spare_parts_stock_in', True),
+                          getattr(self, 'spare_parts_stock_out', True),
+                          getattr(self, 'spare_parts_stock_history_edit', False),
+                          getattr(self, 'spare_parts_stock_history_delete', False),
                           # 추가 기능 권한
                           getattr(self, 'service_report_lock', True),
                           getattr(self, 'transaction_excel_export', True),
+                          getattr(self, 'transaction_lock', True),
+                          getattr(self, 'transaction_bill_view', True),
+                          getattr(self, 'transaction_fax_send', True),
+                          getattr(self, 'transaction_file_download', True),
                           self.id))
             else:
                 # 신규 생성
@@ -469,8 +522,11 @@ class User:
                                  transaction_update, transaction_delete,
                                  spare_parts_create, spare_parts_read,
                                  spare_parts_update, spare_parts_delete_crud,
-                                 service_report_lock, transaction_excel_export)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 spare_parts_stock_history_edit, spare_parts_stock_history_delete,
+                                 service_report_lock, transaction_excel_export,
+                                 transaction_lock, transaction_bill_view,
+                                 transaction_fax_send, transaction_file_download)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (self.name, self.email, hashed_password.decode('utf-8'),
                       self.contact, self.department, self.service_report_access,
                       self.transaction_access, self.customer_access,
@@ -506,9 +562,16 @@ class User:
                       getattr(self, 'spare_parts_read', False),
                       getattr(self, 'spare_parts_update', False),
                       getattr(self, 'spare_parts_delete_crud', False),
+                      # 부품 입출고내역 권한
+                      getattr(self, 'spare_parts_stock_history_edit', False),
+                      getattr(self, 'spare_parts_stock_history_delete', False),
                       # 추가 기능 권한
                       getattr(self, 'service_report_lock', True),
-                      getattr(self, 'transaction_excel_export', True)))
+                      getattr(self, 'transaction_excel_export', True),
+                      getattr(self, 'transaction_lock', True),
+                      getattr(self, 'transaction_bill_view', True),
+                      getattr(self, 'transaction_fax_send', True),
+                      getattr(self, 'transaction_file_download', True)))
                 self.id = cursor.lastrowid
         
             conn.commit()
@@ -590,8 +653,15 @@ class User:
             'spare_parts_read': getattr(self, 'spare_parts_read', False),
             'spare_parts_update': getattr(self, 'spare_parts_update', False),
             'spare_parts_delete_crud': getattr(self, 'spare_parts_delete_crud', False),
+            # 부품 입출고내역 권한
+            'spare_parts_stock_history_edit': getattr(self, 'spare_parts_stock_history_edit', False),
+            'spare_parts_stock_history_delete': getattr(self, 'spare_parts_stock_history_delete', False),
             # 추가 기능 권한
             'service_report_lock': getattr(self, 'service_report_lock', True),
             'transaction_excel_export': getattr(self, 'transaction_excel_export', True),
+            'transaction_lock': getattr(self, 'transaction_lock', True),
+            'transaction_bill_view': getattr(self, 'transaction_bill_view', True),
+            'transaction_fax_send': getattr(self, 'transaction_fax_send', True),
+            'transaction_file_download': getattr(self, 'transaction_file_download', True),
             'created_at': getattr(self, 'created_at', None)
         }
