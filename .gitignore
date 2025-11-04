@@ -261,6 +261,7 @@ start_services.sh
 stop_services.sh
 start_services.bat
 stop_services.bat
+backend/service_wrapper.bat
 
 # PID files
 **/*.pid
