@@ -1,4 +1,4 @@
-# Webtranet 서버 배포 스크립트 (Windows Server)
+﻿# Webtranet 서버 배포 스크립트 (Windows Server)
 # Git pull, 빌드, 배포, 재시작을 한번에 수행
 # 사용법: .\deploy_server.ps1 -frontend  또는  .\deploy_server.ps1 -backend  또는  .\deploy_server.ps1 (둘 다)
 
@@ -27,9 +27,9 @@ $iisPath = "C:\inetpub\wwwroot\webtranet"
 # Git 동기화
 if (-not $skipGit) {
     Write-Host "[Git 동기화]" -ForegroundColor Green
-    Write-Host ""
+    Write-Host ""fa
 
-    try {
+    try {f
         Set-Location $projectRoot
 
         # 현재 브랜치 확인
