@@ -634,54 +634,30 @@ const Invoices: React.FC = () => {
                                     className="btn btn-sm"
                                     onClick={handleSelectAllExcel}
                                     style={{
-                                      backgroundColor: excelSelectAll ? '#dc3545' : '#28a745',
-                                      color: '#ffffff',
-                                      fontSize: '0.7rem',
-                                      padding: '4px 8px'
+                                      backgroundColor: excelSelectAll ? '#28a745' : 'transparent',
+                                      color: excelSelectAll ? '#ffffff' : '#28a745',
+                                      fontSize: '1.2rem',
+                                      padding: '4px 8px',
+                                      border: 'none'
                                     }}
                                     title={excelSelectAll ? 'Excel 선택 해제' : 'Excel 전체 선택'}
                                   >
-                                    {excelSelectAll ? (
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                        <polyline points="14 2 14 8 20 8"></polyline>
-                                        <line x1="9" y1="15" x2="15" y2="15"></line>
-                                      </svg>
-                                    ) : (
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                        <polyline points="14 2 14 8 20 8"></polyline>
-                                        <polyline points="9 11 12 14 15 11"></polyline>
-                                        <line x1="12" y1="14" x2="12" y2="17"></line>
-                                      </svg>
-                                    )}
+                                    <i className={excelSelectAll ? 'fa fa-minus-square' : 'fa fa-check-square-o'}></i>
                                   </button>
                                   <button
                                     type="button"
                                     className="btn btn-sm"
                                     onClick={handleSelectAllPdf}
                                     style={{
-                                      backgroundColor: pdfSelectAll ? '#dc3545' : '#28a745',
-                                      color: '#ffffff',
-                                      fontSize: '0.7rem',
-                                      padding: '4px 8px'
+                                      backgroundColor: pdfSelectAll ? '#dc3545' : 'transparent',
+                                      color: pdfSelectAll ? '#ffffff' : '#dc3545',
+                                      fontSize: '1.2rem',
+                                      padding: '4px 8px',
+                                      border: 'none'
                                     }}
                                     title={pdfSelectAll ? 'PDF 선택 해제' : 'PDF 전체 선택'}
                                   >
-                                    {pdfSelectAll ? (
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                        <polyline points="14 2 14 8 20 8"></polyline>
-                                        <line x1="9" y1="15" x2="15" y2="15"></line>
-                                      </svg>
-                                    ) : (
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                        <polyline points="14 2 14 8 20 8"></polyline>
-                                        <polyline points="9 11 12 14 15 11"></polyline>
-                                        <line x1="12" y1="14" x2="12" y2="17"></line>
-                                      </svg>
-                                    )}
+                                    <i className={pdfSelectAll ? 'fa fa-minus-square' : 'fa fa-check-square-o'}></i>
                                   </button>
                                 </div>
                               </div>
