@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axiosInstance from '../utils/axios';
+import axios from 'axios';
 
 interface Printer {
   name: string;
@@ -29,7 +29,12 @@ const SystemSettings: React.FC = () => {
 
   const fetchPrinters = async () => {
     try {
-      const response = await axiosInstance.get('/system/printers');
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/system/printers', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (response.data.success) {
         setPrinters(response.data.printers);
       }
@@ -41,7 +46,12 @@ const SystemSettings: React.FC = () => {
 
   const fetchCurrentFaxPrinter = async () => {
     try {
-      const response = await axiosInstance.get('/system/fax-printer');
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/system/fax-printer', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (response.data.success && response.data.fax_printer) {
         setSelectedPrinter(response.data.fax_printer);
       }
@@ -60,8 +70,13 @@ const SystemSettings: React.FC = () => {
     setSaveMessage(null);
 
     try {
-      const response = await axiosInstance.post('/system/fax-printer', {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/system/fax-printer', {
         printer_name: selectedPrinter
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
       if (response.data.success) {
