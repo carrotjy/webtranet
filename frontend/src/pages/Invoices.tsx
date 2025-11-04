@@ -38,8 +38,14 @@ const Invoices: React.FC = () => {
   // Fax sending states
   const [showFaxModal, setShowFaxModal] = useState(false);
   const [faxInvoice, setFaxInvoice] = useState<Invoice | null>(null);
+  const [faxNumber, setFaxNumber] = useState<string | null>(null);
   const [faxSending, setFaxSending] = useState(false);
   const [faxProgress, setFaxProgress] = useState(0);
+  // Bulk download selections
+  const [selectedExcelIds, setSelectedExcelIds] = useState<number[]>([]);
+  const [selectedPdfIds, setSelectedPdfIds] = useState<number[]>([]);
+  const [excelSelectAll, setExcelSelectAll] = useState(false);
+  const [pdfSelectAll, setPdfSelectAll] = useState(false);
 
   const fetchInvoices = async (page: number) => {
     try {
@@ -106,10 +112,6 @@ const Invoices: React.FC = () => {
 
         // Refresh the invoice list to update file status
         await fetchInvoices(currentPage);
-
-        // Excel 파일 다운로드
-        const excelUrl = `${window.location.origin}${response.data.excel_url}`;
-        window.open(excelUrl, '_blank');
       } else {
         alert(`Excel 생성 실패: ${response.data.error}`);
       }
@@ -121,37 +123,221 @@ const Invoices: React.FC = () => {
     }
   };
 
-  const handleViewExcel = (customerName: string) => {
-    // Excel 파일 보기
-    const excelUrl = `/api/invoice-excel/${customerName}/거래명세서(${customerName}).xlsx`;
-    window.open(excelUrl, '_blank');
+  const handleDownloadExcel = async (customerName: string) => {
+    try {
+      const filename = `거래명세서(${customerName}).xlsx`;
+      const excelUrl = `/api/invoice-excel/${encodeURIComponent(customerName)}/${encodeURIComponent(filename)}`;
+
+      // fetch를 사용하여 파일 다운로드
+      const response = await fetch(excelUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert(errorData.error || 'Excel 파일 다운로드에 실패했습니다.');
+        return;
+      }
+
+      // Blob으로 변환하여 다운로드
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error('Excel 다운로드 오류:', error);
+      alert('Excel 파일 다운로드에 실패했습니다.');
+    }
+  };
+
+  const handleDownloadPDF = async (customerName: string) => {
+    try {
+      const filename = `거래명세서(${customerName}).pdf`;
+      const pdfUrl = `/api/invoice-pdf/${encodeURIComponent(customerName)}/${encodeURIComponent(filename)}`;
+
+      // fetch를 사용하여 파일 다운로드
+      const response = await fetch(pdfUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert(errorData.error || 'PDF 파일 다운로드에 실패했습니다.');
+        return;
+      }
+
+      // Blob으로 변환하여 다운로드
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error('PDF 다운로드 오류:', error);
+      alert('PDF 파일 다운로드에 실패했습니다.');
+    }
   };
 
   const handleViewPDF = (customerName: string) => {
-    // PDF 파일 보기
-    const pdfUrl = `/api/invoice-pdf/${customerName}/거래명세서(${customerName}).pdf`;
-    window.open(pdfUrl, '_blank');
+    // PDF 파일 새 창에서 보기
+    const filename = `거래명세서(${customerName}).pdf`;
+    // 개발 환경에서는 직접 백엔드 포트로, 프로덕션에서는 상대 경로 사용
+    const backendUrl = process.env.NODE_ENV === 'development'
+      ? 'http://localhost:5000'
+      : '';
+    const pdfUrl = `${backendUrl}/api/invoice-pdf/${encodeURIComponent(customerName)}/${encodeURIComponent(filename)}`;
+    window.open(pdfUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleSendFax = (invoice: Invoice) => {
+  const toggleSelectExcel = (id: number) => {
+    setSelectedExcelIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleSelectPdf = (id: number) => {
+    setSelectedPdfIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleSelectAllExcel = () => {
+    if (excelSelectAll) {
+      // Deselect all
+      setSelectedExcelIds([]);
+      setExcelSelectAll(false);
+    } else {
+      // Select all Excel files that exist
+      const excelIds = filteredInvoices
+        .filter(inv => inv.has_excel !== false)
+        .map(inv => inv.id);
+      setSelectedExcelIds(excelIds);
+      setExcelSelectAll(true);
+    }
+  };
+
+  const handleSelectAllPdf = () => {
+    if (pdfSelectAll) {
+      // Deselect all
+      setSelectedPdfIds([]);
+      setPdfSelectAll(false);
+    } else {
+      // Select all PDF files that exist
+      const pdfIds = filteredInvoices
+        .filter(inv => inv.has_pdf !== false)
+        .map(inv => inv.id);
+      setSelectedPdfIds(pdfIds);
+      setPdfSelectAll(true);
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedExcelIds.length === 0 && selectedPdfIds.length === 0) {
+      alert('먼저 다운로드할 파일을 선택하세요.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // 백엔드 API로 ZIP 다운로드 요청
+      const response = await fetch('/api/invoices/bulk-download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          excel_ids: selectedExcelIds,
+          pdf_ids: selectedPdfIds
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert(errorData.error || 'ZIP 파일 생성에 실패했습니다.');
+        return;
+      }
+
+      // ZIP 파일을 Blob으로 변환하여 다운로드
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // 파일명은 응답 헤더에서 가져오거나 기본값 사용
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = '거래명세서_일괄다운로드.zip';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      // 선택 해제
+      setSelectedExcelIds([]);
+      setSelectedPdfIds([]);
+
+      alert('ZIP 파일 다운로드가 완료되었습니다.');
+    } catch (error: any) {
+      console.error('일괄 다운로드 오류:', error);
+      alert('일괄 다운로드에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendFax = async (invoice: Invoice) => {
     setFaxInvoice(invoice);
-    setShowFaxModal(true);
     setFaxProgress(0);
+
+    // 팩스번호 조회
+    try {
+      const response = await fetch(`/api/fax/number/${encodeURIComponent(invoice.customer_name)}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await response.json();
+
+      if (data.success && data.fax_number) {
+        setFaxNumber(data.fax_number);
+      } else {
+        setFaxNumber(null);
+      }
+    } catch (error) {
+      console.error('팩스번호 조회 실패:', error);
+      setFaxNumber(null);
+    }
+
+    setShowFaxModal(true);
   };
 
   const confirmSendFax = async () => {
-    if (!faxInvoice) return;
+    if (!faxInvoice || !faxNumber) return;
 
     setFaxSending(true);
-    setFaxProgress(0);
 
     try {
-      // Simulate dialing (0-30%)
-      setFaxProgress(10);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setFaxProgress(30);
-
-      // Send fax request
+      // Send fax request (PDF will be opened automatically)
       const response = await fetch('/api/fax/send', {
         method: 'POST',
         headers: {
@@ -167,30 +353,28 @@ const Invoices: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || '팩스 전송에 실패했습니다.');
+        throw new Error(data.message || '팩스 앱 열기에 실패했습니다.');
       }
 
-      // Simulate sending progress (30-90%)
-      setFaxProgress(50);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setFaxProgress(70);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setFaxProgress(90);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // 팩스 앱 이름 추출 (서버에서 받은 메시지 사용)
+      const appMessage = data.message || '팩스 앱이 열렸습니다.';
 
-      // Complete
-      setFaxProgress(100);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Copy fax number to clipboard
+      try {
+        await navigator.clipboard.writeText(faxNumber);
+        alert(`${appMessage}\n\n팩스번호: ${faxNumber}\n\n팩스번호가 클립보드에 복사되었습니다.\n팩스 앱에서 Ctrl+V로 붙여넣고 전송 버튼을 눌러주세요.`);
+      } catch (err) {
+        alert(`${appMessage}\n\n팩스번호: ${faxNumber}\n\n팩스 앱에서 이 번호를 입력하고 전송 버튼을 눌러주세요.`);
+      }
 
-      alert(`팩스 전송이 완료되었습니다.\n팩스번호: ${data.fax_number}`);
       setShowFaxModal(false);
       setFaxInvoice(null);
+      setFaxNumber(null);
     } catch (error: any) {
-      console.error('팩스 전송 실패:', error);
-      alert(error.message || '팩스 전송에 실패했습니다.');
+      console.error('팩스 준비 실패:', error);
+      alert(error.message || '팩스 앱 열기에 실패했습니다.');
     } finally {
       setFaxSending(false);
-      setFaxProgress(0);
     }
   };
 
@@ -430,7 +614,78 @@ const Invoices: React.FC = () => {
                             <th style={{ textAlign: 'right' }}>총합계</th>
                             <th style={{ textAlign: 'center' }} className="w-1">계산서 발행</th>
                             <th style={{ textAlign: 'center' }} className="w-1">잠금 상태</th>
-                            <th style={{ textAlign: 'center' }} className="w-1">파일보기</th>
+                            <th style={{ textAlign: 'center' }} className="w-1">
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span>파일보기</span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-primary"
+                                    onClick={handleBulkDownload}
+                                    disabled={selectedExcelIds.length === 0 && selectedPdfIds.length === 0}
+                                    title="선택된 파일 일괄다운로드"
+                                  >
+                                    일괄다운로드
+                                  </button>
+                                </div>
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm"
+                                    onClick={handleSelectAllExcel}
+                                    style={{
+                                      backgroundColor: excelSelectAll ? '#dc3545' : '#28a745',
+                                      color: '#ffffff',
+                                      fontSize: '0.7rem',
+                                      padding: '4px 8px'
+                                    }}
+                                    title={excelSelectAll ? 'Excel 선택 해제' : 'Excel 전체 선택'}
+                                  >
+                                    {excelSelectAll ? (
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <line x1="9" y1="15" x2="15" y2="15"></line>
+                                      </svg>
+                                    ) : (
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <polyline points="9 11 12 14 15 11"></polyline>
+                                        <line x1="12" y1="14" x2="12" y2="17"></line>
+                                      </svg>
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm"
+                                    onClick={handleSelectAllPdf}
+                                    style={{
+                                      backgroundColor: pdfSelectAll ? '#dc3545' : '#28a745',
+                                      color: '#ffffff',
+                                      fontSize: '0.7rem',
+                                      padding: '4px 8px'
+                                    }}
+                                    title={pdfSelectAll ? 'PDF 선택 해제' : 'PDF 전체 선택'}
+                                  >
+                                    {pdfSelectAll ? (
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <line x1="9" y1="15" x2="15" y2="15"></line>
+                                      </svg>
+                                    ) : (
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <polyline points="9 11 12 14 15 11"></polyline>
+                                        <line x1="12" y1="14" x2="12" y2="17"></line>
+                                      </svg>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </th>
                             <th style={{ textAlign: 'center' }} className="w-1">작업</th>
                           </tr>
                         </thead>
@@ -538,94 +793,114 @@ const Invoices: React.FC = () => {
                                 </div>
                               </td>
                               <td data-label="파일보기" className="text-center">
-                                <div className="d-flex gap-1 justify-content-center">
+                                <div className="d-flex gap-2 justify-content-center align-items-center">
                                   {invoice.has_excel !== false ? (
-                                    <span
-                                      onClick={() => handleViewExcel(invoice.customer_name)}
-                                      className="badge"
-                                      style={{
-                                        cursor: 'pointer',
-                                        fontSize: '0.75rem',
-                                        padding: '0.35rem 0.5rem',
-                                        backgroundColor: '#ffffffff',
-                                        border: '1px solid #009714ff',
-                                        color: '#00ac17d2'
-                                      }}
-                                      title="Excel 파일 보기"
-                                    >
-                                      .xlsx
-                                    </span>
+                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedExcelIds.includes(invoice.id)}
+                                        onChange={() => toggleSelectExcel(invoice.id)}
+                                      />
+                                      <span
+                                        onClick={() => handleDownloadExcel(invoice.customer_name)}
+                                        className="badge"
+                                        style={{
+                                          cursor: 'pointer',
+                                          fontSize: '0.75rem',
+                                          padding: '0.35rem 0.5rem',
+                                          backgroundColor: '#ffffffff',
+                                          border: '1px solid #009714ff',
+                                          color: '#00ac17d2'
+                                        }}
+                                        title="Excel 파일 다운로드"
+                                      >
+                                        .xlsx
+                                      </span>
+                                    </label>
                                   ) : (
-                                    <span
-                                      className="badge bg-secondary"
-                                      style={{
-                                        fontSize: '0.75rem',
-                                        padding: '0.35rem 0.5rem',
-                                        opacity: 0.5,
-                                        backgroundColor: '#ffffffff',
-                                        border: '1px solid #009714ff',
-                                        color: '#ffffffff'
-                                      }}
-                                      title="Excel 파일 없음"
-                                    >
-                                      N/A
-                                    </span>
+                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: 0.5 }}>
+                                      <input type="checkbox" disabled />
+                                      <span className="badge bg-secondary" style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }} title="Excel 파일 없음">N/A</span>
+                                    </label>
                                   )}
+
                                   {invoice.has_pdf !== false ? (
-                                    <span
-                                      onClick={() => handleViewPDF(invoice.customer_name)}
-                                      className="badge"
-                                      style={{
-                                        cursor: 'pointer',
-                                        fontSize: '0.75rem',
-                                        padding: '0.35rem 0.5rem',
-                                        backgroundColor: '#ffffffff',
-                                        border: '1px solid #ff0000ff',
-                                        color: '#ff0000ff'
-                                      }}
-                                      title="PDF 파일 보기"
-                                    >
-                                      .pdf
-                                    </span>
+                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedPdfIds.includes(invoice.id)}
+                                        onChange={() => toggleSelectPdf(invoice.id)}
+                                      />
+                                      <span
+                                        onClick={() => handleDownloadPDF(invoice.customer_name)}
+                                        className="badge"
+                                        style={{
+                                          cursor: 'pointer',
+                                          fontSize: '0.75rem',
+                                          padding: '0.35rem 0.5rem',
+                                          backgroundColor: '#ffffffff',
+                                          border: '1px solid #ff0000ff',
+                                          color: '#ff0000ff'
+                                        }}
+                                        title="PDF 파일 다운로드"
+                                      >
+                                        .pdf
+                                      </span>
+                                    </label>
                                   ) : (
-                                    <span
-                                      className="badge bg-secondary"
-                                      style={{
-                                        fontSize: '0.75rem',
-                                        padding: '0.35rem 0.5rem',
-                                        opacity: 0.5,
-                                        backgroundColor: '#ffffffff',
-                                        border: '1px solid #ff0000ff',
-                                        color: '#ffffffff'
-                                      }}
-                                      title="PDF 파일 없음"
-                                    >
-                                      N/A
-                                    </span>
+                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: 0.5 }}>
+                                      <input type="checkbox" disabled />
+                                      <span className="badge bg-secondary" style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }} title="PDF 파일 없음">N/A</span>
+                                    </label>
                                   )}
                                 </div>
                               </td>
                               <td className="text-center">
                                 <div className="d-flex gap-1 justify-content-center">
                                   {(user?.transaction_access && (user?.transaction_read || user?.is_admin)) && (
-                                    <Link
-                                      to={`/invoices/${invoice.id}`}
-                                      className="btn btn-sm btn-outline-primary"
-                                      style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center',
-                                        width: '32px',
-                                        height: '32px',
-                                        padding: '0'
-                                      }}
-                                      title="보기"
-                                    >
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                        <circle cx="12" cy="12" r="3"/>
-                                      </svg>
-                                    </Link>
+                                    <>
+                                      {/* 상세보기 버튼: PDF 파일을 새 창에서 보기 */}
+                                      {invoice.has_pdf !== false ? (
+                                        <button
+                                          onClick={() => handleViewPDF(invoice.customer_name)}
+                                          className="btn btn-sm btn-outline-info"
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            width: '32px',
+                                            height: '32px',
+                                            padding: '0'
+                                          }}
+                                          title="상세보기 (PDF)"
+                                        >
+                                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                          </svg>
+                                        </button>
+                                      ) : (
+                                        <button
+                                          className="btn btn-sm btn-outline-secondary"
+                                          disabled
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            width: '32px',
+                                            height: '32px',
+                                            padding: '0',
+                                            opacity: 0.5
+                                          }}
+                                          title="PDF 파일 없음"
+                                        >
+                                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                          </svg>
+                                        </button>
+                                      )}
+                                    </>
                                   )}
                                   {(user?.transaction_access && (user?.transaction_update || user?.is_admin)) && (
                                     <Link
@@ -658,7 +933,7 @@ const Invoices: React.FC = () => {
                                         width: '32px',
                                         height: '32px',
                                         padding: '0',
-                                        // backgroundColor: '#ffffff',
+                                        backgroundColor: 'transparent',
                                         border: '1px solid #198754',
                                         color: '#198754',
                                         transition: 'all 0.2s ease'
@@ -668,7 +943,7 @@ const Invoices: React.FC = () => {
                                         e.currentTarget.style.color = '#ffffff';
                                       }}
                                       onMouseLeave={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#ffffff';
+                                        e.currentTarget.style.backgroundColor = 'transparent';
                                         e.currentTarget.style.color = '#198754';
                                       }}
                                       title="Excel/PDF 생성"
@@ -770,50 +1045,36 @@ const Invoices: React.FC = () => {
                 )}
               </div>
               <div className="modal-body text-center">
-                <p>다음 거래명세표를 팩스로 전송하시겠습니까?</p>
+                <p>팩스 앱을 열고 팩스 전송을 준비하시겠습니까?</p>
                 <div className="alert alert-info">
                   <strong>거래명세표 번호:</strong> {faxInvoice.invoice_number}<br />
-                  <strong>고객명:</strong> {faxInvoice.customer_name}
+                  <strong>고객명:</strong> {faxInvoice.customer_name}<br />
+                  <strong>팩스번호:</strong> {faxNumber ? faxNumber : <span className="text-danger">등록된 팩스번호 없음</span>}
                 </div>
+                {!faxNumber && (
+                  <div className="alert alert-warning">
+                    <i className="bi bi-exclamation-triangle me-2"></i>
+                    팩스번호가 등록되지 않았습니다. 고객 정보에서 팩스번호를 먼저 등록해주세요.
+                  </div>
+                )}
+                {faxNumber && !faxSending && (
+                  <div className="alert alert-success">
+                    <i className="bi bi-info-circle me-2"></i>
+                    <strong>사용 방법:</strong><br />
+                    1. "전송 준비" 버튼 클릭<br />
+                    2. 팩스 앱이 자동으로 열립니다<br />
+                    3. 팩스번호가 클립보드에 복사됩니다<br />
+                    4. 팩스 앱에서 Ctrl+V로 번호 붙여넣기<br />
+                    5. 전송 버튼 클릭
+                  </div>
+                )}
 
                 {faxSending && (
                   <div className="mt-4">
-                    <div className="position-relative d-inline-block" style={{ width: '120px', height: '120px' }}>
-                      <svg className="position-absolute" width="120" height="120">
-                        <circle
-                          cx="60"
-                          cy="60"
-                          r="50"
-                          stroke="#e9ecef"
-                          strokeWidth="10"
-                          fill="none"
-                        />
-                        <circle
-                          cx="60"
-                          cy="60"
-                          r="50"
-                          stroke="#0d6efd"
-                          strokeWidth="10"
-                          fill="none"
-                          strokeDasharray={`${2 * Math.PI * 50}`}
-                          strokeDashoffset={`${2 * Math.PI * 50 * (1 - faxProgress / 100)}`}
-                          strokeLinecap="round"
-                          transform="rotate(-90 60 60)"
-                          style={{ transition: 'stroke-dashoffset 0.3s ease' }}
-                        />
-                      </svg>
-                      <div
-                        className="position-absolute top-50 start-50 translate-middle"
-                        style={{ fontSize: '24px', fontWeight: 'bold', color: '#0d6efd' }}
-                      >
-                        {faxProgress}%
-                      </div>
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="visually-hidden">준비 중...</span>
                     </div>
-                    <div className="mt-3">
-                      {faxProgress < 30 && <p className="text-muted">다이얼링 중...</p>}
-                      {faxProgress >= 30 && faxProgress < 100 && <p className="text-muted">전송 중...</p>}
-                      {faxProgress === 100 && <p className="text-success fw-bold">전송 완료!</p>}
-                    </div>
+                    <p className="mt-3 text-muted">팩스 앱을 여는 중...</p>
                   </div>
                 )}
               </div>
@@ -834,14 +1095,16 @@ const Invoices: React.FC = () => {
                       type="button"
                       className="btn btn-primary"
                       onClick={confirmSendFax}
+                      disabled={!faxNumber}
                     >
-                      <i className="bi bi-send me-2"></i>
-                      전송
+                      <i className="bi bi-printer me-2"></i>
+                      전송 준비
                     </button>
                   </>
                 ) : (
                   <button type="button" className="btn btn-secondary" disabled>
-                    전송 중...
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    준비 중...
                   </button>
                 )}
               </div>

@@ -161,8 +161,6 @@ const SpareParts: React.FC = () => {
       
       return roundedPriceKrw; // 항상 원화로 반환
     } catch (error) {
-      console.error('팩터 정보를 가져오는데 실패했습니다:', error);
-      
       // 오류 시 기본값 사용
       const exchangeRates: any = { EUR: 1450, USD: 1300, KRW: 1 };
       const krwCostPrice = costPrice * (exchangeRates[currency] || 1);
@@ -260,7 +258,6 @@ const SpareParts: React.FC = () => {
       
       setError(null);
     } catch (err) {
-      console.error('Error fetching spare parts:', err);
       setError('부품 목록을 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
@@ -269,20 +266,17 @@ const SpareParts: React.FC = () => {
 
   const fetchAllHistory = async () => {
     try {
-      console.log('Fetching all history...');
       const response = await api.get('/api/spare-parts/history');
-      console.log('History response:', response.data);
-      
+
       // 날짜일시 내림차순으로 정렬 (최신 순)
       const sortedHistory = response.data.sort((a: SparePartHistory, b: SparePartHistory) => {
         const dateA = new Date(a.transaction_date);
         const dateB = new Date(b.transaction_date);
         return dateB.getTime() - dateA.getTime(); // 내림차순
       });
-      
+
       setHistory(sortedHistory);
     } catch (err) {
-      console.error('Error fetching all history:', err);
       setError('입출고 내역을 불러오는데 실패했습니다.');
     }
   };
@@ -306,9 +300,7 @@ const SpareParts: React.FC = () => {
     setDeletingHistoryId(historyId);
 
     try {
-      console.log('Deleting history ID:', historyId);
       const response = await api.delete(`/api/spare-parts/history/${historyId}`);
-      console.log('Delete response:', response);
 
       if (response.data.success) {
         alert('입출고 내역이 삭제되었습니다.');
@@ -320,8 +312,6 @@ const SpareParts: React.FC = () => {
         alert(response.data.message || '삭제에 실패했습니다.');
       }
     } catch (err: any) {
-      console.error('Error deleting stock history:', err);
-      console.error('Error response:', err.response);
       const errorMsg = err.response?.data?.message || err.message || '입출고 내역 삭제 중 오류가 발생했습니다.';
       alert(`삭제 실패: ${errorMsg}`);
     } finally {
@@ -330,27 +320,22 @@ const SpareParts: React.FC = () => {
   };
 
   const fetchPriceHistory = async (partId: number) => {
-    console.log('Fetching price history for part ID:', partId);
     setPriceHistoryLoading(true);
     try {
       const response = await api.get(`/api/spare-parts/${partId}/price-history`);
-      console.log('Price history response:', response.data);
-      
+
       if (response.data && response.data.success) {
         const historyData = response.data.data || [];
-        console.log('History data:', historyData);
         setPriceHistory(historyData);
-        
+
         // 각 가격 이력의 저장된 청구가 사용
         const billingPricesMap: {[key: number]: number} = {};
         for (const price of historyData) {
           billingPricesMap[price.id] = price.billing_price || 0;
         }
-        console.log('Billing prices map:', billingPricesMap);
         setBillingPrices(billingPricesMap);
       }
     } catch (err) {
-      console.error('Error fetching price history:', err);
       setPriceHistory([]);
       setBillingPrices({});
     } finally {
@@ -428,7 +413,6 @@ const SpareParts: React.FC = () => {
         fetchSpareParts();
       }
     } catch (err: any) {
-      console.error('Error adding price history:', err);
       alert(err.response?.data?.error || '가격 히스토리 추가 중 오류가 발생했습니다.');
     }
   };
@@ -440,11 +424,9 @@ const SpareParts: React.FC = () => {
       if (response.data && response.data.success) {
         setCustomerSearchResults(response.data.data || []);
       } else {
-        console.log('No customers found for search term:', searchTerm);
         setCustomerSearchResults([]);
       }
     } catch (err) {
-      console.error('Error searching customers:', err);
       setCustomerSearchResults([]);
     }
   };
@@ -479,7 +461,6 @@ const SpareParts: React.FC = () => {
 
     try {
       const response = await api.get(`/api/spare-parts/search/${partNumber}`);
-      console.log('Search response:', response.data); // 디버깅용
       if (response.data && response.data.success && response.data.data) {
         setStockTransaction(prev => ({
           ...prev,
@@ -489,7 +470,6 @@ const SpareParts: React.FC = () => {
         setStockModalError('');
       }
     } catch (err) {
-      console.error('Error searching part:', err);
       setStockTransaction(prev => ({
         ...prev,
         part_name: '',
@@ -518,7 +498,7 @@ const SpareParts: React.FC = () => {
               notes: priceItem.notes
             });
           } catch (priceErr) {
-            console.error('가격 정보 등록 실패:', priceErr);
+            // 가격 정보 등록 실패 시 무시하고 계속 진행
           }
         }
       }
@@ -529,15 +509,12 @@ const SpareParts: React.FC = () => {
       setSelectedPart(null);
       fetchSpareParts();
     } catch (err: any) {
-      console.error('Error registering part:', err);
       setError('부품 등록에 실패했습니다.');
     }
   };
 
   const handleStockIn = async () => {
     try {
-      console.log('Stock transaction:', stockTransaction); // 디버깅용
-      
       if (stockTransaction.is_existing_part) {
         // 기존 부품 입고
         const response = await api.post('/api/spare-parts/stock-transaction', {
@@ -546,10 +523,8 @@ const SpareParts: React.FC = () => {
           quantity: stockTransaction.quantity,
           transaction_date: new Date().toISOString().split('T')[0]
         });
-        console.log('Stock transaction response:', response.data); // 디버깅용
       } else {
         // 새 부품 등록 후 입고
-        console.log('Creating new part...'); // 디버깅용
         await api.post('/api/spare-parts', {
           part_number: stockTransaction.part_number,
           part_name: stockTransaction.part_name,
@@ -558,7 +533,6 @@ const SpareParts: React.FC = () => {
           price: 0
         });
 
-        console.log('Processing stock in for new part...'); // 디버깅용
         await api.post('/api/spare-parts/stock-transaction', {
           part_number: stockTransaction.part_number,
           transaction_type: 'IN',
@@ -580,13 +554,10 @@ const SpareParts: React.FC = () => {
         is_existing_part: false
       });
       setStockModalError('');
-      
+
       // 부품 목록 새로고침
-      console.log('Refreshing parts list...'); // 디버깅용
       await fetchSpareParts();
     } catch (err: any) {
-      console.error('Error processing stock in:', err);
-      console.error('Error response:', err.response?.data); // 디버깅용
       setStockModalError(err.response?.data?.error || '입고 처리 중 오류가 발생했습니다.');
     }
   };
@@ -599,8 +570,6 @@ const SpareParts: React.FC = () => {
         return;
       }
 
-      console.log('Processing stock out:', stockTransaction); // 디버깅용
-
       const response = await api.post('/api/spare-parts/stock-transaction', {
         part_number: stockTransaction.part_number,
         transaction_type: 'OUT',
@@ -609,8 +578,6 @@ const SpareParts: React.FC = () => {
         customer_name: stockTransaction.customer_name,
         transaction_date: new Date().toISOString().split('T')[0]
       });
-
-      console.log('Stock out response:', response.data); // 디버깅용
       
       setShowStockOutModal(false);
       setShowPartSuggestions(false);
@@ -626,46 +593,37 @@ const SpareParts: React.FC = () => {
         is_existing_part: false
       });
       setStockModalError('');
-      
+
       // 부품 목록 새로고침
-      console.log('Refreshing parts list...'); // 디버깅용
       await fetchSpareParts();
     } catch (err: any) {
-      console.error('Error processing stock out:', err);
-      console.error('Error response:', err.response?.data); // 디버깅용
       setStockModalError(err.response?.data?.error || '출고 처리 중 오류가 발생했습니다.');
     }
   };
 
   const handleEditPart = async () => {
     if (!selectedPart) return;
-    
+
     try {
-      console.log('Updating part with data:', newPart);
-      console.log('Part number:', selectedPart.part_number);
       const response = await api.put(`/api/spare-parts/${selectedPart.part_number}`, newPart);
-      console.log('Update response:', response.data);
       setShowEditModal(false);
       setSelectedPart(null);
       setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0 });
       fetchSpareParts();
     } catch (err: any) {
-      console.error('Error updating part:', err);
-      console.error('Error response:', err.response?.data);
       setError('부품 수정에 실패했습니다.');
     }
   };
 
   const handleDeletePart = async () => {
     if (!selectedPart) return;
-    
+
     try {
       await api.delete(`/api/spare-parts/${selectedPart.id}`);
       setShowDeleteModal(false);
       setSelectedPart(null);
       fetchSpareParts();
     } catch (err) {
-      console.error('Error deleting part:', err);
       setError('부품 삭제에 실패했습니다.');
     }
   };
