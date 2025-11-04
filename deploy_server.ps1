@@ -27,9 +27,9 @@ $iisPath = "C:\inetpub\wwwroot\webtranet"
 # Git 동기화
 if (-not $skipGit) {
     Write-Host "[Git 동기화]" -ForegroundColor Green
-    Write-Host ""fa
+    Write-Host ""
 
-    try {f
+    try {
         Set-Location $projectRoot
 
         # 현재 브랜치 확인
