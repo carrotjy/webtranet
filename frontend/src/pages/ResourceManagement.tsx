@@ -537,16 +537,8 @@ const ResourceManagement: React.FC = () => {
       <div 
         className="modal modal-blur show" 
         style={{display: 'block'}}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            setShowForm(false);
-            setEditingResource(null);
-            setIsViewMode(false);
-            setCustomerSearchTerm('');
-            setShowCustomerSearch(false);
-            setCustomerSearchResults([]);
-          }
-        }}
+        data-bs-backdrop="static"
+        data-bs-keyboard="false"
       >
         <div className="modal-dialog modal-xl modal-dialog-centered">
           <div className="modal-content">

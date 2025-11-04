@@ -49,6 +49,7 @@ const SpareParts: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deletingHistoryId, setDeletingHistoryId] = useState<number | null>(null);
   
   // 메인 목록 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
@@ -288,8 +289,13 @@ const SpareParts: React.FC = () => {
 
   // 입출고 내역 삭제 (관리자만 가능)
   const deleteStockHistory = async (historyId: number) => {
-    if (!user || user.role !== 'admin') {
+    if (!user || !user.is_admin) {
       alert('관리자만 입출고 내역을 삭제할 수 있습니다.');
+      return;
+    }
+
+    // 이미 삭제 중이면 중복 요청 방지
+    if (deletingHistoryId === historyId) {
       return;
     }
 
@@ -297,21 +303,29 @@ const SpareParts: React.FC = () => {
       return;
     }
 
+    setDeletingHistoryId(historyId);
+
     try {
+      console.log('Deleting history ID:', historyId);
       const response = await api.delete(`/api/spare-parts/history/${historyId}`);
+      console.log('Delete response:', response);
 
       if (response.data.success) {
         alert('입출고 내역이 삭제되었습니다.');
         // 입출고 내역 새로고침
-        await loadAllHistory();
+        await fetchAllHistory();
         // 부품 목록도 새로고침 (재고가 변경되었으므로)
-        await loadSpareParts();
+        await fetchSpareParts();
       } else {
         alert(response.data.message || '삭제에 실패했습니다.');
       }
     } catch (err: any) {
       console.error('Error deleting stock history:', err);
-      alert(err.response?.data?.message || '입출고 내역 삭제 중 오류가 발생했습니다.');
+      console.error('Error response:', err.response);
+      const errorMsg = err.response?.data?.message || err.message || '입출고 내역 삭제 중 오류가 발생했습니다.';
+      alert(`삭제 실패: ${errorMsg}`);
+    } finally {
+      setDeletingHistoryId(null);
     }
   };
 
@@ -981,14 +995,11 @@ const SpareParts: React.FC = () => {
       </div>
 
       {showHistoryModal && (
-        <div 
-          className="modal modal-blur fade show" 
+        <div
+          className="modal modal-blur fade show"
           style={{ display: 'block' }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowHistoryModal(false);
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
@@ -1012,7 +1023,7 @@ const SpareParts: React.FC = () => {
                           <th>현재재고</th>
                           <th>요청자</th>
                           <th>사용처/참조</th>
-                          {user?.role === 'admin' && <th style={{width: '60px'}}>삭제</th>}
+                          {user?.is_admin && <th style={{width: '60px'}}>삭제</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -1066,11 +1077,12 @@ const SpareParts: React.FC = () => {
                                     <span className="text-muted">-</span>
                                   )}
                                 </td>
-                                {user?.role === 'admin' && (
+                                {user?.is_admin && (
                                   <td>
                                     <button
                                       className="btn btn-sm btn-ghost-danger"
                                       onClick={() => deleteStockHistory(record.id)}
+                                      disabled={deletingHistoryId === record.id}
                                       title="삭제"
                                     >
                                       <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-x" width="20" height="20" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -1085,7 +1097,7 @@ const SpareParts: React.FC = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan={user?.role === 'admin' ? 9 : 8} className="text-center text-muted">
+                              <td colSpan={user?.is_admin ? 9 : 8} className="text-center text-muted">
                                 입출고 내역이 없습니다.
                               </td>
                             </tr>
@@ -1123,11 +1135,8 @@ const SpareParts: React.FC = () => {
         <div
           className="modal modal-blur fade show"
           style={{ display: 'block' }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowRegisterModal(false);
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
@@ -1287,14 +1296,11 @@ const SpareParts: React.FC = () => {
 
       {/* 입고 모달 */}
       {showStockInModal && (
-        <div 
-          className="modal modal-blur fade show" 
+        <div
+          className="modal modal-blur fade show"
           style={{ display: 'block' }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              closeStockInModal();
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
@@ -1468,11 +1474,8 @@ const SpareParts: React.FC = () => {
         <div 
           className="modal modal-blur fade show" 
           style={{ display: 'block' }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              closeStockOutModal();
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
@@ -1734,11 +1737,8 @@ const SpareParts: React.FC = () => {
         <div 
           className="modal modal-blur fade show" 
           style={{ display: 'block' }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowViewModal(false);
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
@@ -1882,11 +1882,8 @@ const SpareParts: React.FC = () => {
         <div 
           className="modal modal-blur fade show" 
           style={{ display: 'block' }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowEditModal(false);
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
@@ -2055,7 +2052,7 @@ const SpareParts: React.FC = () => {
 
       {/* 부품 삭제 확인 모달 */}
       {showDeleteModal && selectedPart && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }}>
+        <div className="modal modal-blur fade show" style={{ display: 'block' }} data-bs-backdrop="static" data-bs-keyboard="false">
           <div className="modal-dialog modal-sm modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">

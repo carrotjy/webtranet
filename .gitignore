@@ -246,8 +246,12 @@
 
 # Database files (keep sample files for reference)
 backend/app/database/webtranet.db
+backend/app/database/user.db
 !backend/sample_customers*.xlsx
 !backend/test_with_empty_cells.xlsx
+
+# Claude Code local settings
+.claude/settings.local.json
 
 # Windows invalid filename
 nul

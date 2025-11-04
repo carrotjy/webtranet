@@ -570,7 +570,7 @@ const Customers: React.FC = () => {
 
         {/* 수정 폼에서도 장비관리 모달 표시 */}
         {selectedCustomer && (
-          <div className="modal modal-blur fade show" style={{display: 'block'}} id="equipmentModalFromForm">
+          <div className="modal modal-blur fade show" style={{display: 'block'}} data-bs-backdrop="static" data-bs-keyboard="false" id="equipmentModalFromForm">
             <div className="modal-dialog modal-xl modal-dialog-centered">
               <div className="modal-content">
                 <div className="modal-header">
@@ -780,7 +780,7 @@ const Customers: React.FC = () => {
   // 보기 전용 모달
   if (showViewModal && viewingCustomer) {
     return (
-      <div className="modal modal-blur fade show" style={{display: 'block'}}>
+      <div className="modal modal-blur fade show" style={{display: 'block'}} data-bs-backdrop="static" data-bs-keyboard="false">
         <div className="modal-dialog modal-lg modal-dialog-centered">
           <div className="modal-content">
             <div className="modal-header">
@@ -1283,7 +1283,7 @@ const Customers: React.FC = () => {
 
       {/* 리소스 관리 모달 - 수정 폼에서도 표시되도록 */}
       {selectedCustomer && (
-        <div className="modal modal-blur fade show" style={{display: 'block'}} id="equipmentModal">
+        <div className="modal modal-blur fade show" style={{display: 'block'}} data-bs-backdrop="static" data-bs-keyboard="false" id="equipmentModal">
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">

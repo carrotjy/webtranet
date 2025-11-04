@@ -1778,12 +1778,15 @@ def export_monthly_inventory_summary():
 @jwt_required()
 def delete_stock_history(history_id):
     """입출고 내역 삭제 (관리자만 가능)"""
+    print(f"DELETE request received for history_id: {history_id}")
     try:
         # 현재 사용자 정보 가져오기
         current_user_id = get_jwt_identity()
         user = User.get_by_id(current_user_id)
+        print(f"User: {user}, is_admin: {user.is_admin if user else None}")
 
-        if not user or user.role != 'admin':
+        if not user or not user.is_admin:
+            print("Permission denied: User is not admin")
             return jsonify({
                 'success': False,
                 'message': '관리자만 입출고 내역을 삭제할 수 있습니다.'
@@ -1797,6 +1800,7 @@ def delete_stock_history(history_id):
                 'SELECT * FROM stock_history WHERE id = ?',
                 (history_id,)
             ).fetchone()
+            print(f"Found history: {history}")
 
             if not history:
                 return jsonify({
@@ -1842,12 +1846,16 @@ def delete_stock_history(history_id):
             })
 
         except Exception as e:
+            print(f"Error in delete operation: {e}")
             conn.rollback()
             raise e
         finally:
             conn.close()
 
     except Exception as e:
+        print(f"Exception caught: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'message': str(e)

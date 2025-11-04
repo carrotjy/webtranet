@@ -2350,15 +2350,11 @@ const ServiceReports: React.FC = () => {
 
       {/* 서비스 리포트 작성/수정 모달 */}
       {showForm && (
-        <div 
-          className="modal modal-blur fade show" 
+        <div
+          className="modal modal-blur fade show"
           style={{display: 'block'}}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowForm(false);
-              setEditingReport(null);
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-lg modal-dialog-centered">
             <div className="modal-content">
@@ -2742,7 +2738,7 @@ const ServiceReports: React.FC = () => {
                     </div>
                     
                     {formData.used_parts.length > 0 ? (
-                      <div className="table-responsive">
+                      <div className="table-responsive" style={{ overflow: 'visible' }}>
                         <table className="table table-sm table-bordered">
                           <thead className="table-light">
                             <tr>
@@ -2757,7 +2753,7 @@ const ServiceReports: React.FC = () => {
                           <tbody>
                             {formData.used_parts.map((part, index) => (
                               <tr key={index}>
-                                <td>
+                                <td style={{ position: 'static' }}>
                                   <div style={{ position: 'relative' }}>
                                     <input
                                       type="text"
@@ -2765,17 +2761,21 @@ const ServiceReports: React.FC = () => {
                                       value={part.part_number || ''}
                                       onChange={(e) => updateUsedPart(index, 'part_number', e.target.value)}
                                       placeholder="파트번호 입력"
+                                      id={`part-input-${index}`}
                                     />
 
                                     {/* 자동완성 드롭다운 */}
                                     {activePartSearchIndex === index && partSearchResults.length > 0 && (
                                       <div
-                                        className="dropdown-menu show w-100"
+                                        className="dropdown-menu show"
                                         style={{
                                           maxHeight: '200px',
+                                          minWidth: '300px',
                                           overflowY: 'auto',
                                           position: 'absolute',
-                                          zIndex: 1000
+                                          top: '100%',
+                                          left: 0,
+                                          zIndex: 9999
                                         }}
                                       >
                                         {partSearchResults.map((searchPart, pidx) => (
@@ -3073,14 +3073,11 @@ const ServiceReports: React.FC = () => {
 
       {/* 고객 선택 모달 */}
       {showCustomerModal && (
-        <div 
-          className="modal modal-blur fade show" 
+        <div
+          className="modal modal-blur fade show"
           style={{display: 'block', zIndex: 2000}}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowCustomerModal(false);
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
@@ -3172,11 +3169,8 @@ const ServiceReports: React.FC = () => {
         <div 
           className="modal modal-blur fade show" 
           style={{display: 'block', zIndex: 2000}}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowViewModal(false);
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-lg modal-dialog-centered">
             <div className="modal-content">
@@ -3447,14 +3441,11 @@ const ServiceReports: React.FC = () => {
 
       {/* 리소스 추가 모달 */}
       {showAddResourceModal && (
-        <div 
-          className="modal modal-blur fade show" 
+        <div
+          className="modal modal-blur fade show"
           style={{display: 'block', zIndex: 2100}}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowAddResourceModal(false);
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
@@ -3581,11 +3572,8 @@ const ServiceReports: React.FC = () => {
         <div
           className="modal modal-blur fade show"
           style={{display: 'block', zIndex: 2100}}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowAddCustomerModal(false);
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content">
@@ -3834,12 +3822,8 @@ const ServiceReports: React.FC = () => {
         <div
           className="modal modal-blur fade show"
           style={{display: 'block'}}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowInvoiceModal(false);
-              setShowViewModal(true);
-            }
-          }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
         >
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div className="modal-content">

@@ -1312,7 +1312,7 @@ const InvoiceForm: React.FC = () => {
       {showPartsModal && (
         <>
           <div className="modal-backdrop fade show" style={{ zIndex: 1040 }}></div>
-          <div className="modal fade show" style={{ display: 'block', zIndex: 1050 }} tabIndex={-1} role="dialog" aria-modal="true">
+          <div className="modal fade show" style={{ display: 'block', zIndex: 1050 }} data-bs-backdrop="static" data-bs-keyboard="false" tabIndex={-1} role="dialog" aria-modal="true">
             <div className="modal-dialog modal-dialog-centered modal-lg" role="document">
               <div className="modal-content" style={{ backgroundColor: '#ffffff', position: 'relative', zIndex: 1051 }}>
                 <div className="modal-header">
@@ -1422,7 +1422,7 @@ const InvoiceForm: React.FC = () => {
       {showAddCustomerModal && (
         <>
           <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
-          <div className="modal fade show" style={{ display: 'block', zIndex: 1070 }} tabIndex={-1} role="dialog" aria-modal="true">
+          <div className="modal fade show" style={{ display: 'block', zIndex: 1070 }} data-bs-backdrop="static" data-bs-keyboard="false" tabIndex={-1} role="dialog" aria-modal="true">
             <div className="modal-dialog modal-dialog-centered modal-lg" role="document">
               <div className="modal-content" style={{ backgroundColor: '#ffffff', position: 'relative', zIndex: 1071 }}>
                 <div className="modal-header">
@@ -1567,7 +1567,7 @@ const InvoiceForm: React.FC = () => {
       {showNegoTypeModal && (
         <>
           <div className="modal-backdrop fade show"></div>
-          <div className="modal fade show" style={{ display: 'block' }} tabIndex={-1}>
+          <div className="modal fade show" style={{ display: 'block' }} data-bs-backdrop="static" data-bs-keyboard="false" tabIndex={-1}>
             <div className="modal-dialog modal-sm modal-dialog-centered">
               <div className="modal-content">
                 <div className="modal-header">
