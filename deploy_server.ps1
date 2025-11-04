@@ -97,6 +97,10 @@ if ($frontend) {
             throw "빌드 실패"
         }
 
+        # 빌드 완료 시간 기록
+        $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        Write-Host "  ✓ 빌드 완료 시간: $buildTime" -ForegroundColor Gray
+
         # 4. IIS 경로로 복사
         Write-Host "  - IIS 경로로 복사 중..." -ForegroundColor Yellow
 
@@ -116,6 +120,12 @@ if ($frontend) {
         Write-Host ""
         Write-Host "  ✅ 프론트엔드 배포 완료!" -ForegroundColor Green
         Write-Host "     배포 경로: $iisPath" -ForegroundColor Gray
+        Write-Host "     빌드 시간: $buildTime" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "  ⚠️  브라우저 캐시 문제 해결 방법:" -ForegroundColor Yellow
+        Write-Host "     1. Ctrl + Shift + R (하드 새로고침)" -ForegroundColor Gray
+        Write-Host "     2. Ctrl + Shift + Delete (캐시 삭제)" -ForegroundColor Gray
+        Write-Host "     3. 시크릿 모드로 테스트" -ForegroundColor Gray
         Write-Host ""
 
     } catch {
