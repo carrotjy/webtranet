@@ -227,7 +227,7 @@ if ($frontend) {
 
 if ($backend) {
     Write-Host "백엔드: 프로세스 상태를 확인하세요." -ForegroundColor Yellow
-    Write-Host "  확인: Get-Process python | Where-Object {`$_.Path -like '*webtranet*backend\venv*'}" -ForegroundColor Gray
+    Write-Host "  확인: Get-Process python | Where-Object { `$_.Path -like '*webtranet*backend\venv*' }" -ForegroundColor Gray
 }
 
 Write-Host ""
