@@ -32,8 +32,14 @@ const Invoices: React.FC = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   const [perPage, setPerPage] = useState(10);
+
+  // Fax sending states
+  const [showFaxModal, setShowFaxModal] = useState(false);
+  const [faxInvoice, setFaxInvoice] = useState<Invoice | null>(null);
+  const [faxSending, setFaxSending] = useState(false);
+  const [faxProgress, setFaxProgress] = useState(0);
 
   const fetchInvoices = async (page: number) => {
     try {
@@ -125,6 +131,67 @@ const Invoices: React.FC = () => {
     // PDF 파일 보기
     const pdfUrl = `/api/invoice-pdf/${customerName}/거래명세서(${customerName}).pdf`;
     window.open(pdfUrl, '_blank');
+  };
+
+  const handleSendFax = (invoice: Invoice) => {
+    setFaxInvoice(invoice);
+    setShowFaxModal(true);
+    setFaxProgress(0);
+  };
+
+  const confirmSendFax = async () => {
+    if (!faxInvoice) return;
+
+    setFaxSending(true);
+    setFaxProgress(0);
+
+    try {
+      // Simulate dialing (0-30%)
+      setFaxProgress(10);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setFaxProgress(30);
+
+      // Send fax request
+      const response = await fetch('/api/fax/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          invoice_id: faxInvoice.id,
+          customer_name: faxInvoice.customer_name
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || '팩스 전송에 실패했습니다.');
+      }
+
+      // Simulate sending progress (30-90%)
+      setFaxProgress(50);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setFaxProgress(70);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setFaxProgress(90);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Complete
+      setFaxProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      alert(`팩스 전송이 완료되었습니다.\n팩스번호: ${data.fax_number}`);
+      setShowFaxModal(false);
+      setFaxInvoice(null);
+    } catch (error: any) {
+      console.error('팩스 전송 실패:', error);
+      alert(error.message || '팩스 전송에 실패했습니다.');
+    } finally {
+      setFaxSending(false);
+      setFaxProgress(0);
+    }
   };
 
   const handleLockToggle = async (invoice: Invoice) => {
@@ -614,6 +681,25 @@ const Invoices: React.FC = () => {
                                       </svg>
                                     </button>
                                   )}
+                                  {/* Fax Button */}
+                                  <button
+                                    className="btn btn-sm btn-outline-info"
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      width: '32px',
+                                      height: '32px',
+                                      padding: '0'
+                                    }}
+                                    onClick={() => handleSendFax(invoice)}
+                                    disabled={invoice.has_pdf === false}
+                                    title={invoice.has_pdf === false ? 'PDF 파일이 생성되지 않았습니다' : '팩스 전송'}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                                    </svg>
+                                  </button>
                                   {(user?.transaction_access && (user?.transaction_delete || user?.is_admin)) && (
                                     <button
                                       className="btn btn-sm btn-outline-danger"
@@ -656,6 +742,113 @@ const Invoices: React.FC = () => {
         </div>
       </div>
       </div>
+
+      {/* Fax Sending Modal */}
+      {showFaxModal && faxInvoice && (
+        <div
+          className="modal fade show"
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-printer me-2"></i>
+                  팩스 전송
+                </h5>
+                {!faxSending && (
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => {
+                      setShowFaxModal(false);
+                      setFaxInvoice(null);
+                    }}
+                  ></button>
+                )}
+              </div>
+              <div className="modal-body text-center">
+                <p>다음 거래명세표를 팩스로 전송하시겠습니까?</p>
+                <div className="alert alert-info">
+                  <strong>거래명세표 번호:</strong> {faxInvoice.invoice_number}<br />
+                  <strong>고객명:</strong> {faxInvoice.customer_name}
+                </div>
+
+                {faxSending && (
+                  <div className="mt-4">
+                    <div className="position-relative d-inline-block" style={{ width: '120px', height: '120px' }}>
+                      <svg className="position-absolute" width="120" height="120">
+                        <circle
+                          cx="60"
+                          cy="60"
+                          r="50"
+                          stroke="#e9ecef"
+                          strokeWidth="10"
+                          fill="none"
+                        />
+                        <circle
+                          cx="60"
+                          cy="60"
+                          r="50"
+                          stroke="#0d6efd"
+                          strokeWidth="10"
+                          fill="none"
+                          strokeDasharray={`${2 * Math.PI * 50}`}
+                          strokeDashoffset={`${2 * Math.PI * 50 * (1 - faxProgress / 100)}`}
+                          strokeLinecap="round"
+                          transform="rotate(-90 60 60)"
+                          style={{ transition: 'stroke-dashoffset 0.3s ease' }}
+                        />
+                      </svg>
+                      <div
+                        className="position-absolute top-50 start-50 translate-middle"
+                        style={{ fontSize: '24px', fontWeight: 'bold', color: '#0d6efd' }}
+                      >
+                        {faxProgress}%
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      {faxProgress < 30 && <p className="text-muted">다이얼링 중...</p>}
+                      {faxProgress >= 30 && faxProgress < 100 && <p className="text-muted">전송 중...</p>}
+                      {faxProgress === 100 && <p className="text-success fw-bold">전송 완료!</p>}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                {!faxSending ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        setShowFaxModal(false);
+                        setFaxInvoice(null);
+                      }}
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={confirmSendFax}
+                    >
+                      <i className="bi bi-send me-2"></i>
+                      전송
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="btn btn-secondary" disabled>
+                    전송 중...
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

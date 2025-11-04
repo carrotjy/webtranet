@@ -21,6 +21,7 @@ import {
   YTDSummaryPage
 } from './pages';
 import ResourceSettings from './pages/ResourceSettings';
+import SystemSettings from './pages/SystemSettings';
 import './App.css';
 
 function App() {
@@ -105,6 +106,11 @@ function App() {
               <Route path="admin/spare-parts" element={
                 <ProtectedRoute adminOnly>
                   <SparePartSettings />
+                </ProtectedRoute>
+              } />
+              <Route path="admin/system-settings" element={
+                <ProtectedRoute adminOnly>
+                  <SystemSettings />
                 </ProtectedRoute>
               } />
               <Route path="monthly-inventory" element={
