@@ -4,13 +4,21 @@ Fax Blueprint
 """
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from app.database.db import get_db_connection
 import win32print
 import win32api
+import sqlite3
 import os
 import tempfile
 
 fax_bp = Blueprint('fax', __name__)
+
+
+def get_db_connection():
+    """데이터베이스 연결"""
+    db_path = os.path.join('app', 'database', 'webtranet.db')
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 @fax_bp.route('/fax/send', methods=['POST'])
