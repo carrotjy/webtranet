@@ -1105,29 +1105,42 @@ const SpareParts: React.FC = () => {
                                 </td>
                                 {user?.is_admin && (
                                   <td>
-                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                    <div className="d-flex gap-1 justify-content-center">
                                       <button
-                                        className="btn btn-sm btn-ghost-primary"
+                                        className="btn btn-sm btn-outline-secondary"
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          width: '32px',
+                                          height: '32px',
+                                          padding: '0'
+                                        }}
                                         onClick={() => openEditHistoryModal(record)}
-                                        title="수정"
+                                        title="편집"
                                       >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-edit" width="20" height="20" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                                          <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                                          <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1"></path>
-                                          <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z"></path>
-                                          <path d="M16 5l3 3"></path>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                                         </svg>
                                       </button>
                                       <button
-                                        className="btn btn-sm btn-ghost-danger"
+                                        className="btn btn-sm btn-outline-danger"
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          width: '32px',
+                                          height: '32px',
+                                          padding: '0'
+                                        }}
                                         onClick={() => deleteStockHistory(record.id)}
                                         disabled={deletingHistoryId === record.id}
                                         title="삭제"
                                       >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-x" width="20" height="20" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                                          <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                                          <path d="M18 6l-12 12"></path>
-                                          <path d="M6 6l12 12"></path>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="3,6 5,6 21,6"/>
+                                          <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
                                         </svg>
                                       </button>
                                     </div>

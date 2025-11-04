@@ -534,14 +534,14 @@ const ResourceManagement: React.FC = () => {
   // 폼 표시 시
   if (showForm) {
     return (
-      <div 
-        className="modal modal-blur show" 
+      <div
+        className="modal modal-blur show"
         style={{display: 'block'}}
         data-bs-backdrop="static"
         data-bs-keyboard="false"
       >
-        <div className="modal-dialog modal-xl modal-dialog-centered">
-          <div className="modal-content">
+        <div className="modal-dialog modal-xl modal-dialog-centered" style={{ maxWidth: '95%', width: '1400px' }}>
+          <div className="modal-content" style={{ maxHeight: '90vh' }}>
             <form onSubmit={handleSubmit}>
               <div className="modal-header">
                   <h5 className="modal-title">
@@ -560,8 +560,8 @@ const ResourceManagement: React.FC = () => {
                     }}
                   ></button>
                 </div>
-                
-                <div className="modal-body">
+
+                <div className="modal-body" style={{ maxHeight: 'calc(90vh - 140px)', overflowY: 'auto' }}>
                   <div className="row">
                     <div className="col-md-6">
                       <div className="mb-3">

@@ -96,6 +96,23 @@ def init_database():
         except sqlite3.OperationalError:
             pass
 
+    # users 테이블에 추가 기능 권한 컬럼들 추가
+    additional_permission_columns = [
+        ('service_report_lock', 1),
+        ('transaction_excel_export', 1),
+        ('transaction_lock', 1),
+        ('transaction_bill_view', 1),
+        ('transaction_fax_send', 1),
+        ('transaction_file_download', 1),
+        ('spare_parts_stock_history_edit', 0),
+        ('spare_parts_stock_history_delete', 0)
+    ]
+    for col, default_val in additional_permission_columns:
+        try:
+            conn.execute(f'ALTER TABLE users ADD COLUMN {col} BOOLEAN DEFAULT {default_val}')
+        except sqlite3.OperationalError:
+            pass
+
     # 서비스 리포트 테이블 생성
     conn.execute('''
         CREATE TABLE IF NOT EXISTS service_reports (

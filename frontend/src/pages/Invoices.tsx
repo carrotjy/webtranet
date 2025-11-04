@@ -832,7 +832,7 @@ const Invoices: React.FC = () => {
                                 ) : (
                                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: 0.5 }}>
                                     <input type="checkbox" disabled />
-                                    <span className="badge bg-secondary" style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }} title="Excel 파일 없음">N/A</span>
+                                    <span className="badge bg-secondary" style={{ color: '#ffffff', fontSize: '0.75rem', padding: '0.35rem 0.5rem' }} title="Excel 파일 없음">N/A</span>
                                   </label>
                                 )}
                               </td>
@@ -861,9 +861,9 @@ const Invoices: React.FC = () => {
                                     </span>
                                   </label>
                                 ) : (
-                                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: 0.5 }}>
+                                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: 0.5}}>
                                     <input type="checkbox" disabled />
-                                    <span className="badge bg-secondary" style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }} title="PDF 파일 없음">N/A</span>
+                                    <span className="badge bg-secondary" style={{ color: '#ffffff', fontSize: '0.75rem', padding: '0.35rem 0.5rem' }} title="PDF 파일 없음">N/A</span>
                                   </label>
                                 )}
                               </td>

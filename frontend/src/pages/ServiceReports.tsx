@@ -246,12 +246,26 @@ const calculateTravelTime = (departureTime: string, workStartTime: string, workE
   const workEnd = parseTime(workEndTime);
   const travelEnd = parseTime(travelEndTime);
   const meal = parseTime(mealTime);
-  
+
   const morningTravel = workStart - departure;
   const eveningTravel = travelEnd - workEnd;
   const totalTravel = morningTravel + eveningTravel - meal;
-  
+
   return totalTravel > 0 ? formatTime(totalTravel) : "00:00";
+};
+
+// HH:MM 형식의 시간을 소수점 시간으로 변환 (예: "03:30" -> 3.5)
+const convertTimeToDecimalHours = (timeStr: string): number => {
+  if (!timeStr) return 0;
+
+  // HH:MM 형식인 경우
+  if (timeStr.includes(':')) {
+    const [hours, minutes] = timeStr.split(':').map(s => parseFloat(s) || 0);
+    return hours + (minutes / 60);
+  }
+
+  // 이미 숫자인 경우
+  return parseFloat(timeStr) || 0;
 };
 
 const ServiceReports: React.FC = () => {
@@ -431,8 +445,15 @@ const ServiceReports: React.FC = () => {
           if (part.part_number && part.part_number !== '-') {
             try {
               const response = await sparePartsAPI.searchPartByNumber(part.part_number);
-              if (response.data && response.data.billing_price_krw) {
-                billingPrice = response.data.billing_price_krw;
+              if (response.data && response.data.success && response.data.spare_parts && response.data.spare_parts.length > 0) {
+                // 정확히 일치하는 부품번호 찾기
+                const matchedPart = response.data.spare_parts.find((p: any) =>
+                  p.part_number && p.part_number.toLowerCase() === part.part_number?.toLowerCase()
+                );
+
+                if (matchedPart && matchedPart.charge_price) {
+                  billingPrice = matchedPart.charge_price;
+                }
               }
             } catch (error) {
               console.error('스페어파트 조회 실패:', error);
@@ -986,6 +1007,70 @@ const ServiceReports: React.FC = () => {
     setActivePartSearchIndex(null);
   };
 
+  // 가격갱신 함수
+  const refreshPartPrices = async () => {
+    try {
+      // DB에서 현재 가격 조회가 필요한 부품들 필터링 (part_number가 있는 부품들)
+      const partsToRefresh = formData.used_parts.filter(part => part.part_number && part.part_number.trim() !== '');
+
+      if (partsToRefresh.length === 0) {
+        alert('가격을 갱신할 부품이 없습니다.');
+        return;
+      }
+
+      let updatedCount = 0;
+      const updatedParts = [...formData.used_parts];
+
+      // 각 부품에 대해 현재 가격 조회
+      for (let i = 0; i < updatedParts.length; i++) {
+        const part = updatedParts[i];
+        if (!part.part_number || part.part_number.trim() === '') continue;
+
+        try {
+          // POST 메소드를 사용하여 부품 검색
+          const response = await api.post('/api/spare-parts/service-search', {
+            part_number: part.part_number
+          });
+
+          if (response.data.success && response.data.spare_parts && response.data.spare_parts.length > 0) {
+            // 정확히 일치하는 부품번호 찾기
+            const matchedPart = response.data.spare_parts.find((p: any) =>
+              p.part_number && p.part_number.toLowerCase() === part.part_number?.toLowerCase()
+            );
+
+            if (matchedPart) {
+              const oldPrice = part.unit_price;
+              const newPrice = matchedPart.charge_price || 0;
+
+              if (oldPrice !== newPrice) {
+                updatedParts[i] = {
+                  ...updatedParts[i],
+                  unit_price: newPrice,
+                  total_price: updatedParts[i].quantity * newPrice,
+                  currentStock: matchedPart.stock_quantity,
+                  sparePart_id: matchedPart.id
+                };
+                updatedCount++;
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`부품 ${part.part_number} 가격 조회 실패:`, error);
+        }
+      }
+
+      if (updatedCount > 0) {
+        setFormData(prev => ({ ...prev, used_parts: updatedParts }));
+        alert(`${updatedCount}개 부품의 가격이 갱신되었습니다.`);
+      } else {
+        alert('변경된 가격이 없습니다. 모든 부품이 최신 가격입니다.');
+      }
+    } catch (error: any) {
+      console.error('가격 갱신 실패:', error);
+      alert('가격 갱신에 실패했습니다.');
+    }
+  };
+
   // 시간 기록 관련 함수들 (새로운 테이블 형태)
   const addTimeRecord = () => {
     const newTimeRecord: TimeRecord = {
@@ -1101,8 +1186,8 @@ const ServiceReports: React.FC = () => {
       const date = record.date;
       if (!date) return;
 
-      const workHours = record.calculated_work_time ? parseFloat(record.calculated_work_time) : 0;
-      const travelHours = record.calculated_travel_time ? parseFloat(record.calculated_travel_time) : 0;
+      const workHours = record.calculated_work_time ? convertTimeToDecimalHours(record.calculated_work_time) : 0;
+      const travelHours = record.calculated_travel_time ? convertTimeToDecimalHours(record.calculated_travel_time) : 0;
 
       if (dateGroups.has(date)) {
         const existing = dateGroups.get(date)!;
@@ -1219,8 +1304,17 @@ const ServiceReports: React.FC = () => {
         if (part.part_number) {
           try {
             const response = await sparePartsAPI.searchPartByNumber(part.part_number);
-            if (response.data && response.data.billing_price_krw) {
-              unitPrice = response.data.billing_price_krw;
+            if (response.data && response.data.success && response.data.spare_parts && response.data.spare_parts.length > 0) {
+              // 정확히 일치하는 부품번호 찾기
+              const matchedPart = response.data.spare_parts.find((p: any) =>
+                p.part_number && p.part_number.toLowerCase() === part.part_number?.toLowerCase()
+              );
+
+              if (matchedPart && matchedPart.charge_price) {
+                unitPrice = matchedPart.charge_price;
+              } else {
+                console.warn(`파트번호 ${part.part_number}의 청구가가 없습니다.`);
+              }
             } else {
               console.warn(`파트번호 ${part.part_number}의 청구가가 없습니다.`);
             }
@@ -2728,13 +2822,28 @@ const ServiceReports: React.FC = () => {
                   <div className="mb-4">
                     <div className="d-flex justify-content-between align-items-center mb-3">
                       <h5>사용부품 내역</h5>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={addUsedPart}
-                      >
-                        + 부품 추가
-                      </button>
+                      <div className="d-flex gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-success"
+                          onClick={refreshPartPrices}
+                          title="DB에 저장된 최신 가격으로 갱신"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}>
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                          </svg>
+                          가격갱신
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          onClick={addUsedPart}
+                        >
+                          + 부품 추가
+                        </button>
+                      </div>
                     </div>
                     
                     {formData.used_parts.length > 0 ? (
