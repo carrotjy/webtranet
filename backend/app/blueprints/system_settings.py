@@ -4,7 +4,7 @@ System Settings Blueprint
 """
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.database.models import User
+from app.models.user import User
 from app.database.db import get_db_connection
 import win32print
 import win32api
