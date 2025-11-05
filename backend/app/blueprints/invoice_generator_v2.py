@@ -332,17 +332,37 @@ def generate_invoice_excel_v2(invoice_id):
             # if item['day']:
             #     safe_write_to_cell(f'B{current_row}', item['day'])
 
+            # 네고 항목 판별 (음수 금액 또는 "네고" 포함)
+            is_nego = item['total_price'] < 0 if item['total_price'] else False
+            if not is_nego and item['item_name']:
+                is_nego = '네고' in str(item['item_name']) or 'NEGO' in str(item['item_name']).upper()
+
             if item['item_name']:
                 # 품목은 C에 쓰기
-                safe_write_to_cell(f'C{current_row}', item['item_name'])
+                item_name = str(item['item_name']).replace('네고', 'NEGO')
+                item_cell = safe_write_to_cell(f'C{current_row}', item_name)
+                # 네고 항목은 빨간색으로 표시
+                if is_nego and item_cell:
+                    from openpyxl.styles import Font
+                    item_cell.font = Font(color="FF0000")
+
             if item['description']:
                 # 규격은 J에 쓰기
-                safe_write_to_cell(f'J{current_row}', item['description'])
+                desc_cell = safe_write_to_cell(f'J{current_row}', item['description'])
+                if is_nego and desc_cell:
+                    from openpyxl.styles import Font
+                    desc_cell.font = Font(color="FF0000")
+
             if item['quantity']:
                 # 수량은 Q에 쓰기
                 qty_cell = safe_write_to_cell(f'Q{current_row}', item['quantity'])
 
                 if qty_cell:
+                    # 네고 항목은 빨간색으로 표시
+                    if is_nego:
+                        from openpyxl.styles import Font
+                        qty_cell.font = Font(color="FF0000")
+
                     # 품목 타입에 따라 셀 서식 적용
                     if item['item_type'] == 'work' or item['item_type'] == 'travel':
                         # 작업시간/이동시간: "H" 표시
@@ -353,16 +373,26 @@ def generate_invoice_excel_v2(invoice_id):
 
             if item['unit_price']:
                 # 단가는 S에 쓰기
-                safe_write_to_cell(f'S{current_row}', item['unit_price'])
+                price_cell = safe_write_to_cell(f'S{current_row}', item['unit_price'])
+                if is_nego and price_cell:
+                    from openpyxl.styles import Font
+                    price_cell.font = Font(color="FF0000")
+
             if item['total_price']:
                 # 공급가액은 X에 쓰기
-                safe_write_to_cell(f'X{current_row}', item['total_price'])
+                total_cell = safe_write_to_cell(f'X{current_row}', item['total_price'])
+                if is_nego and total_cell:
+                    from openpyxl.styles import Font
+                    total_cell.font = Font(color="FF0000")
 
             # 세액 계산 (10%)
             vat = round(item['total_price'] * 0.1) if item['total_price'] else 0
             if vat:
                 # 세액은 AC에 쓰기
-                safe_write_to_cell(f'AC{current_row}', vat)
+                vat_cell = safe_write_to_cell(f'AC{current_row}', vat)
+                if is_nego and vat_cell:
+                    from openpyxl.styles import Font
+                    vat_cell.font = Font(color="FF0000")
 
             current_row += 1
 
@@ -371,7 +401,7 @@ def generate_invoice_excel_v2(invoice_id):
         wb.close()
 
         # 13. PDF 생성 (LibreOffice 사용)
-        pdf_filename = f"거래명세서({invoice['customer_name']}).pdf"
+        pdf_filename = f"거래명세서({invoice['customer_name']})-{invoice['invoice_number']}.pdf"
         pdf_path = os.path.join(customer_folder, pdf_filename)
         pdf_success = convert_excel_to_pdf(output_path, pdf_path)
 

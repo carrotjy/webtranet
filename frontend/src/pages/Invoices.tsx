@@ -9,6 +9,7 @@ interface Invoice {
   service_report_id?: number;
   invoice_number: string;
   customer_name: string;
+  fax_number?: string;
   issue_date: string;
   total_amount: number;
   vat_amount: number;
@@ -35,12 +36,12 @@ const Invoices: React.FC = () => {
 
   const [perPage, setPerPage] = useState(10);
 
-  // Fax sending states
-  const [showFaxModal, setShowFaxModal] = useState(false);
-  const [faxInvoice, setFaxInvoice] = useState<Invoice | null>(null);
-  const [faxNumber, setFaxNumber] = useState<string | null>(null);
-  const [faxSending, setFaxSending] = useState(false);
-  const [faxProgress, setFaxProgress] = useState(0);
+  // Fax sending states - 비활성화됨 (팩스번호 복사 기능으로 대체)
+  // const [showFaxModal, setShowFaxModal] = useState(false);
+  // const [faxInvoice, setFaxInvoice] = useState<Invoice | null>(null);
+  // const [faxNumber, setFaxNumber] = useState<string | null>(null);
+  // const [faxSending, setFaxSending] = useState(false);
+  // const [faxProgress, setFaxProgress] = useState(0);
   // Bulk download selections
   const [selectedExcelIds, setSelectedExcelIds] = useState<number[]>([]);
   const [selectedPdfIds, setSelectedPdfIds] = useState<number[]>([]);
@@ -305,6 +306,8 @@ const Invoices: React.FC = () => {
     }
   };
 
+  // 팩스 전송 기능 - 비활성화됨 (팩스번호 복사 기능으로 대체)
+  /*
   const handleSendFax = async (invoice: Invoice) => {
     setFaxInvoice(invoice);
     setFaxProgress(0);
@@ -377,6 +380,7 @@ const Invoices: React.FC = () => {
       setFaxSending(false);
     }
   };
+  */
 
   const handleLockToggle = async (invoice: Invoice) => {
     if (!invoice.id) return;
@@ -610,6 +614,7 @@ const Invoices: React.FC = () => {
                           <tr>
                             <th style={{ textAlign: 'center' }}>거래명세표 번호</th>
                             <th style={{ textAlign: 'center' }}>고객명</th>
+                            <th style={{ textAlign: 'center' }}>팩스번호</th>
                             <th style={{ textAlign: 'center' }}>발행일</th>
                             <th style={{ textAlign: 'right' }}>총합계</th>
                             <th style={{ textAlign: 'center' }} className="w-1">계산서 발행</th>
@@ -718,6 +723,25 @@ const Invoices: React.FC = () => {
                                     </div>
                                   </div>
                                 </div>
+                              </td>
+                              <td data-label="팩스번호" style={{ textAlign: 'center' }}>
+                                {invoice.fax_number ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-secondary"
+                                    onClick={() => {
+                                      if (invoice.fax_number) {
+                                        navigator.clipboard.writeText(invoice.fax_number);
+                                        alert(`팩스번호가 복사되었습니다: ${invoice.fax_number}`);
+                                      }
+                                    }}
+                                    title="클릭하여 팩스번호 복사"
+                                  >
+                                    {invoice.fax_number}
+                                  </button>
+                                ) : (
+                                  <span className="text-muted">-</span>
+                                )}
                               </td>
                               <td data-label="발행일" style={{ textAlign: 'center' }}>
                                 {new Date(invoice.issue_date).toLocaleDateString()}
@@ -968,8 +992,8 @@ const Invoices: React.FC = () => {
                                       </svg>
                                     </button>
                                   )}
-                                  {/* Fax Button */}
-                                  <button
+                                  {/* Fax Button - 비활성화됨 (팩스번호 컬럼에서 복사 기능 사용) */}
+                                  {/* <button
                                     className="btn btn-sm btn-outline-info"
                                     style={{
                                       display: 'flex',
@@ -986,7 +1010,7 @@ const Invoices: React.FC = () => {
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                       <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                                     </svg>
-                                  </button>
+                                  </button> */}
                                   {(user?.transaction_access && (user?.transaction_delete || user?.is_admin)) && (
                                     <button
                                       className="btn btn-sm btn-outline-danger"
@@ -1030,7 +1054,8 @@ const Invoices: React.FC = () => {
       </div>
       </div>
 
-      {/* Fax Sending Modal */}
+      {/* Fax Sending Modal - 비활성화됨 (팩스번호 복사 기능으로 대체) */}
+      {/*
       {showFaxModal && faxInvoice && (
         <div
           className="modal fade show"
@@ -1124,6 +1149,7 @@ const Invoices: React.FC = () => {
           </div>
         </div>
       )}
+      */}
     </>
   );
 };

@@ -48,9 +48,22 @@ def get_invoices():
         INSTANCE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'instance')
         INVOICE_BASE_DIR = os.path.join(INSTANCE_DIR, '거래명세서')
 
+        # 고객 팩스번호 조회를 위한 user.db 연결
+        import sqlite3
+        user_db_path = os.path.join('app', 'database', 'user.db')
+        user_conn = sqlite3.connect(user_db_path)
+        user_conn.row_factory = sqlite3.Row
+
         result = []
         for invoice in invoices:
             invoice_dict = invoice.to_dict()
+
+            # 고객 팩스번호 조회
+            customer = user_conn.execute(
+                "SELECT fax FROM customers WHERE company_name = ?",
+                (invoice.customer_name,)
+            ).fetchone()
+            invoice_dict['fax_number'] = customer['fax'] if customer and customer['fax'] else None
 
             # 파일 존재 여부 확인
             customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
@@ -70,6 +83,8 @@ def get_invoices():
             invoice_dict['has_pdf'] = has_pdf
 
             result.append(invoice_dict)
+
+        user_conn.close()
 
         return jsonify({
             'invoices': result,
