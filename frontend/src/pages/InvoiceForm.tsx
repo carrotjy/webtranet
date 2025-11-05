@@ -624,7 +624,7 @@ const InvoiceForm: React.FC = () => {
         id: `item-new-${Date.now()}`,
         month: 0,
         day: 0,
-        item_name: '네고',
+        item_name: 'NEGO',
         specification: specificationValue,
         quantity: 0,
         unit_price: -10000,
