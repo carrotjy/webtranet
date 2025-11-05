@@ -46,77 +46,134 @@ class InvoiceItem:
     def create_from_service_report(cls, invoice_id, service_report):
         """서비스 리포트를 기반으로 거래명세표 항목들 생성"""
         from app.models.invoice_rate import InvoiceRate
-        
+        from datetime import datetime
+
         # 요율 정보 가져오기
         rates = InvoiceRate.get_rates()
         work_rate = rates.get('work_rate', 50000)  # 기본값 50000원/시간
         travel_rate = rates.get('travel_rate', 30000)  # 기본값 30000원/시간
-        
+
         items = []
-        
+        header_count = 0
+
+        # 오늘 날짜 가져오기
+        today = datetime.now()
+        current_month = today.month
+        current_day = today.day
+
         # 서비스 리포트에서 시간기록과 부품정보 가져오기
         time_records = service_report.get_time_records() if service_report.id else []
         used_parts = service_report.get_parts() if service_report.id else []
-        
+
         # 시간기록이 있는 경우 작업 및 이동시간 항목 생성
         if time_records:
             # 모든 시간기록의 작업시간과 이동시간 합계 계산
             total_work_hours = 0
             total_travel_hours = 0
-            
+
             for time_record in time_records:
                 work_hours = cls._time_string_to_hours(time_record.calculated_work_time) if time_record.calculated_work_time else 0
                 travel_hours = cls._time_string_to_hours(time_record.calculated_travel_time) if time_record.calculated_travel_time else 0
-                
+
                 total_work_hours += work_hours
                 total_travel_hours += travel_hours
-            
+
             # FSE 이름 가져오기 (서비스 리포트에서 technician_name 사용)
             fse_name = getattr(service_report, 'technician_name', '서비스 엔지니어')
-            
+
             # 작업 및 이동시간을 하나의 항목으로 생성
             if total_work_hours > 0 or total_travel_hours > 0:
-                # 설명 텍스트 생성
-                description_lines = [f"작업 및 이동시간({fse_name})"]
-                
+                header_count += 1
+
+                # 1. 서비스비용 헤더 추가
+                service_header = cls(
+                    invoice_id=invoice_id,
+                    item_type='work',
+                    description='',
+                    quantity=0,
+                    unit_price=0,
+                    total_price=0,
+                    month=current_month,
+                    day=current_day,
+                    item_name=f'{header_count}. 서비스비용',
+                    is_header=1,
+                    row_order=len(items)
+                )
+                items.append(service_header)
+
+                # 2. 작업시간 항목
                 if total_work_hours > 0:
-                    description_lines.append(f"작업시간 {total_work_hours:.1f}시간")
-                
-                if total_travel_hours > 0:
-                    description_lines.append(f"이동시간 {total_travel_hours:.1f}시간")
-                
-                description = "\n".join(description_lines)
-                
-                # 작업시간을 수량으로 사용하고, 작업시간 + 이동시간의 혼합 요율로 단가 계산
-                total_hours = total_work_hours + total_travel_hours
-                if total_hours > 0:
-                    # 가중평균 단가 계산
-                    weighted_rate = ((total_work_hours * work_rate) + (total_travel_hours * travel_rate)) / total_hours
-                    
-                    time_item = cls(
+                    work_item = cls(
                         invoice_id=invoice_id,
                         item_type='work',
-                        description=description,
-                        quantity=total_work_hours,  # 수량은 작업시간만 사용
-                        unit_price=weighted_rate,   # 가중평균 단가
-                        total_price=(total_work_hours * work_rate) + (total_travel_hours * travel_rate)
+                        description='1인*1시간(H)',
+                        item_name='작업시간',
+                        quantity=total_work_hours,
+                        unit_price=work_rate,
+                        total_price=total_work_hours * work_rate,
+                        month=current_month,
+                        day=current_day,
+                        is_header=0,
+                        row_order=len(items)
                     )
-                    items.append(time_item)
-        
+                    items.append(work_item)
+
+                # 3. 이동시간 항목
+                if total_travel_hours > 0:
+                    travel_item = cls(
+                        invoice_id=invoice_id,
+                        item_type='travel',
+                        description='1시간(H)',
+                        item_name='이동시간',
+                        quantity=total_travel_hours,
+                        unit_price=travel_rate,
+                        total_price=total_travel_hours * travel_rate,
+                        month=current_month,
+                        day=current_day,
+                        is_header=0,
+                        row_order=len(items)
+                    )
+                    items.append(travel_item)
+
         # 부품 항목들 추가
         if used_parts:
+            header_count += 1
+
+            # 1. 부품비용 헤더 추가
+            parts_header = cls(
+                invoice_id=invoice_id,
+                item_type='parts',
+                description='',
+                quantity=0,
+                unit_price=0,
+                total_price=0,
+                month=current_month,
+                day=current_day,
+                item_name=f'{header_count}. 부품비용',
+                is_header=1,
+                row_order=len(items)
+            )
+            items.append(parts_header)
+
+            # 2. 각 부품 항목 추가
             for part in used_parts:
                 if part.quantity > 0:
                     part_item = cls(
                         invoice_id=invoice_id,
                         item_type='parts',
-                        description=f"{part.part_name}" + (f" ({part.part_number})" if part.part_number else ""),
+                        description=part.part_number if part.part_number else part.part_name,
+                        item_name=part.part_name,
                         quantity=part.quantity,
                         unit_price=part.unit_price,
-                        total_price=part.total_price
+                        total_price=part.total_price,
+                        part_number=part.part_number,
+                        month=current_month,
+                        day=current_day,
+                        is_header=0,
+                        row_order=len(items)
                     )
                     items.append(part_item)
-        
+
         return items
     
     def save(self):

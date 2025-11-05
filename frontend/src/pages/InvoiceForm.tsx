@@ -611,13 +611,21 @@ const InvoiceForm: React.FC = () => {
         lastDataRowIndex = i;
       }
 
+      // 타입에 따른 규격 필드 설정
+      let specificationValue = '';
+      if (negoType === 'work') {
+        specificationValue = '1인*1시간(H)';
+      } else if (negoType === 'travel') {
+        specificationValue = '1시간(H)';
+      }
+
       // 새 네고 행 생성
       const newRow: InvoiceLineItem = {
         id: `item-new-${Date.now()}`,
         month: 0,
         day: 0,
         item_name: '네고',
-        specification: '',
+        specification: specificationValue,
         quantity: 0,
         unit_price: -10000,
         total_price: 0,
@@ -1220,7 +1228,7 @@ const InvoiceForm: React.FC = () => {
                                 }}
                                 placeholder="0"
                                 min={item.isNego ? undefined : "0"}
-                                readOnly={item.isServiceCost}
+                                readOnly={item.isServiceCost && !item.isNego}
                                 style={item.isNego ? { color: 'red' } : {}}
                               />
                             )}
@@ -1244,6 +1252,7 @@ const InvoiceForm: React.FC = () => {
                                   className="btn btn-sm btn-success"
                                   onClick={() => addRowAfterHeader(item.id, false)}
                                   title="행 추가"
+                                  disabled={isLocked}
                                 >
                                   +
                                 </button>
@@ -1252,6 +1261,7 @@ const InvoiceForm: React.FC = () => {
                                   className="btn btn-sm btn-warning"
                                   onClick={() => addRowAfterHeader(item.id, true)}
                                   title="네고 추가"
+                                  disabled={isLocked}
                                 >
                                   N
                                 </button>
@@ -1260,6 +1270,7 @@ const InvoiceForm: React.FC = () => {
                                   className="btn btn-sm btn-danger"
                                   onClick={() => removeLineItem(item.id)}
                                   title="삭제"
+                                  disabled={isLocked}
                                 >
                                   ×
                                 </button>
@@ -1270,6 +1281,7 @@ const InvoiceForm: React.FC = () => {
                                 className="btn btn-sm btn-danger"
                                 onClick={() => removeLineItem(item.id)}
                                 title="삭제"
+                                disabled={isLocked}
                               >
                                 ×
                               </button>
