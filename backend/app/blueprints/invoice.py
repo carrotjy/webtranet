@@ -184,6 +184,13 @@ def update_invoice(invoice_id):
             
             # 새 항목들 저장
             for item_data in data['items']:
+                # is_header 값 처리: isHeader(camelCase) 또는 is_header(snake_case) 둘 다 지원
+                is_header_value = item_data.get('isHeader', item_data.get('is_header', 0))
+                
+                # 디버깅: 헤더 행 확인
+                if '서비스비용' in str(item_data.get('item_name', '')) or '부품비용' in str(item_data.get('item_name', '')):
+                    print(f"[DEBUG] 헤더 행 감지: {item_data.get('item_name')}, is_header={is_header_value}")
+                
                 item = InvoiceItem(
                     invoice_id=invoice_id,
                     item_type=item_data.get('item_type', 'parts'),
@@ -195,7 +202,7 @@ def update_invoice(invoice_id):
                     day=item_data.get('day'),
                     item_name=item_data.get('item_name'),
                     part_number=item_data.get('part_number'),
-                    is_header=item_data.get('isHeader', 0),  # 프론트엔드에서 isHeader로 전달됨
+                    is_header=is_header_value,
                     row_order=item_data.get('row_order', 0)
                 )
                 item.save()

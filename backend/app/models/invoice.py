@@ -361,6 +361,13 @@ class Invoice:
             if items_data and isinstance(items_data, list):
                 for item_info in items_data:
                     if item_info.get('description') or item_info.get('item_name'):  # 설명 또는 품목이 있는 경우만 저장
+                        # is_header 값 처리: isHeader(camelCase) 또는 is_header(snake_case) 둘 다 지원
+                        is_header_value = item_info.get('isHeader', item_info.get('is_header', 0))
+                        
+                        # 디버깅: 헤더 행 확인
+                        if '서비스비용' in str(item_info.get('item_name', '')) or '부품비용' in str(item_info.get('item_name', '')):
+                            print(f"[DEBUG save_items] 헤더 행: {item_info.get('item_name')}, is_header={is_header_value}")
+                        
                         item = InvoiceItem(
                             invoice_id=self.id,
                             item_type=item_info.get('item_type', 'parts'),
@@ -371,7 +378,9 @@ class Invoice:
                             month=item_info.get('month'),
                             day=item_info.get('day'),
                             item_name=item_info.get('item_name'),
-                            part_number=item_info.get('part_number')
+                            part_number=item_info.get('part_number'),
+                            is_header=is_header_value,
+                            row_order=item_info.get('row_order', 0)
                         )
                         item.save()
 
