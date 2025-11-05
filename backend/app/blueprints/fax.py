@@ -68,9 +68,12 @@ def send_fax():
             customer_name
         )
 
-        # 거래명세서({customer_name}).pdf 패턴으로 파일 찾기
-        pdf_pattern = os.path.join(pdf_dir, f'거래명세서({customer_name}).pdf')
-        pdf_files = glob.glob(pdf_pattern)
+        # 거래명세서({customer_name})-인보이스번호.pdf 패턴으로 파일 찾기
+        pdf_files = []
+        if os.path.exists(pdf_dir):
+            for filename in os.listdir(pdf_dir):
+                if filename.startswith(f'거래명세서({customer_name})') and filename.endswith('.pdf'):
+                    pdf_files.append(os.path.join(pdf_dir, filename))
 
         if not pdf_files:
             return jsonify({

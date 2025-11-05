@@ -128,8 +128,23 @@ def convert_excel_to_pdf(excel_path, pdf_path):
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode == 0:
-            print(f"✅ PDF 변환 성공: {pdf_path}")
-            return True
+            # LibreOffice는 원본 파일명을 기반으로 PDF를 생성하므로
+            # 원하는 파일명과 다른 경우 rename 필요
+            excel_basename = os.path.splitext(os.path.basename(excel_path))[0]
+            generated_pdf = os.path.join(output_dir, f"{excel_basename}.pdf")
+
+            # 생성된 PDF 파일명이 원하는 파일명과 다르면 rename
+            if generated_pdf != pdf_path and os.path.exists(generated_pdf):
+                import shutil
+                shutil.move(generated_pdf, pdf_path)
+                print(f"✅ PDF 파일명 변경: {generated_pdf} -> {pdf_path}")
+
+            if os.path.exists(pdf_path):
+                print(f"✅ PDF 변환 성공: {pdf_path}")
+                return True
+            else:
+                print(f"❌ PDF 파일을 찾을 수 없음: {pdf_path}")
+                return False
         else:
             print(f"❌ PDF 변환 실패: {result.stderr}")
             return False

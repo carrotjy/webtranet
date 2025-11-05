@@ -159,9 +159,9 @@ const Invoices: React.FC = () => {
     }
   };
 
-  const handleDownloadPDF = async (customerName: string) => {
+  const handleDownloadPDF = async (customerName: string, invoiceNumber: string) => {
     try {
-      const filename = `거래명세서(${customerName}).pdf`;
+      const filename = `거래명세서(${customerName})-${invoiceNumber}.pdf`;
       const pdfUrl = `/api/invoice-pdf/${encodeURIComponent(customerName)}/${encodeURIComponent(filename)}`;
 
       // fetch를 사용하여 파일 다운로드
@@ -194,9 +194,9 @@ const Invoices: React.FC = () => {
     }
   };
 
-  const handleViewPDF = (customerName: string) => {
+  const handleViewPDF = (customerName: string, invoiceNumber: string) => {
     // PDF 파일 새 창에서 보기
-    const filename = `거래명세서(${customerName}).pdf`;
+    const filename = `거래명세서(${customerName})-${invoiceNumber}.pdf`;
     // 개발 환경에서는 직접 백엔드 포트로, 프로덕션에서는 상대 경로 사용
     const backendUrl = process.env.NODE_ENV === 'development'
       ? 'http://localhost:5000'
@@ -869,7 +869,7 @@ const Invoices: React.FC = () => {
                                       onChange={() => toggleSelectPdf(invoice.id)}
                                     />
                                     <span
-                                      onClick={() => handleDownloadPDF(invoice.customer_name)}
+                                      onClick={() => handleDownloadPDF(invoice.customer_name, invoice.invoice_number)}
                                       className="badge"
                                       style={{
                                         cursor: 'pointer',
@@ -898,7 +898,7 @@ const Invoices: React.FC = () => {
                                       {/* 상세보기 버튼: PDF 파일을 새 창에서 보기 */}
                                       {invoice.has_pdf !== false ? (
                                         <button
-                                          onClick={() => handleViewPDF(invoice.customer_name)}
+                                          onClick={() => handleViewPDF(invoice.customer_name, invoice.invoice_number)}
                                           className="btn btn-sm btn-outline-info"
                                           style={{
                                             display: 'flex',
