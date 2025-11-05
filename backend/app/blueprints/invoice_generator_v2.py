@@ -395,8 +395,8 @@ def generate_invoice_excel_v2(invoice_id):
                 if qty_cell:
                     # 품목 타입에 따라 셀 서식 적용
                     if item['item_type'] == 'work' or item['item_type'] == 'travel':
-                        # 작업시간/이동시간: "H" 표시
-                        qty_cell.number_format = '0"H"'
+                        # 작업시간/이동시간: 소수점 1자리 + "H" 표시
+                        qty_cell.number_format = '0.0"H"'
                     else:
                         # 부품: "EA" 표시
                         qty_cell.number_format = '0"EA"'
