@@ -21,6 +21,14 @@ def get_db_connection():
     return conn
 
 
+def get_user_db_connection():
+    """사용자 데이터베이스 연결"""
+    db_path = os.path.join('app', 'database', 'user.db')
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 @system_settings_bp.route('/system/printers', methods=['GET'])
 @jwt_required()
 def get_printers():
@@ -261,8 +269,7 @@ def get_system_info_history():
                 version TEXT NOT NULL,
                 description TEXT,
                 created_by INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (created_by) REFERENCES users(id)
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         conn.commit()
@@ -270,22 +277,43 @@ def get_system_info_history():
         # 이력 조회 (최신순)
         history = conn.execute('''
             SELECT
-                sih.id,
-                sih.title,
-                sih.version,
-                sih.description,
-                sih.created_at,
-                u.name as created_by_name
-            FROM system_info_history sih
-            LEFT JOIN users u ON sih.created_by = u.id
-            ORDER BY sih.created_at DESC
+                id,
+                title,
+                version,
+                description,
+                created_by,
+                created_at
+            FROM system_info_history
+            ORDER BY created_at DESC
         ''').fetchall()
 
         conn.close()
 
+        # 사용자 정보 조회 (user.db에서)
+        user_conn = get_user_db_connection()
+
+        # 결과 변환 및 사용자 이름 추가
+        result = []
+        for row in history:
+            item = dict(row)
+
+            # created_by가 있으면 사용자 이름 조회
+            if item['created_by']:
+                user = user_conn.execute(
+                    'SELECT name FROM users WHERE id = ?',
+                    (item['created_by'],)
+                ).fetchone()
+                item['created_by_name'] = user['name'] if user else '알 수 없음'
+            else:
+                item['created_by_name'] = '알 수 없음'
+
+            result.append(item)
+
+        user_conn.close()
+
         return jsonify({
             'success': True,
-            'history': [dict(row) for row in history]
+            'history': result
         }), 200
 
     except Exception as e:
@@ -330,8 +358,7 @@ def add_system_info():
                 version TEXT NOT NULL,
                 description TEXT,
                 created_by INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (created_by) REFERENCES users(id)
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
