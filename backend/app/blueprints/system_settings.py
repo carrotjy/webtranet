@@ -244,3 +244,113 @@ def set_libreoffice_path():
             'success': False,
             'message': f'LibreOffice 경로 설정 실패: {str(e)}'
         }), 500
+
+
+@system_settings_bp.route('/system/info-history', methods=['GET'])
+@jwt_required()
+def get_system_info_history():
+    """시스템 정보 이력 조회"""
+    try:
+        conn = get_db_connection()
+
+        # system_info_history 테이블이 없으면 생성
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS system_info_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                version TEXT NOT NULL,
+                description TEXT,
+                created_by INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+        ''')
+        conn.commit()
+
+        # 이력 조회 (최신순)
+        history = conn.execute('''
+            SELECT
+                sih.id,
+                sih.title,
+                sih.version,
+                sih.description,
+                sih.created_at,
+                u.name as created_by_name
+            FROM system_info_history sih
+            LEFT JOIN users u ON sih.created_by = u.id
+            ORDER BY sih.created_at DESC
+        ''').fetchall()
+
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'history': [dict(row) for row in history]
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'시스템 정보 이력 조회 실패: {str(e)}'
+        }), 500
+
+
+@system_settings_bp.route('/system/info-history', methods=['POST'])
+@jwt_required()
+def add_system_info():
+    """시스템 정보 추가 (관리자만 가능)"""
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.get_by_id(current_user_id)
+
+        if not user or not user.is_admin:
+            return jsonify({
+                'success': False,
+                'message': '관리자만 접근할 수 있습니다.'
+            }), 403
+
+        data = request.get_json()
+        title = data.get('title')
+        version = data.get('version')
+        description = data.get('description', '')
+
+        if not title or not version:
+            return jsonify({
+                'success': False,
+                'message': '시스템 이름과 버전은 필수입니다.'
+            }), 400
+
+        conn = get_db_connection()
+
+        # system_info_history 테이블이 없으면 생성
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS system_info_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                version TEXT NOT NULL,
+                description TEXT,
+                created_by INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+        ''')
+
+        # 새 이력 추가
+        conn.execute('''
+            INSERT INTO system_info_history (title, version, description, created_by)
+            VALUES (?, ?, ?, ?)
+        ''', (title, version, description, current_user_id))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': '시스템 정보가 추가되었습니다.'
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'시스템 정보 추가 실패: {str(e)}'
+        }), 500

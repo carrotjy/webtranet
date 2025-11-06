@@ -19,11 +19,12 @@ const Dashboard: React.FC = () => {
 
   // 시스템 정보 모달 상태
   const [showSystemModal, setShowSystemModal] = useState(false);
-  const [isEditingSystem, setIsEditingSystem] = useState(false);
-  const [systemInfo, setSystemInfo] = useState({
-    title: 'LVDK Webtranet',
-    version: 'v1.0 BETA',
-    description: '* 다섯 가지 섹션(리포트, 거래명세서, 고객정보, 스페어파트, 리소스)에 대한 CRUD 기능 지원\n* 월별재고현황, YTD 레포트 기능 추가 예정'
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [systemHistory, setSystemHistory] = useState<any[]>([]);
+  const [newSystemInfo, setNewSystemInfo] = useState({
+    title: '',
+    version: '',
+    description: ''
   });
 
   const dashboardCards = [
@@ -150,9 +151,59 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // 컴포넌트 마운트 시 영어 문장 가져오기
+  // 시스템 정보 이력 가져오기
+  const fetchSystemHistory = async () => {
+    try {
+      const response = await fetch('/api/system/info-history', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSystemHistory(data.history);
+      }
+    } catch (error) {
+      console.error('시스템 정보 조회 실패:', error);
+    }
+  };
+
+  // 시스템 정보 추가
+  const handleAddSystemInfo = async () => {
+    if (!newSystemInfo.title || !newSystemInfo.version) {
+      alert('시스템 이름과 버전은 필수입니다.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/system/info-history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(newSystemInfo)
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('시스템 정보가 추가되었습니다.');
+        setShowAddModal(false);
+        setNewSystemInfo({ title: '', version: '', description: '' });
+        fetchSystemHistory();
+      } else {
+        alert(data.message || '시스템 정보 추가에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('시스템 정보 추가 실패:', error);
+      alert('시스템 정보 추가에 실패했습니다.');
+    }
+  };
+
+  // 컴포넌트 마운트 시 영어 문장 및 시스템 정보 가져오기
   useEffect(() => {
     fetchTodaysEnglishSentence();
+    fetchSystemHistory();
   }, []);
 
   const availableCards = dashboardCards.filter(card => hasPermission(card.permission));
@@ -294,7 +345,9 @@ const Dashboard: React.FC = () => {
                   <div className="d-flex align-items-center">
                     <div className="subheader">시스템 정보</div>
                   </div>
-                  <div className="h1 mb-0 me-2">{systemInfo.title}</div>
+                  <div className="h1 mb-0 me-2">
+                    {systemHistory.length > 0 ? systemHistory[0].title : 'LVDK Webtranet'}
+                  </div>
                   <div className="text-muted">
                       <span
                         className="badge me-1"
@@ -304,13 +357,20 @@ const Dashboard: React.FC = () => {
                           color: '#347bffff'
                         }}
                       >
-                        {systemInfo.version}
+                        {systemHistory.length > 0 ? systemHistory[0].version : 'v1.0 BETA'}
                       </span><br />
-                    {systemInfo.description.split('\n').map((line, idx) => (
-                      <React.Fragment key={idx}>
-                        {line}<br />
-                      </React.Fragment>
-                    ))}
+                    {systemHistory.length > 0 ? (
+                      systemHistory[0].description?.split('\n').map((line: string, idx: number) => (
+                        <React.Fragment key={idx}>
+                          {line}<br />
+                        </React.Fragment>
+                      ))
+                    ) : (
+                      <>
+                        * 다섯 가지 섹션(리포트, 거래명세서, 고객정보, 스페어파트, 리소스)에 대한 CRUD 기능 지원<br />
+                        * 월별재고현황, YTD 레포트 기능 추가 예정
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -479,8 +539,96 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 시스템 정보 모달 */}
+      {/* 시스템 정보 이력 모달 */}
       {showSystemModal && (
+        <div
+          className="modal modal-blur show"
+          style={{ display: 'block' }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
+        >
+          <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">시스템 정보 이력</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowSystemModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {systemHistory.length === 0 ? (
+                  <div className="text-center text-muted py-4">
+                    등록된 시스템 정보가 없습니다.
+                  </div>
+                ) : (
+                  <div className="timeline">
+                    {systemHistory.map((item, index) => (
+                      <div key={item.id} className="timeline-item">
+                        <div className="timeline-badge bg-primary"></div>
+                        <div className="card">
+                          <div className="card-body">
+                            <div className="d-flex justify-content-between align-items-start mb-2">
+                              <div>
+                                <h3 className="mb-1">{item.title}</h3>
+                                <span
+                                  className="badge"
+                                  style={{
+                                    backgroundColor: 'white',
+                                    border: '1px solid #347bffff',
+                                    color: '#347bffff'
+                                  }}
+                                >
+                                  {item.version}
+                                </span>
+                              </div>
+                              {index === 0 && (
+                                <span className="badge bg-success">최신</span>
+                              )}
+                            </div>
+                            <div className="text-muted mb-2" style={{ whiteSpace: 'pre-line' }}>
+                              {item.description}
+                            </div>
+                            <div className="text-muted small">
+                              <strong>등록자:</strong> {item.created_by_name || '시스템'} |
+                              <strong> 등록일:</strong> {new Date(item.created_at).toLocaleString('ko-KR')}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                {user?.is_admin && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setShowSystemModal(false);
+                      setShowAddModal(true);
+                    }}
+                  >
+                    새 정보 추가
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowSystemModal(false)}
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 시스템 정보 추가 모달 */}
+      {showAddModal && (
         <div
           className="modal modal-blur show"
           style={{ display: 'block' }}
@@ -490,110 +638,65 @@ const Dashboard: React.FC = () => {
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">시스템 정보</h5>
+                <h5 className="modal-title">새 시스템 정보 추가</h5>
                 <button
                   type="button"
                   className="btn-close"
                   onClick={() => {
-                    setShowSystemModal(false);
-                    setIsEditingSystem(false);
+                    setShowAddModal(false);
+                    setNewSystemInfo({ title: '', version: '', description: '' });
                   }}
                 ></button>
               </div>
               <div className="modal-body">
-                {isEditingSystem ? (
-                  <div>
-                    <div className="mb-3">
-                      <label className="form-label">시스템 이름</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={systemInfo.title}
-                        onChange={(e) => setSystemInfo({ ...systemInfo, title: e.target.value })}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">버전</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={systemInfo.version}
-                        onChange={(e) => setSystemInfo({ ...systemInfo, version: e.target.value })}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">설명</label>
-                      <textarea
-                        className="form-control"
-                        rows={5}
-                        value={systemInfo.description}
-                        onChange={(e) => setSystemInfo({ ...systemInfo, description: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <h2 className="mb-3">{systemInfo.title}</h2>
-                    <div className="mb-3">
-                      <span
-                        className="badge"
-                        style={{
-                          backgroundColor: 'white',
-                          border: '1px solid #347bffff',
-                          color: '#347bffff',
-                          fontSize: '0.9rem',
-                          padding: '0.5rem 1rem'
-                        }}
-                      >
-                        {systemInfo.version}
-                      </span>
-                    </div>
-                    <div className="text-muted" style={{ whiteSpace: 'pre-line' }}>
-                      {systemInfo.description}
-                    </div>
-                  </div>
-                )}
+                <div className="mb-3">
+                  <label className="form-label">시스템 이름 *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={newSystemInfo.title}
+                    onChange={(e) => setNewSystemInfo({ ...newSystemInfo, title: e.target.value })}
+                    placeholder="예: LVDK Webtranet"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">버전 *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={newSystemInfo.version}
+                    onChange={(e) => setNewSystemInfo({ ...newSystemInfo, version: e.target.value })}
+                    placeholder="예: v1.0 BETA"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">설명</label>
+                  <textarea
+                    className="form-control"
+                    rows={5}
+                    value={newSystemInfo.description}
+                    onChange={(e) => setNewSystemInfo({ ...newSystemInfo, description: e.target.value })}
+                    placeholder="변경 사항이나 새로운 기능에 대한 설명을 입력하세요"
+                  />
+                </div>
               </div>
               <div className="modal-footer">
-                {user?.is_admin && (
-                  <>
-                    {isEditingSystem ? (
-                      <>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={() => setIsEditingSystem(false)}
-                        >
-                          취소
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          onClick={() => setIsEditingSystem(false)}
-                        >
-                          저장
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        onClick={() => setIsEditingSystem(true)}
-                      >
-                        편집
-                      </button>
-                    )}
-                  </>
-                )}
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => {
-                    setShowSystemModal(false);
-                    setIsEditingSystem(false);
+                    setShowAddModal(false);
+                    setNewSystemInfo({ title: '', version: '', description: '' });
                   }}
                 >
-                  닫기
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleAddSystemInfo}
+                >
+                  추가
                 </button>
               </div>
             </div>
