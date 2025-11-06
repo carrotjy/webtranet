@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authAPI } from '../services/api';
+import Footer from '../components/Footer';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -135,6 +136,8 @@ const Login: React.FC = () => {
             </form>
           </div>
         </div>
+
+        <Footer />
       </div>
     </div>
   );

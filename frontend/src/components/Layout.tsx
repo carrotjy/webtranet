@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import Footer from './Footer';
 
 const Layout: React.FC = () => {
   const { user, logout, hasPermission, isAdmin } = useAuth();
@@ -484,6 +485,8 @@ const Layout: React.FC = () => {
       <main className="page-wrapper">
         <Outlet />
       </main>
+
+      <Footer />
 
       {/* 비밀번호 변경 모달 */}
       {showPasswordModal && (
