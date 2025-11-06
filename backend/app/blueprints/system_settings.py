@@ -5,6 +5,7 @@ System Settings Blueprint
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.user import User
+from app.utils.timezone import get_kst_now
 import win32print
 import win32api
 import sqlite3
@@ -362,11 +363,12 @@ def add_system_info():
             )
         ''')
 
-        # 새 이력 추가
+        # 새 이력 추가 (한국 시간으로 명시적 설정)
+        kst_now = get_kst_now()
         conn.execute('''
-            INSERT INTO system_info_history (title, version, description, created_by)
-            VALUES (?, ?, ?, ?)
-        ''', (title, version, description, current_user_id))
+            INSERT INTO system_info_history (title, version, description, created_by, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (title, version, description, current_user_id, kst_now))
 
         conn.commit()
         conn.close()
