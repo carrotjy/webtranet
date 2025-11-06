@@ -11,11 +11,20 @@ interface EnglishSentence {
 
 const Dashboard: React.FC = () => {
   const { user, hasPermission } = useAuth();
-  
+
   // 오늘의 영어 문장 상태
   const [todaySentence, setTodaySentence] = useState<EnglishSentence | null>(null);
   const [sentenceLoading, setSentenceLoading] = useState(false);
   const [sentenceError, setSentenceError] = useState<string | null>(null);
+
+  // 시스템 정보 모달 상태
+  const [showSystemModal, setShowSystemModal] = useState(false);
+  const [isEditingSystem, setIsEditingSystem] = useState(false);
+  const [systemInfo, setSystemInfo] = useState({
+    title: 'LVDK Webtranet',
+    version: 'v1.0 BETA',
+    description: '* 다섯 가지 섹션(리포트, 거래명세서, 고객정보, 스페어파트, 리소스)에 대한 CRUD 기능 지원\n* 월별재고현황, YTD 레포트 기능 추가 예정'
+  });
 
   const dashboardCards = [
     {
@@ -276,12 +285,16 @@ const Dashboard: React.FC = () => {
 
             {/* 시스템 정보 카드 */}
             <div className="col-12 col-md-4">
-              <div className="card">
+              <div
+                className="card"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setShowSystemModal(true)}
+              >
                 <div className="card-body">
                   <div className="d-flex align-items-center">
                     <div className="subheader">시스템 정보</div>
                   </div>
-                  <div className="h1 mb-0 me-2">LVDK Webtranet</div>
+                  <div className="h1 mb-0 me-2">{systemInfo.title}</div>
                   <div className="text-muted">
                       <span
                         className="badge me-1"
@@ -291,10 +304,13 @@ const Dashboard: React.FC = () => {
                           color: '#347bffff'
                         }}
                       >
-                        v1.0 BETA
+                        {systemInfo.version}
                       </span><br />
-                    * 다섯 가지 섹션(리포트, 거래명세서, 고객정보, 스페어파트, 리소스)에 대한 CRUD 기능 지원<br />
-                    * 월별재고현황, YTD 레포트 기능 추가 예정
+                    {systemInfo.description.split('\n').map((line, idx) => (
+                      <React.Fragment key={idx}>
+                        {line}<br />
+                      </React.Fragment>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -462,6 +478,128 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 시스템 정보 모달 */}
+      {showSystemModal && (
+        <div
+          className="modal modal-blur show"
+          style={{ display: 'block' }}
+          data-bs-backdrop="static"
+          data-bs-keyboard="false"
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">시스템 정보</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => {
+                    setShowSystemModal(false);
+                    setIsEditingSystem(false);
+                  }}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {isEditingSystem ? (
+                  <div>
+                    <div className="mb-3">
+                      <label className="form-label">시스템 이름</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={systemInfo.title}
+                        onChange={(e) => setSystemInfo({ ...systemInfo, title: e.target.value })}
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">버전</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={systemInfo.version}
+                        onChange={(e) => setSystemInfo({ ...systemInfo, version: e.target.value })}
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">설명</label>
+                      <textarea
+                        className="form-control"
+                        rows={5}
+                        value={systemInfo.description}
+                        onChange={(e) => setSystemInfo({ ...systemInfo, description: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <h2 className="mb-3">{systemInfo.title}</h2>
+                    <div className="mb-3">
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: 'white',
+                          border: '1px solid #347bffff',
+                          color: '#347bffff',
+                          fontSize: '0.9rem',
+                          padding: '0.5rem 1rem'
+                        }}
+                      >
+                        {systemInfo.version}
+                      </span>
+                    </div>
+                    <div className="text-muted" style={{ whiteSpace: 'pre-line' }}>
+                      {systemInfo.description}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                {user?.is_admin && (
+                  <>
+                    {isEditingSystem ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => setIsEditingSystem(false)}
+                        >
+                          취소
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={() => setIsEditingSystem(false)}
+                        >
+                          저장
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => setIsEditingSystem(true)}
+                      >
+                        편집
+                      </button>
+                    )}
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowSystemModal(false);
+                    setIsEditingSystem(false);
+                  }}
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
