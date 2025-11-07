@@ -163,7 +163,29 @@ if ($backend) {
             & ".\venv\Scripts\python.exe" -m pip install -r requirements_pdf.txt --quiet
         }
 
-        # 4. 백엔드 서비스 재시작
+        # 4. 데이터베이스 마이그레이션
+        Set-Location $projectRoot
+        Write-Host ""
+        Write-Host "  - 데이터베이스 마이그레이션 실행 중..." -ForegroundColor Yellow
+
+        try {
+            & "$projectRoot\backend\venv\Scripts\python.exe" "$projectRoot\migrate_db.py"
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  ✓ 데이터베이스 마이그레이션 완료" -ForegroundColor Green
+            } else {
+                Write-Host "  ⚠ 데이터베이스 마이그레이션 실패 (종료 코드: $LASTEXITCODE)" -ForegroundColor Yellow
+                Write-Host "    수동으로 실행: python migrate_db.py" -ForegroundColor Gray
+            }
+        } catch {
+            Write-Host "  ⚠ 데이터베이스 마이그레이션 오류: $_" -ForegroundColor Yellow
+            Write-Host "    수동으로 실행: python migrate_db.py" -ForegroundColor Gray
+        }
+
+        Set-Location "$projectRoot\backend"
+        Write-Host ""
+
+        # 5. 백엔드 서비스 재시작
         $serviceName = "WebtranetBackend"
         $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 
