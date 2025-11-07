@@ -164,8 +164,22 @@ const Layout: React.FC = () => {
                     </svg>
                     비밀번호 변경
                   </button>
-                  <button 
-                    className="dropdown-item" 
+                  {user?.name === '인종현' && (
+                    <Link
+                      className="dropdown-item"
+                      to="/jsharp"
+                      onClick={() => setIsUserDropdownOpen(false)}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="icon me-2" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                        <path stroke="none" d="m0 0h24v24H0z" fill="none"/>
+                        <rect x="4" y="4" width="16" height="16" rx="2" />
+                        <path d="M9 7h6M9 12h6M9 17h6" />
+                      </svg>
+                      J#
+                    </Link>
+                  )}
+                  <button
+                    className="dropdown-item"
                     onClick={() => {
                       setIsUserDropdownOpen(false);
                       handleLogout();

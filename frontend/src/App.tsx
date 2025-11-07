@@ -18,7 +18,8 @@ import {
   InvoiceForm,
   InvoiceView,
   MonthlyInventoryPage,
-  YTDSummaryPage
+  YTDSummaryPage,
+  JSharp
 } from './pages';
 import ResourceSettings from './pages/ResourceSettings';
 import SystemSettings from './pages/SystemSettings';
@@ -31,6 +32,11 @@ function App() {
         <div className="App">
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/jsharp" element={
+              <ProtectedRoute>
+                <JSharp />
+              </ProtectedRoute>
+            } />
             <Route path="/" element={
               <ProtectedRoute>
                 <Layout />

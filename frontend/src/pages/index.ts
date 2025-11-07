@@ -10,6 +10,7 @@ export { default as InvoiceForm } from './InvoiceForm';
 export { default as InvoiceView } from './InvoiceView';
 export { default as MonthlyInventoryPage } from './MonthlyInventoryPage';
 export { default as YTDSummaryPage } from './YTDSummaryPage';
+export { default as JSharp } from './JSharp';
 
 // Admin pages
 export { default as ServiceReportSettings } from './admin/ServiceReportSettings';
