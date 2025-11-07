@@ -5,12 +5,10 @@ from app.models.invoice_item import InvoiceItem
 from app.models.service_report import ServiceReport
 from app.models.invoice_code import InvoiceCode
 from app.utils.auth import admin_required
-from sqlalchemy import func, extract
-from datetime import date
+from datetime import date, datetime
 import os
 import zipfile
 import tempfile
-from datetime import datetime
 
 invoice_bp = Blueprint('invoice', __name__)
 
@@ -485,7 +483,7 @@ def cancel_bill(invoice_id):
 def get_ytd_summary():
     """연도별 Invoice Code별 월별 비용 집계 (YTD Summary)"""
     try:
-        from app.database.init_db import db
+        from app.database.init_db import get_db_connection
 
         year = request.args.get('year', date.today().year, type=int)
 
@@ -493,6 +491,8 @@ def get_ytd_summary():
         invoice_codes = InvoiceCode.get_all()
 
         result_data = []
+
+        conn = get_db_connection()
 
         for code_obj in invoice_codes:
             code_data = {
@@ -504,21 +504,19 @@ def get_ytd_summary():
             # 각 월별로 데이터 조회 (1-12월)
             for month in range(1, 13):
                 # 해당 Invoice Code와 월에 해당하는 모든 InvoiceItem 조회
-                query = db.session.query(
-                    InvoiceItem.item_type,
-                    func.sum(InvoiceItem.total_price).label('total')
-                ).join(
-                    Invoice, InvoiceItem.invoice_id == Invoice.id
-                ).join(
-                    ServiceReport, Invoice.service_report_id == ServiceReport.id
-                ).filter(
-                    ServiceReport.invoice_code_id == code_obj.id,
-                    Invoice.bill_status == 'issued',
-                    extract('year', Invoice.issue_date) == year,
-                    extract('month', Invoice.issue_date) == month
-                ).group_by(
-                    InvoiceItem.item_type
-                ).all()
+                query = conn.execute('''
+                    SELECT
+                        ii.item_type,
+                        SUM(ii.total_price) as total
+                    FROM invoice_items ii
+                    INNER JOIN invoices i ON ii.invoice_id = i.id
+                    INNER JOIN service_reports sr ON i.service_report_id = sr.id
+                    WHERE sr.invoice_code_id = ?
+                        AND i.bill_status = 'issued'
+                        AND CAST(strftime('%Y', i.issue_date) AS INTEGER) = ?
+                        AND CAST(strftime('%m', i.issue_date) AS INTEGER) = ?
+                    GROUP BY ii.item_type
+                ''', (code_obj.id, year, month)).fetchall()
 
                 # 월별 데이터 구성
                 month_data = {
@@ -527,13 +525,17 @@ def get_ytd_summary():
                     'parts': 0
                 }
 
-                for item in query:
-                    if item.item_type in ['work', 'travel', 'parts']:
-                        month_data[item.item_type] = float(item.total) if item.total else 0
+                for row in query:
+                    item_type = row[0]
+                    total = row[1]
+                    if item_type in ['work', 'travel', 'parts']:
+                        month_data[item_type] = float(total) if total else 0
 
                 code_data['monthly_data'][str(month)] = month_data
 
             result_data.append(code_data)
+
+        conn.close()
 
         return jsonify({
             'success': True,
