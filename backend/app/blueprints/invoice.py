@@ -488,7 +488,7 @@ def get_ytd_summary():
         year = request.args.get('year', date.today().year, type=int)
 
         # Invoice Code 목록 조회
-        invoice_codes = InvoiceCode.get_all()
+        invoice_codes = InvoiceCode.get_all_codes()
 
         result_data = []
 
