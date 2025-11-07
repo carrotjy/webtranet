@@ -45,6 +45,8 @@ const InvoiceForm: React.FC = () => {
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [isLocked, setIsLocked] = useState(false);
+  const [invoiceCodeId, setInvoiceCodeId] = useState<number | null>(null);
+  const [invoiceCodes, setInvoiceCodes] = useState<any[]>([]);
 
   // 고객 목록 및 검색
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -142,6 +144,23 @@ const InvoiceForm: React.FC = () => {
     fetchMarginRate();
   }, []);
 
+  // Invoice Code 목록 로드
+  useEffect(() => {
+    const fetchInvoiceCodes = async () => {
+      try {
+        const response = await api.get('/api/invoice-codes');
+        // API 응답 구조: {invoice_codes: [...]}
+        const codes = response.data.invoice_codes || [];
+        setInvoiceCodes(Array.isArray(codes) ? codes : []);
+      } catch (error) {
+        console.error('Invoice Code 목록 로드 실패:', error);
+        setInvoiceCodes([]);
+      }
+    };
+
+    fetchInvoiceCodes();
+  }, []);
+
   // 기존 거래명세서 로드 (수정 모드)
   useEffect(() => {
     if (invoiceId) {
@@ -158,6 +177,7 @@ const InvoiceForm: React.FC = () => {
           setIssueDate(invoice.issue_date);
           setNotes(invoice.notes || '');
           setIsLocked(invoice.is_locked === 1 || invoice.is_locked === true);
+          setInvoiceCodeId(invoice.invoice_code_id || null);
 
           // 항목 변환
           const items: InvoiceLineItem[] = invoice.items.map((item: any, index: number) => {
@@ -797,6 +817,7 @@ const InvoiceForm: React.FC = () => {
         vat_amount,
         grand_total,
         notes,
+        invoice_code_id: invoiceCodeId,
         items: dbItems
       };
 
@@ -1027,7 +1048,7 @@ const InvoiceForm: React.FC = () => {
                 </div>
 
                 <div className="row mb-3">
-                  <div className="col-12">
+                  <div className="col-md-6">
                     <label className="form-label required">고객 주소</label>
                     <textarea
                       className="form-control"
@@ -1036,6 +1057,25 @@ const InvoiceForm: React.FC = () => {
                       onChange={(e) => setCustomerAddress(e.target.value)}
                       placeholder="고객 주소를 입력하세요"
                     />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Invoice Code</label>
+                    <select
+                      className="form-select"
+                      value={invoiceCodeId || ''}
+                      onChange={(e) => setInvoiceCodeId(e.target.value ? parseInt(e.target.value) : null)}
+                      disabled={isLocked}
+                    >
+                      <option value="">선택 안함</option>
+                      {invoiceCodes.map((code: any) => (
+                        <option key={code.id} value={code.id}>
+                          {code.code} - {code.description} (Category: {code.category || 'N/A'})
+                        </option>
+                      ))}
+                    </select>
+                    <small className="form-hint">
+                      YTD Summary에서 카테고리별 집계를 위해 사용됩니다.
+                    </small>
                   </div>
                 </div>
 

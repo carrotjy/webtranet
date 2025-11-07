@@ -185,6 +185,8 @@ def update_invoice(invoice_id):
             invoice.due_date = data['due_date']
         if 'notes' in data:
             invoice.notes = data['notes']
+        if 'invoice_code_id' in data:
+            invoice.invoice_code_id = data['invoice_code_id']
         
         # 금액 재계산
         if 'items' in data:
@@ -286,7 +288,8 @@ def create_invoice():
             total_amount=float(data.get('total_amount', 0)),
             vat_amount=float(data.get('vat_amount', 0)),
             grand_total=float(data.get('grand_total', 0)),
-            notes=data.get('notes')
+            notes=data.get('notes'),
+            invoice_code_id=data.get('invoice_code_id')
         )
 
         invoice_id = invoice.save()
@@ -481,67 +484,139 @@ def cancel_bill(invoice_id):
 @invoice_bp.route('/invoices/ytd-summary', methods=['GET'])
 @jwt_required()
 def get_ytd_summary():
-    """연도별 Invoice Code별 월별 비용 집계 (YTD Summary)"""
+    """연도별 카테고리별 월별 비용 집계 (YTD Summary) - 카테고리별 work/travel cost만 집계"""
     try:
         from app.database.init_db import get_db_connection
 
         year = request.args.get('year', date.today().year, type=int)
 
-        # Invoice Code 목록 조회
-        invoice_codes = InvoiceCode.get_all_codes()
-
-        result_data = []
-
         conn = get_db_connection()
 
-        for code_obj in invoice_codes:
-            code_data = {
-                'code': code_obj.code,
-                'description': code_obj.description,
-                'monthly_data': {}
-            }
+        # NULL category 체크
+        null_category_check = conn.execute('''
+            SELECT COUNT(DISTINCT sr.id)
+            FROM service_reports sr
+            LEFT JOIN invoice_codes ic ON sr.invoice_code_id = ic.id
+            WHERE sr.invoice_code_id IS NULL OR ic.category IS NULL
+        ''').fetchone()
 
-            # 각 월별로 데이터 조회 (1-12월)
-            for month in range(1, 13):
-                # 해당 Invoice Code와 월에 해당하는 모든 InvoiceItem 조회
-                query = conn.execute('''
-                    SELECT
-                        ii.item_type,
-                        SUM(ii.total_price) as total
-                    FROM invoice_items ii
-                    INNER JOIN invoices i ON ii.invoice_id = i.id
-                    INNER JOIN service_reports sr ON i.service_report_id = sr.id
-                    WHERE sr.invoice_code_id = ?
-                        AND i.bill_status = 'issued'
-                        AND CAST(strftime('%Y', i.issue_date) AS INTEGER) = ?
-                        AND CAST(strftime('%m', i.issue_date) AS INTEGER) = ?
-                    GROUP BY ii.item_type
-                ''', (code_obj.id, year, month)).fetchall()
+        has_null_categories = null_category_check[0] > 0
 
-                # 월별 데이터 구성
-                month_data = {
-                    'work': 0,
-                    'travel': 0,
-                    'parts': 0
+        # 카테고리별로 work/travel 시간(hours) 집계 (네고 제외)
+        # invoice_code_id를 invoices 테이블 또는 service_reports에서 가져와서 category로 그룹화
+        category_query = conn.execute('''
+            SELECT
+                COALESCE(ic.category, 'Unknown') as category,
+                CAST(strftime('%m', i.issue_date) AS INTEGER) as month,
+                ii.item_type,
+                SUM(ii.quantity) as total_hours
+            FROM invoice_items ii
+            INNER JOIN invoices i ON ii.invoice_id = i.id
+            LEFT JOIN invoice_codes ic ON (
+                i.invoice_code_id = ic.id
+                OR (i.service_report_id IN (
+                    SELECT sr.id FROM service_reports sr WHERE sr.invoice_code_id = ic.id
+                ))
+            )
+            WHERE i.bill_status = 'issued'
+                AND CAST(strftime('%Y', i.issue_date) AS INTEGER) = ?
+                AND ii.is_header = 0
+                AND ii.item_type IN ('work', 'travel')
+                AND ii.total_price >= 0
+            GROUP BY ic.category, month, ii.item_type
+        ''', (year,)).fetchall()
+
+        # 카테고리별로 데이터 구조화
+        category_data_map = {}
+
+        for row in category_query:
+            category = row[0] if row[0] else 'Unknown'
+            month = row[1]
+            item_type = row[2]
+            total_hours = row[3]
+
+            # 카테고리가 처음 등장하면 초기화
+            if category not in category_data_map:
+                category_data_map[category] = {
+                    'category': category,
+                    'description': '',  # 카테고리 번호만 표시
+                    'monthly_data': {}
                 }
+                # 12개월 초기화
+                for m in range(1, 13):
+                    category_data_map[category]['monthly_data'][str(m)] = {
+                        'work': 0,
+                        'travel': 0,
+                        'parts': 0
+                    }
 
-                for row in query:
-                    item_type = row[0]
-                    total = row[1]
-                    if item_type in ['work', 'travel', 'parts']:
-                        month_data[item_type] = float(total) if total else 0
+            # 데이터 합산 (시간)
+            if month and month >= 1 and month <= 12 and item_type in ['work', 'travel']:
+                category_data_map[category]['monthly_data'][str(month)][item_type] += float(total_hours) if total_hours else 0
 
-                code_data['monthly_data'][str(month)] = month_data
+        # Labor Total: work/travel 비용 총계 (네고 포함)
+        labor_monthly_total = {}
+        for month in range(1, 13):
+            labor_monthly_total[str(month)] = 0
 
-            result_data.append(code_data)
+        labor_query = conn.execute('''
+            SELECT
+                CAST(strftime('%m', i.issue_date) AS INTEGER) as month,
+                SUM(ii.total_price) as total
+            FROM invoice_items ii
+            INNER JOIN invoices i ON ii.invoice_id = i.id
+            WHERE i.bill_status = 'issued'
+                AND CAST(strftime('%Y', i.issue_date) AS INTEGER) = ?
+                AND ii.is_header = 0
+                AND ii.item_type IN ('work', 'travel')
+            GROUP BY CAST(strftime('%m', i.issue_date) AS INTEGER)
+        ''', (year,)).fetchall()
+
+        for row in labor_query:
+            month = row[0]
+            total = row[1]
+            if month >= 1 and month <= 12:
+                labor_monthly_total[str(month)] = float(total) if total else 0
+
+        # 부품비용은 카테고리 구분 없이 월별 총계 계산
+        parts_monthly_total = {}
+        for month in range(1, 13):
+            parts_monthly_total[str(month)] = 0
+
+        parts_query = conn.execute('''
+            SELECT
+                CAST(strftime('%m', i.issue_date) AS INTEGER) as month,
+                SUM(ii.total_price) as total
+            FROM invoice_items ii
+            INNER JOIN invoices i ON ii.invoice_id = i.id
+            WHERE i.bill_status = 'issued'
+                AND CAST(strftime('%Y', i.issue_date) AS INTEGER) = ?
+                AND ii.is_header = 0
+                AND ii.item_type = 'parts'
+            GROUP BY CAST(strftime('%m', i.issue_date) AS INTEGER)
+        ''', (year,)).fetchall()
+
+        for row in parts_query:
+            month = row[0]
+            total = row[1]
+            if month >= 1 and month <= 12:
+                parts_monthly_total[str(month)] = float(total) if total else 0
 
         conn.close()
+
+        # 카테고리 데이터를 리스트로 변환 (카테고리 번호순 정렬)
+        category_list = []
+        for cat_key in sorted(category_data_map.keys()):
+            category_list.append(category_data_map[cat_key])
 
         return jsonify({
             'success': True,
             'data': {
                 'year': year,
-                'invoice_codes': result_data
+                'categories': category_list,
+                'labor_monthly_total': labor_monthly_total,
+                'parts_monthly_total': parts_monthly_total,
+                'has_null_categories': has_null_categories
             }
         }), 200
 

@@ -9,7 +9,8 @@ class Invoice:
                  customer_tel=None, customer_fax=None,
                  issue_date=None, due_date=None, work_subtotal=0, travel_subtotal=0,
                  parts_subtotal=0, total_amount=0, vat_amount=0,
-                 grand_total=0, notes=None, created_at=None, updated_at=None):
+                 grand_total=0, notes=None, created_at=None, updated_at=None,
+                 invoice_code_id=None):
         self.id = id
         self.service_report_id = service_report_id
         self.invoice_number = invoice_number
@@ -29,6 +30,7 @@ class Invoice:
         self.notes = notes
         self.created_at = created_at
         self.updated_at = updated_at
+        self.invoice_code_id = invoice_code_id
     
     @classmethod
     def get_all(cls, page=1, per_page=10):
@@ -204,32 +206,32 @@ class Invoice:
             if self.id:
                 # 수정
                 conn.execute('''
-                    UPDATE invoices SET 
+                    UPDATE invoices SET
                     invoice_number=?, customer_id=?, customer_name=?, customer_address=?,
                     issue_date=?, due_date=?, work_subtotal=?, travel_subtotal=?,
                     parts_subtotal=?, total_amount=?, vat_amount=?, grand_total=?,
-                    notes=?, updated_at=CURRENT_TIMESTAMP
+                    notes=?, invoice_code_id=?, updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
-                ''', (self.invoice_number, self.customer_id, self.customer_name, 
+                ''', (self.invoice_number, self.customer_id, self.customer_name,
                      self.customer_address, self.issue_date, self.due_date,
                      self.work_subtotal, self.travel_subtotal, self.parts_subtotal,
                      self.total_amount, self.vat_amount, self.grand_total,
-                     self.notes, self.id))
+                     self.notes, self.invoice_code_id, self.id))
             else:
                 # 신규 생성
                 cursor = conn.execute('''
-                    INSERT INTO invoices (service_report_id, invoice_number, 
-                    customer_id, customer_name, customer_address, issue_date, 
+                    INSERT INTO invoices (service_report_id, invoice_number,
+                    customer_id, customer_name, customer_address, issue_date,
                     due_date, work_subtotal, travel_subtotal, parts_subtotal,
-                    total_amount, vat_amount, grand_total, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    total_amount, vat_amount, grand_total, notes, invoice_code_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (self.service_report_id, self.invoice_number, self.customer_id,
                      self.customer_name, self.customer_address, self.issue_date,
                      self.due_date, self.work_subtotal, self.travel_subtotal,
                      self.parts_subtotal, self.total_amount, self.vat_amount,
-                     self.grand_total, self.notes))
+                     self.grand_total, self.notes, self.invoice_code_id))
                 self.id = cursor.lastrowid
-            
+
             conn.commit()
             return self.id
         except Exception as e:
@@ -283,6 +285,7 @@ class Invoice:
             obj.bill_status = row['bill_status'] if 'bill_status' in row.keys() else 'pending'
             obj.bill_issued_at = row['bill_issued_at'] if 'bill_issued_at' in row.keys() else None
             obj.bill_issued_by = row['bill_issued_by'] if 'bill_issued_by' in row.keys() else None
+            obj.invoice_code_id = row['invoice_code_id'] if 'invoice_code_id' in row.keys() else None
         except (KeyError, IndexError):
             pass
         return obj
@@ -312,7 +315,8 @@ class Invoice:
             'locked_at': getattr(self, 'locked_at', None),
             'bill_status': getattr(self, 'bill_status', 'pending'),
             'bill_issued_at': getattr(self, 'bill_issued_at', None),
-            'bill_issued_by': getattr(self, 'bill_issued_by', None)
+            'bill_issued_by': getattr(self, 'bill_issued_by', None),
+            'invoice_code_id': getattr(self, 'invoice_code_id', None)
         }
     
     def get_items(self):

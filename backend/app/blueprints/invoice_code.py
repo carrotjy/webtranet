@@ -273,19 +273,20 @@ def get_all_invoice_codes():
         conn = get_db_connection()
         
         invoice_codes = conn.execute('''
-            SELECT id, code, description 
-            FROM invoice_codes 
+            SELECT id, code, description, category
+            FROM invoice_codes
             ORDER BY code
         ''').fetchall()
-        
+
         conn.close()
-        
+
         result = []
         for code in invoice_codes:
             result.append({
                 'id': code['id'],
                 'code': code['code'],
-                'description': code['description']
+                'description': code['description'],
+                'category': code['category']
             })
         
         return jsonify({'invoice_codes': result}), 200
