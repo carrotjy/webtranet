@@ -335,7 +335,7 @@ const InvoiceView: React.FC = () => {
                     textAlign: 'center',
                     fontSize: '8pt'
                   }}>
-                    {item.month || ''}
+                    {item.month !== null && item.month !== undefined ? item.month : ''}
                   </td>
                   <td style={{
                     border: '1px solid #000',
@@ -343,7 +343,7 @@ const InvoiceView: React.FC = () => {
                     textAlign: 'center',
                     fontSize: '8pt'
                   }}>
-                    {item.day || ''}
+                    {item.day !== null && item.day !== undefined ? item.day : ''}
                   </td>
                   <td style={{
                     border: '1px solid #000',

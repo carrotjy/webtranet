@@ -39,11 +39,13 @@ class ServiceReport:
         
         reports_data = conn.execute('''
             SELECT sr.*, c.company_name, c.address as customer_address, u.name as technician_name,
-                   ic.code as invoice_code, ic.description as invoice_description
+                   ic.code as invoice_code, ic.description as invoice_description,
+                   i.id as invoice_id
             FROM service_reports sr
             LEFT JOIN customers c ON sr.customer_id = c.id
             LEFT JOIN users u ON sr.technician_id = u.id
             LEFT JOIN invoice_codes ic ON sr.invoice_code_id = ic.id
+            LEFT JOIN invoices i ON sr.id = i.service_report_id
             ORDER BY sr.created_at DESC
             LIMIT ? OFFSET ?
         ''', (per_page, offset)).fetchall()
@@ -60,6 +62,7 @@ class ServiceReport:
             report.technician_name = data['technician_name']
             report.invoice_code = data['invoice_code']
             report.invoice_description = data['invoice_description']
+            report.invoice_id = data['invoice_id'] if 'invoice_id' in data.keys() else None
             reports.append(report)
         
         return reports, total
@@ -70,11 +73,13 @@ class ServiceReport:
         conn = get_db_connection()
         data = conn.execute('''
             SELECT sr.*, c.company_name, c.address as customer_address, u.name as technician_name,
-                   ic.code as invoice_code, ic.description as invoice_description
+                   ic.code as invoice_code, ic.description as invoice_description,
+                   i.id as invoice_id
             FROM service_reports sr
             LEFT JOIN customers c ON sr.customer_id = c.id
             LEFT JOIN users u ON sr.technician_id = u.id
             LEFT JOIN invoice_codes ic ON sr.invoice_code_id = ic.id
+            LEFT JOIN invoices i ON sr.id = i.service_report_id
             WHERE sr.id = ?
         ''', (report_id,)).fetchone()
         conn.close()
@@ -86,6 +91,7 @@ class ServiceReport:
             report.technician_name = data['technician_name']
             report.invoice_code = data['invoice_code']
             report.invoice_description = data['invoice_description']
+            report.invoice_id = data['invoice_id'] if 'invoice_id' in data.keys() else None
             return report
         return None
     
@@ -376,6 +382,7 @@ class ServiceReport:
             'is_locked': self.is_locked,
             'locked_by': self.locked_by,
             'locked_at': self.locked_at,
+            'invoice_id': getattr(self, 'invoice_id', None),  # 거래명세서 ID (조인으로 가져옴)
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

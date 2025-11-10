@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 
 type TabType = 'convert' | 'option' | 'order' | 'product-page';
 type ConvertSection = 'resize' | 'merge';
@@ -15,6 +15,10 @@ const JSharp: React.FC = () => {
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [processing, setProcessing] = useState(false);
   const [processedFiles, setProcessedFiles] = useState<string[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isOptionDragging, setIsOptionDragging] = useState(false);
+  const [isMergeDragging, setIsMergeDragging] = useState(false);
+  const [isProductPageDragging, setIsProductPageDragging] = useState<{[key: number]: boolean}>({});
 
   // 옵션생성 탭 상태
   const [optionImages, setOptionImages] = useState<File[]>([]);
@@ -32,6 +36,10 @@ const JSharp: React.FC = () => {
   ]);
   const [nextRowId, setNextRowId] = useState(2);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const optionFileInputRef = useRef<HTMLInputElement>(null);
+  const mergeFileInputRef = useRef<HTMLInputElement>(null);
+
   const imageSizes = [430, 640, 860, 1000];
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,6 +47,102 @@ const JSharp: React.FC = () => {
     if (files) {
       setUploadedImages(Array.from(files));
       setProcessedFiles([]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files).filter(file =>
+      file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')
+    );
+
+    if (files.length > 0) {
+      setUploadedImages(files);
+      setProcessedFiles([]);
+    }
+  };
+
+  // 옵션이미지생성 탭 드래그 핸들러
+  const handleOptionDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsOptionDragging(true);
+  };
+
+  const handleOptionDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsOptionDragging(false);
+  };
+
+  const handleOptionDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsOptionDragging(false);
+
+    const files = Array.from(e.dataTransfer.files).filter(file =>
+      file.type.startsWith('image/')
+    );
+
+    if (files.length > 0) {
+      setOptionImages(files);
+    }
+  };
+
+  // 이미지병합 탭 드래그 핸들러
+  const handleMergeDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsMergeDragging(true);
+  };
+
+  const handleMergeDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsMergeDragging(false);
+  };
+
+  const handleMergeDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsMergeDragging(false);
+
+    const files = Array.from(e.dataTransfer.files).filter(file =>
+      file.type.startsWith('image/')
+    );
+
+    if (files.length > 0) {
+      setMergeImages(files);
+    }
+  };
+
+  // 상품페이지작성 탭 드래그 핸들러
+  const handleProductPageDragOver = (e: React.DragEvent, rowId: number) => {
+    e.preventDefault();
+    setIsProductPageDragging(prev => ({ ...prev, [rowId]: true }));
+  };
+
+  const handleProductPageDragLeave = (e: React.DragEvent, rowId: number) => {
+    e.preventDefault();
+    setIsProductPageDragging(prev => ({ ...prev, [rowId]: false }));
+  };
+
+  const handleProductPageDrop = (e: React.DragEvent, rowId: number) => {
+    e.preventDefault();
+    setIsProductPageDragging(prev => ({ ...prev, [rowId]: false }));
+
+    const files = Array.from(e.dataTransfer.files).filter(file =>
+      file.type.startsWith('image/')
+    );
+
+    if (files.length > 0) {
+      updateProductPageRowImage(rowId, files[0]);
     }
   };
 
@@ -102,13 +206,13 @@ const JSharp: React.FC = () => {
   };
 
   const updateProductPageRowText = (id: number, text: string) => {
-    setProductPageRows(productPageRows.map(row => 
+    setProductPageRows(productPageRows.map(row =>
       row.id === id ? { ...row, text } : row
     ));
   };
 
   const updateProductPageRowImage = (id: number, file: File | null) => {
-    setProductPageRows(productPageRows.map(row => 
+    setProductPageRows(productPageRows.map(row =>
       row.id === id ? { ...row, image: file } : row
     ));
   };
@@ -301,21 +405,34 @@ const JSharp: React.FC = () => {
                 {/* 이미지변환 탭 */}
                 {activeTab === 'convert' && (
                   <div>
-                    {/* 섹션 선택 버튼 */}
+                    {/* 섹션 선택 버튼 - 모던한 아이콘 스타일 */}
                     <div className="mb-4">
                       <div className="btn-group w-100" role="group">
                         <button
                           type="button"
                           className={`btn ${convertSection === 'resize' ? 'btn-primary' : 'btn-outline-primary'}`}
                           onClick={() => setConvertSection('resize')}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                         >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M3 9h18"/>
+                            <path d="M9 21V9"/>
+                          </svg>
                           크기변환
                         </button>
                         <button
                           type="button"
                           className={`btn ${convertSection === 'merge' ? 'btn-primary' : 'btn-outline-primary'}`}
                           onClick={() => setConvertSection('merge')}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                         >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="7" height="7"/>
+                            <rect x="14" y="3" width="7" height="7"/>
+                            <rect x="14" y="14" width="7" height="7"/>
+                            <rect x="3" y="14" width="7" height="7"/>
+                          </svg>
                           이미지병합
                         </button>
                       </div>
@@ -324,19 +441,60 @@ const JSharp: React.FC = () => {
                     {/* 크기변환 섹션 */}
                     {convertSection === 'resize' && (
                       <div>
-                        {/* 이미지 업로드 섹션 */}
+                        {/* 드래그앤드롭 파일 업로드 영역 */}
                         <div className="mb-4">
                           <label className="form-label">이미지 업로드</label>
-                          <input
-                            type="file"
-                            className="form-control"
-                            multiple
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                          />
+                          <div
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                            className={`border rounded p-5 text-center cursor-pointer ${
+                              isDragging ? 'border-primary bg-primary-lt' : 'border-secondary'
+                            }`}
+                            style={{
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              backgroundColor: isDragging ? '#f0f7ff' : '#f8f9fa'
+                            }}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="48"
+                              height="48"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="mb-3"
+                              style={{ color: isDragging ? '#0054a6' : '#a8abaeff' }}
+                            >
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                              <polyline points="17 8 12 3 7 8"/>
+                              <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <p className="mb-2 fw-bold" style={{ fontSize: '1.1rem' }}>
+                              {isDragging ? 'Drop Here!' : 'Click or Drag Images Here'}
+                            </p>
+                            <p className="text-muted small mb-0">
+                              PNG, JPG, HEIC, HEIF 등 모든 이미지 형식 지원
+                            </p>
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              className="d-none"
+                              multiple
+                              accept="image/*,.heic,.heif"
+                              onChange={handleImageUpload}
+                            />
+                          </div>
                           {uploadedImages.length > 0 && (
-                            <div className="mt-2 text-muted">
-                              {uploadedImages.length}개의 이미지가 선택되었습니다.
+                            <div className="mt-2">
+                              <span className="badge bg-success">
+                                {uploadedImages.length}개의 이미지 선택됨
+                              </span>
                             </div>
                           )}
                         </div>
@@ -349,7 +507,8 @@ const JSharp: React.FC = () => {
                               이미지는 4개 사이즈(430px, 640px, 860px, 1000px)로 자동 변환되며,<br />
                               각 이미지에 1px 흰색 테두리가 추가됩니다.<br />
                               파일명 형식: 원본명-430.jpg, 원본명-640.jpg, 원본명-860.jpg, 원본명-1000.jpg<br />
-                              <strong>처리된 이미지는 ZIP 파일로 다운로드됩니다.</strong>
+                              <strong>처리된 이미지는 ZIP 파일로 다운로드됩니다.</strong><br />
+                              <strong className="text-primary">HEIC/HEIF 파일도 지원됩니다 (최상 품질 유지)</strong>
                             </div>
                           </div>
                         </div>
@@ -359,26 +518,59 @@ const JSharp: React.FC = () => {
                           <div className="mb-4">
                             <label className="form-label">업로드된 이미지</label>
                             <div className="row g-3">
-                              {uploadedImages.map((image, index) => (
-                                <div key={index} className="col-md-3">
-                                  <div className="card">
-                                    <img
-                                      src={URL.createObjectURL(image)}
-                                      alt={`preview-${index}`}
-                                      className="card-img-top"
-                                      style={{ height: '200px', objectFit: 'cover' }}
-                                    />
-                                    <div className="card-body">
-                                      <p className="card-text text-truncate" title={image.name}>
-                                        {image.name}
-                                      </p>
-                                      <small className="text-muted">
-                                        {(image.size / 1024).toFixed(2)} KB
-                                      </small>
+                              {uploadedImages.map((image, index) => {
+                                const isHEIC = image.name.toLowerCase().endsWith('.heic') || image.name.toLowerCase().endsWith('.heif');
+                                return (
+                                  <div key={index} className="col-md-3">
+                                    <div className="card">
+                                      {!isHEIC ? (
+                                        <img
+                                          src={URL.createObjectURL(image)}
+                                          alt={`preview-${index}`}
+                                          className="card-img-top"
+                                          style={{ height: '200px', objectFit: 'cover' }}
+                                        />
+                                      ) : (
+                                        <div
+                                          className="card-img-top d-flex align-items-center justify-content-center"
+                                          style={{
+                                            height: '200px',
+                                            backgroundColor: '#f8f9fa',
+                                            color: '#6c757d'
+                                          }}
+                                        >
+                                          <div className="text-center">
+                                            <svg
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              width="48"
+                                              height="48"
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth="2"
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                            >
+                                              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                              <circle cx="8.5" cy="8.5" r="1.5"/>
+                                              <polyline points="21 15 16 10 5 21"/>
+                                            </svg>
+                                            <p className="mt-2 mb-0 small">HEIC 이미지</p>
+                                          </div>
+                                        </div>
+                                      )}
+                                      <div className="card-body">
+                                        <p className="card-text text-truncate" title={image.name}>
+                                          {image.name}
+                                        </p>
+                                        <small className="text-muted">
+                                          {(image.size / 1024).toFixed(2)} KB
+                                        </small>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -397,7 +589,12 @@ const JSharp: React.FC = () => {
                                 처리 중...
                               </>
                             ) : (
-                              '크기변환 시작'
+                              <>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="icon me-2" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                크기변환 시작
+                              </>
                             )}
                           </button>
                           <button
@@ -431,16 +628,57 @@ const JSharp: React.FC = () => {
                         {/* 이미지 업로드 */}
                         <div className="mb-4">
                           <label className="form-label">이미지 업로드 (2개)</label>
-                          <input
-                            type="file"
-                            className="form-control"
-                            multiple
-                            accept="image/*"
-                            onChange={handleMergeImageUpload}
-                          />
+                          <div
+                            onDragOver={handleMergeDragOver}
+                            onDragLeave={handleMergeDragLeave}
+                            onDrop={handleMergeDrop}
+                            onClick={() => mergeFileInputRef.current?.click()}
+                            className={`border rounded p-5 text-center cursor-pointer ${
+                              isMergeDragging ? 'border-primary bg-primary-lt' : 'border-secondary'
+                            }`}
+                            style={{
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              backgroundColor: isMergeDragging ? '#f0f7ff' : '#f8f9fa'
+                            }}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="48"
+                              height="48"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="mb-3"
+                              style={{ color: isMergeDragging ? '#0054a6' : '#a8abaeff' }}
+                            >
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                              <polyline points="17 8 12 3 7 8"/>
+                              <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <p className="mb-2 fw-bold" style={{ fontSize: '1.1rem' }}>
+                              {isMergeDragging ? 'Drop Here!' : 'Click or Drag Images Here'}
+                            </p>
+                            <p className="text-muted small mb-0">
+                              PNG, JPG 등 모든 이미지 형식 지원 (2개 필요)
+                            </p>
+                            <input
+                              ref={mergeFileInputRef}
+                              type="file"
+                              className="d-none"
+                              multiple
+                              accept="image/*"
+                              onChange={handleMergeImageUpload}
+                            />
+                          </div>
                           {mergeImages.length > 0 && (
-                            <div className="mt-2 text-muted">
-                              {mergeImages.length}개의 이미지가 선택되었습니다.
+                            <div className="mt-2">
+                              <span className={`badge ${mergeImages.length === 2 ? 'bg-success' : 'bg-warning'}`}>
+                                {mergeImages.length}개의 이미지 선택됨 {mergeImages.length !== 2 && '(2개 필요)'}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -556,8 +794,8 @@ const JSharp: React.FC = () => {
                     {/* 선택 번호 */}
                     <div className="mb-4">
                       <label className="form-label">선택 번호</label>
-                      <select 
-                        className="form-select" 
+                      <select
+                        className="form-select"
                         value={selectedOption}
                         onChange={(e) => setSelectedOption(e.target.value)}
                       >
@@ -587,16 +825,57 @@ const JSharp: React.FC = () => {
                     {/* 이미지 업로드 */}
                     <div className="mb-4">
                       <label className="form-label">이미지 업로드</label>
-                      <input
-                        type="file"
-                        className="form-control"
-                        multiple
-                        accept="image/*"
-                        onChange={handleOptionImageUpload}
-                      />
+                      <div
+                        onDragOver={handleOptionDragOver}
+                        onDragLeave={handleOptionDragLeave}
+                        onDrop={handleOptionDrop}
+                        onClick={() => optionFileInputRef.current?.click()}
+                        className={`border rounded p-5 text-center cursor-pointer ${
+                          isOptionDragging ? 'border-primary bg-primary-lt' : 'border-secondary'
+                        }`}
+                        style={{
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          backgroundColor: isOptionDragging ? '#f0f7ff' : '#f8f9fa'
+                        }}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="48"
+                          height="48"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="mb-3"
+                          style={{ color: isOptionDragging ? '#0054a6' : '#a8abaeff' }}
+                        >
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                          <polyline points="17 8 12 3 7 8"/>
+                          <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <p className="mb-2 fw-bold" style={{ fontSize: '1.1rem' }}>
+                          {isOptionDragging ? 'Drop Here!' : 'Click or Drag Images Here'}
+                        </p>
+                        <p className="text-muted small mb-0">
+                          PNG, JPG 등 모든 이미지 형식 지원
+                        </p>
+                        <input
+                          ref={optionFileInputRef}
+                          type="file"
+                          className="d-none"
+                          multiple
+                          accept="image/*"
+                          onChange={handleOptionImageUpload}
+                        />
+                      </div>
                       {optionImages.length > 0 && (
-                        <div className="mt-2 text-muted">
-                          {optionImages.length}개의 이미지가 선택되었습니다.
+                        <div className="mt-2">
+                          <span className="badge bg-success">
+                            {optionImages.length}개의 이미지 선택됨
+                          </span>
                         </div>
                       )}
                     </div>
@@ -777,39 +1056,87 @@ const JSharp: React.FC = () => {
                           {/* 이미지 업로드 */}
                           <div className="mb-3">
                             <label className="form-label">이미지</label>
-                            <input
-                              type="file"
-                              className="form-control"
-                              accept="image/*"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0] || null;
-                                updateProductPageRowImage(row.id, file);
-                              }}
-                            />
-                          </div>
+                            <div className="row g-3">
+                              {/* 이미지 미리보기 (이미지가 있을 때만) */}
+                              {row.image && (
+                                <div className="col-md-6">
+                                  <div className="card h-100">
+                                    <img
+                                      src={URL.createObjectURL(row.image)}
+                                      alt={`row-${row.id}-preview`}
+                                      className="card-img-top"
+                                      style={{ height: '200px', objectFit: 'contain', backgroundColor: '#f8f9fa' }}
+                                    />
+                                    <div className="card-body">
+                                      <p className="card-text mb-1">
+                                        <strong>파일명:</strong> {row.image.name}
+                                      </p>
+                                      <p className="card-text mb-0">
+                                        <strong>크기:</strong> {(row.image.size / 1024).toFixed(2)} KB
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
 
-                          {/* 업로드된 이미지 미리보기 */}
-                          {row.image && (
-                            <div className="mt-3">
-                              <label className="form-label">업로드된 이미지</label>
-                              <div className="card">
-                                <img
-                                  src={URL.createObjectURL(row.image)}
-                                  alt={`row-${row.id}-preview`}
-                                  className="card-img-top"
-                                  style={{ maxHeight: '300px', objectFit: 'contain', backgroundColor: '#f8f9fa' }}
-                                />
-                                <div className="card-body">
-                                  <p className="card-text">
-                                    <strong>파일명:</strong> {row.image.name}
+                              {/* 업로드 박스 */}
+                              <div className={row.image ? 'col-md-6' : 'col-12'}>
+                                <div
+                                  onDragOver={(e) => handleProductPageDragOver(e, row.id)}
+                                  onDragLeave={(e) => handleProductPageDragLeave(e, row.id)}
+                                  onDrop={(e) => handleProductPageDrop(e, row.id)}
+                                  onClick={() => {
+                                    const input = document.getElementById(`file-input-${row.id}`) as HTMLInputElement;
+                                    input?.click();
+                                  }}
+                                  className={`border rounded text-center cursor-pointer h-100 d-flex flex-column justify-content-center ${
+                                    isProductPageDragging[row.id] ? 'border-primary bg-primary-lt' : 'border-secondary'
+                                  }`}
+                                  style={{
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    backgroundColor: isProductPageDragging[row.id] ? '#f0f7ff' : '#f8f9fa',
+                                    minHeight: row.image ? '280px' : '150px',
+                                    padding: '1rem'
+                                  }}
+                                >
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="36"
+                                    height="36"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="mb-2 mx-auto"
+                                    style={{ color: isProductPageDragging[row.id] ? '#0054a6' : '#a8abaeff' }}
+                                  >
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                  </svg>
+                                  <p className="mb-1 fw-bold">
+                                    {isProductPageDragging[row.id] ? 'Drop Here!' : row.image ? '이미지 변경' : 'Click or Drag Image Here'}
                                   </p>
-                                  <p className="card-text">
-                                    <strong>크기:</strong> {(row.image.size / 1024).toFixed(2)} KB
+                                  <p className="text-muted small mb-0">
+                                    PNG, JPG 등 모든 이미지 형식 지원
                                   </p>
+                                  <input
+                                    id={`file-input-${row.id}`}
+                                    type="file"
+                                    className="d-none"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0] || null;
+                                      updateProductPageRowImage(row.id, file);
+                                    }}
+                                  />
                                 </div>
                               </div>
                             </div>
-                          )}
+                          </div>
                         </div>
                       </div>
                     ))}

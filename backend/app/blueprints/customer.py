@@ -4,9 +4,31 @@ from app.models.customer import Customer
 from app.models.resource import Resource
 import pandas as pd
 import os
+import re
+import base64
+from datetime import datetime
 from werkzeug.utils import secure_filename
+from PIL import Image
+
+# OCR 라이브러리 - Tesseract 또는 easyocr 사용
+OCR_METHOD = 'easyocr'  # 'tesseract' 또는 'easyocr'
+
+if OCR_METHOD == 'tesseract':
+    import pytesseract
+elif OCR_METHOD == 'easyocr':
+    try:
+        import easyocr
+        # EasyOCR reader 초기화 (한글, 영어)
+        reader = easyocr.Reader(['ko', 'en'], gpu=False)
+    except ImportError:
+        OCR_METHOD = 'manual'
+        reader = None
 
 customer_bp = Blueprint('customer', __name__)
+
+# 명함 이미지 저장 디렉토리
+BUSINESS_CARD_UPLOAD_FOLDER = os.path.join('static', 'business_cards')
+os.makedirs(BUSINESS_CARD_UPLOAD_FOLDER, exist_ok=True)
 
 @customer_bp.route('/', methods=['GET'])
 # @permission_required('customer')  # 임시로 주석 처리
@@ -123,6 +145,8 @@ def create_customer():
             president=data.get('president', ''),
             mobile=data.get('mobile', ''),
             contact=data.get('contact', ''),
+            homepage=data.get('homepage', ''),
+            business_card_image=data.get('business_card_image', ''),
             notes=data.get('notes', '')
         )
 
@@ -161,6 +185,8 @@ def update_customer(customer_id):
         customer.president = data.get('president', customer.president)
         customer.mobile = data.get('mobile', customer.mobile)
         customer.contact = data.get('contact', customer.contact)
+        customer.homepage = data.get('homepage', customer.homepage)
+        customer.business_card_image = data.get('business_card_image', customer.business_card_image)
         customer.notes = data.get('notes', customer.notes)
         
         if customer.save():
@@ -190,6 +216,290 @@ def delete_customer(customer_id):
             
     except Exception as e:
         return jsonify({'error': f'고객정보 삭제 중 오류가 발생했습니다: {str(e)}'}), 500
+
+@customer_bp.route('/extract-business-card', methods=['POST'])
+# @permission_required('customer')  # 임시로 주석 처리
+def extract_business_card():
+    """명함 이미지로부터 고객 정보 추출"""
+    try:
+        # 파일 업로드 확인
+        if 'image' not in request.files:
+            return jsonify({'error': '이미지 파일이 선택되지 않았습니다.'}), 400
+
+        file = request.files['image']
+
+        if file.filename == '':
+            return jsonify({'error': '이미지 파일이 선택되지 않았습니다.'}), 400
+
+        # 이미지 파일 확인
+        allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp'}
+        file_ext = os.path.splitext(file.filename)[1].lower()
+
+        if file_ext not in allowed_extensions:
+            return jsonify({'error': '이미지 파일만 업로드 가능합니다.'}), 400
+
+        # 파일 저장
+        filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        unique_filename = f"{timestamp}_{filename}"
+        filepath = os.path.join(BUSINESS_CARD_UPLOAD_FOLDER, unique_filename)
+        file.save(filepath)
+
+        try:
+            # OCR 수행
+            if OCR_METHOD == 'tesseract':
+                image = Image.open(filepath)
+                custom_config = r'--oem 3 --psm 6'
+                text = pytesseract.image_to_string(image, lang='kor+eng', config=custom_config)
+            elif OCR_METHOD == 'easyocr':
+                # EasyOCR 사용
+                result = reader.readtext(filepath)
+                # 결과를 텍스트로 변환
+                text = '\n'.join([detection[1] for detection in result])
+            else:
+                # OCR 라이브러리가 없는 경우
+                return jsonify({
+                    'error': 'OCR 라이브러리가 설치되지 않았습니다. easyocr 또는 tesseract를 설치해주세요.'
+                }), 500
+
+            # 텍스트에서 정보 추출
+            extracted_data = parse_business_card_text(text)
+
+            # 이미지 경로 추가
+            extracted_data['business_card_image'] = filepath.replace('\\', '/')
+
+            return jsonify({
+                'success': True,
+                'data': extracted_data,
+                'raw_text': text  # 디버깅용
+            }), 200
+
+        except Exception as e:
+            # OCR 실패 시 파일 삭제
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            raise e
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'명함 정보 추출 중 오류가 발생했습니다: {str(e)}'}), 500
+
+
+def parse_business_card_text(text):
+    """명함 텍스트에서 구조화된 정보 추출 (향상된 버전)"""
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+
+    data = {
+        'company_name': '',
+        'contact_person': '',
+        'email': '',
+        'phone': '',
+        'address': '',
+        'fax': '',
+        'mobile': '',
+        'homepage': '',
+        'president': ''
+    }
+
+    # 전체 텍스트를 하나의 문자열로 (멀티라인 패턴 매칭용)
+    full_text = ' '.join(lines)
+
+    # 1. 이메일 추출 (가장 명확한 패턴)
+    email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+    email_matches = re.findall(email_pattern, full_text)
+    if email_matches:
+        data['email'] = email_matches[0]
+
+    # 2. 전화번호 추출 (컨텍스트 기반 우선순위)
+    phone_numbers = []
+    for i, line in enumerate(lines):
+        # 모든 전화번호 형식 추출 (02-1234-5678, 031-123-4567, 010-1234-5678 등)
+        numbers = re.findall(r'(\d{2,4})[-.\s]?(\d{3,4})[-.\s]?(\d{4})', line)
+        for num in numbers:
+            formatted_num = f"{num[0]}-{num[1]}-{num[2]}"
+            phone_numbers.append({
+                'number': formatted_num,
+                'line': line,
+                'index': i,
+                'type': None
+            })
+
+    # 전화번호 타입 분류 (키워드 기반)
+    for entry in phone_numbers:
+        line_upper = entry['line'].upper()
+        number = entry['number']
+
+        # 팩스 (FAX, F, 팩스 키워드 또는 F. F: 등)
+        if any(keyword in line_upper for keyword in ['FAX', '팩스', 'F.', 'F:']):
+            if not data['fax']:
+                data['fax'] = number
+                entry['type'] = 'fax'
+        # 휴대폰 (010, 011, 016, 017, 018, 019로 시작)
+        elif number.startswith(('010', '011', '016', '017', '018', '019')):
+            if not data['mobile']:
+                data['mobile'] = number
+                entry['type'] = 'mobile'
+        # HP, H.P, Mobile, 휴대폰 키워드
+        elif any(keyword in line_upper for keyword in ['HP', 'H.P', 'MOBILE', '휴대폰', '핸드폰']):
+            if not data['mobile']:
+                data['mobile'] = number
+                entry['type'] = 'mobile'
+        # TEL, T, 전화 키워드
+        elif any(keyword in line_upper for keyword in ['TEL', '전화', 'T.', 'T:', 'PHONE']):
+            if not data['phone']:
+                data['phone'] = number
+                entry['type'] = 'phone'
+
+    # 분류되지 않은 전화번호 처리 (우선순위: 일반전화 > 휴대폰)
+    for entry in phone_numbers:
+        if entry['type'] is None:
+            number = entry['number']
+            # 지역번호로 시작하면 일반 전화
+            if number.startswith(('02-', '031-', '032-', '033-', '041-', '042-', '043-', '044-',
+                                  '051-', '052-', '053-', '054-', '055-', '061-', '062-', '063-', '064-')):
+                if not data['phone']:
+                    data['phone'] = number
+            # 010 등으로 시작하면 휴대폰
+            elif number.startswith(('010-', '011-', '016-', '017-', '018-', '019-')):
+                if not data['mobile']:
+                    data['mobile'] = number
+
+    # 3. 홈페이지 추출 (개선된 패턴)
+    # URL 패턴 (http://, https://, www. 포함)
+    homepage_patterns = [
+        r'(?:https?://)?(?:www\.)?([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}(?:/[^\s]*)?',
+        r'(?:www\.)([a-zA-Z0-9][-a-zA-Z0-9]*\.)+(?:com|co\.kr|net|org|kr)',
+    ]
+
+    for line in lines:
+        line_lower = line.lower()
+        # URL 키워드가 포함된 라인 우선 검색
+        if any(keyword in line_lower for keyword in ['www.', 'http', '.com', '.co.kr', '.net', '.org']):
+            for pattern in homepage_patterns:
+                homepage_match = re.search(pattern, line)
+                if homepage_match:
+                    homepage = homepage_match.group()
+                    # 이메일과 혼동 방지
+                    if '@' not in homepage:
+                        if not homepage.startswith('http'):
+                            homepage = 'http://' + homepage
+                        data['homepage'] = homepage
+                        break
+        if data['homepage']:
+            break
+
+    # 4. 회사명 추출 (개선된 로직)
+    company_keywords = ['주식회사', '(주)', '㈜', 'Co.,', 'Ltd.', 'Inc.', 'Corp.',
+                        'Company', '유한회사', '(유)', 'Corporation']
+
+    # 키워드가 있는 라인을 회사명으로 우선 추출
+    for i, line in enumerate(lines):
+        if any(keyword in line for keyword in company_keywords):
+            # 이메일, 전화번호, 주소가 아닌 경우
+            if not re.search(email_pattern, line) and not re.search(r'\d{2,4}[-.\s]?\d{3,4}[-.\s]?\d{4}', line):
+                # 너무 길지 않은 경우 (주소 제외)
+                if len(line) < 50:
+                    data['company_name'] = line.strip()
+                    break
+
+    # 회사명이 없으면 첫 1-3줄 중에서 찾기
+    if not data['company_name']:
+        for line in lines[:3]:
+            # 이메일, 전화번호, URL이 없고, 적절한 길이인 경우
+            if (not re.search(email_pattern, line) and
+                not re.search(r'\d{2,4}[-.\s]?\d{3,4}[-.\s]?\d{4}', line) and
+                not re.search(r'www\.|http|\.com', line.lower()) and
+                5 < len(line) < 50):
+                data['company_name'] = line.strip()
+                break
+
+    # 5. 이름 추출 (개선된 로직 - 위치 기반)
+    position_keywords = ['대표', '이사', '부장', '과장', '차장', '팀장', '사원', '실장', '본부장',
+                        'CEO', 'CTO', 'CFO', 'COO', 'President', 'Manager', 'Director',
+                        'Executive', 'Chief', '대표이사']
+
+    # 회사명 다음 라인이나 직책 키워드 근처에서 이름 찾기
+    company_index = -1
+    for i, line in enumerate(lines):
+        if line == data['company_name']:
+            company_index = i
+            break
+
+    # 회사명 이후 2-5번째 줄 내에서 이름 찾기
+    search_start = max(0, company_index + 1) if company_index >= 0 else 1
+    search_end = min(len(lines), search_start + 5)
+
+    for i in range(search_start, search_end):
+        line = lines[i]
+        # 이메일, 전화번호, URL이 아니고
+        if (not re.search(email_pattern, line) and
+            not re.search(r'\d{2,4}[-.\s]?\d{3,4}[-.\s]?\d{4}', line) and
+            not re.search(r'www\.|http', line.lower())):
+
+            # 직책 키워드만 있는 경우 다음 줄 확인
+            if any(keyword in line for keyword in position_keywords):
+                # 같은 줄에 이름이 있을 수 있음
+                for keyword in position_keywords:
+                    line_clean = line.replace(keyword, '').strip()
+                    if re.match(r'^[가-힣]{2,4}$', line_clean):
+                        data['contact_person'] = line_clean
+                        break
+                if data['contact_person']:
+                    break
+            # 한글 이름 (2-4글자, 단독)
+            elif re.match(r'^[가-힣]{2,4}$', line.strip()):
+                data['contact_person'] = line.strip()
+                break
+            # 영문 이름
+            elif re.match(r'^[A-Z][a-z]+\s[A-Z][a-z]+$', line.strip()):
+                data['contact_person'] = line.strip()
+                break
+
+    # 6. 주소 추출 (개선된 로직)
+    address_keywords = ['서울', '경기', '인천', '부산', '대구', '광주', '대전', '울산', '세종', '제주',
+                        '특별시', '광역시', '도', '시', '군', '구', '읍', '면', '동', '로', '길', '가',
+                        'Road', 'St.', 'Street', 'Ave', 'Avenue']
+
+    address_candidates = []
+    for i, line in enumerate(lines):
+        # 주소 키워드가 포함되고 충분히 긴 경우
+        if any(keyword in line for keyword in address_keywords) and len(line) > 10:
+            # 전화번호나 이메일만 있는 라인 제외
+            if not re.match(r'^[\d\s\-\.\(\)]+$', line) and '@' not in line:
+                address_candidates.append({'text': line, 'score': 0, 'index': i})
+
+    # 주소 스코어링 (더 많은 키워드 = 더 높은 점수)
+    for candidate in address_candidates:
+        for keyword in address_keywords:
+            if keyword in candidate['text']:
+                candidate['score'] += 1
+        # 숫자 포함 (건물 번호 등)
+        if re.search(r'\d+', candidate['text']):
+            candidate['score'] += 1
+        # 길이 점수
+        if len(candidate['text']) > 20:
+            candidate['score'] += 2
+
+    # 가장 높은 점수의 주소 선택
+    if address_candidates:
+        address_candidates.sort(key=lambda x: x['score'], reverse=True)
+        data['address'] = address_candidates[0]['text'].strip()
+
+    # 7. 대표 이름 추출 (대표이사, CEO 등)
+    for line in lines:
+        if any(keyword in line for keyword in ['대표이사', '대표', 'CEO', 'President']):
+            # 한글 이름 추출
+            name_match = re.search(r'[가-힣]{2,4}', line)
+            if name_match:
+                name = name_match.group()
+                # 직책 키워드가 아닌 경우
+                if name not in ['대표', '이사', '대표이사']:
+                    data['president'] = name
+                    break
+
+    return data
+
 
 @customer_bp.route('/import-excel', methods=['POST'])
 # @permission_required('customer')  # 임시로 주석 처리

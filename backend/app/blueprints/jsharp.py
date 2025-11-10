@@ -11,9 +11,18 @@ import io
 import zipfile
 import tempfile
 
+# HEIC 지원을 위한 pillow-heif 등록
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    HEIC_SUPPORTED = True
+except ImportError:
+    HEIC_SUPPORTED = False
+    print("Warning: pillow-heif not installed. HEIC/HEIF files will not be supported.")
+
 jsharp_bp = Blueprint('jsharp', __name__)
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'heic', 'heif'}
 IMAGE_SIZES = [430, 640, 860, 1000]
 
 
@@ -108,8 +117,26 @@ def process_images():
                     original_filename = secure_filename(file.filename)
                     filename_without_ext = os.path.splitext(original_filename)[0]
 
-                    # PIL Image로 열기
-                    image = Image.open(file.stream)
+                    # HEIC/HEIF 파일은 임시 파일로 저장 후 처리
+                    file_ext = os.path.splitext(original_filename)[1].lower()
+                    if file_ext in ['.heic', '.heif']:
+                        # 임시 파일로 저장
+                        temp_input_path = os.path.join(temp_dir, f"temp_{original_filename}")
+                        file.save(temp_input_path)
+
+                        # PIL Image로 열고 RGB로 변환하여 복사
+                        with Image.open(temp_input_path) as img:
+                            # RGB 모드로 변환하여 새 이미지 객체 생성 (원본과 독립)
+                            image = img.convert('RGB')
+
+                        # 임시 입력 파일 삭제 (이미지가 메모리에 로드됨)
+                        try:
+                            os.remove(temp_input_path)
+                        except:
+                            pass  # 파일 삭제 실패해도 계속 진행
+                    else:
+                        # 일반 이미지는 스트림에서 바로 열기
+                        image = Image.open(file.stream)
 
                     # 4개 사이즈로 처리
                     for size in IMAGE_SIZES:

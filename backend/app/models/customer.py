@@ -5,14 +5,15 @@ class Customer:
     def __init__(self, id=None, company_name=None, contact_person=None,
                  email=None, phone=None, address=None, notes=None,
                  postal_code=None, tel=None, fax=None, president=None,
-                 mobile=None, contact=None, created_at=None, updated_at=None):
-        
+                 mobile=None, contact=None, homepage=None, business_card_image=None,
+                 created_at=None, updated_at=None):
+
         # None 값을 빈 문자열로 안전하게 변환하는 헬퍼 함수
         def safe_str(value):
             if value is None or value == 'NONE':
                 return ''
             return str(value) if value is not None else ''
-        
+
         self.id = id
         self.company_name = safe_str(company_name)
         self.contact_person = safe_str(contact_person)
@@ -26,6 +27,8 @@ class Customer:
         self.president = safe_str(president)
         self.mobile = safe_str(mobile)
         self.contact = safe_str(contact)
+        self.homepage = safe_str(homepage)
+        self.business_card_image = safe_str(business_card_image)
         self.created_at = created_at
         self.updated_at = updated_at
     
@@ -144,39 +147,43 @@ class Customer:
     def save(self):
         """고객 정보 저장 (생성 또는 수정)"""
         conn = get_db_connection()
-        
+
         # None 값을 빈 문자열로 변환하는 헬퍼 함수
         def safe_value(value):
             return value if value is not None else ''
-        
+
         try:
             if self.id:
                 # 수정
                 conn.execute('''
-                    UPDATE customers SET 
+                    UPDATE customers SET
                     company_name=?, contact_person=?, email=?, phone=?,
                     address=?, postal_code=?, tel=?, fax=?, president=?,
-                    mobile=?, contact=?, notes=?, updated_at=CURRENT_TIMESTAMP
+                    mobile=?, contact=?, homepage=?, business_card_image=?,
+                    notes=?, updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
-                ''', (safe_value(self.company_name), safe_value(self.contact_person), 
-                      safe_value(self.email), safe_value(self.phone), safe_value(self.address), 
+                ''', (safe_value(self.company_name), safe_value(self.contact_person),
+                      safe_value(self.email), safe_value(self.phone), safe_value(self.address),
                       safe_value(self.postal_code), safe_value(self.tel), safe_value(self.fax),
                       safe_value(self.president), safe_value(self.mobile), safe_value(self.contact),
+                      safe_value(self.homepage), safe_value(self.business_card_image),
                       safe_value(self.notes), self.id))
             else:
                 # 신규 생성
                 cursor = conn.execute('''
-                    INSERT INTO customers 
-                    (company_name, contact_person, email, phone, address, 
-                     postal_code, tel, fax, president, mobile, contact, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (safe_value(self.company_name), safe_value(self.contact_person), 
+                    INSERT INTO customers
+                    (company_name, contact_person, email, phone, address,
+                     postal_code, tel, fax, president, mobile, contact, homepage,
+                     business_card_image, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (safe_value(self.company_name), safe_value(self.contact_person),
                       safe_value(self.email), safe_value(self.phone), safe_value(self.address),
                       safe_value(self.postal_code), safe_value(self.tel), safe_value(self.fax),
                       safe_value(self.president), safe_value(self.mobile), safe_value(self.contact),
+                      safe_value(self.homepage), safe_value(self.business_card_image),
                       safe_value(self.notes)))
                 self.id = cursor.lastrowid
-            
+
             conn.commit()
             return self.id
         except Exception as e:
@@ -189,26 +196,28 @@ class Customer:
         """고객 정보 업데이트"""
         if not self.id:
             return False
-        
+
         conn = get_db_connection()
-        
+
         # None 값을 빈 문자열로 변환하는 헬퍼 함수
         def safe_value(value):
             return value if value is not None else ''
-        
+
         try:
             conn.execute('''
-                UPDATE customers SET 
+                UPDATE customers SET
                 company_name=?, contact_person=?, email=?, phone=?,
                 address=?, postal_code=?, tel=?, fax=?, president=?,
-                mobile=?, contact=?, notes=?, updated_at=CURRENT_TIMESTAMP
+                mobile=?, contact=?, homepage=?, business_card_image=?,
+                notes=?, updated_at=CURRENT_TIMESTAMP
                 WHERE id=?
-            ''', (safe_value(self.company_name), safe_value(self.contact_person), 
+            ''', (safe_value(self.company_name), safe_value(self.contact_person),
                   safe_value(self.email), safe_value(self.phone), safe_value(self.address),
                   safe_value(self.postal_code), safe_value(self.tel), safe_value(self.fax),
                   safe_value(self.president), safe_value(self.mobile), safe_value(self.contact),
+                  safe_value(self.homepage), safe_value(self.business_card_image),
                   safe_value(self.notes), self.id))
-            
+
             conn.commit()
             return True
         except Exception as e:
@@ -278,6 +287,8 @@ class Customer:
                 president=safe_get(row, 'president'),
                 mobile=safe_get(row, 'mobile'),
                 contact=safe_get(row, 'contact'),
+                homepage=safe_get(row, 'homepage'),
+                business_card_image=safe_get(row, 'business_card_image'),
                 notes=safe_get(row, 'notes'),
                 created_at=safe_get(row, 'created_at'),
                 updated_at=safe_get(row, 'updated_at')
@@ -302,6 +313,8 @@ class Customer:
             'president': self.president,
             'mobile': self.mobile,
             'contact': self.contact,
+            'homepage': self.homepage,
+            'business_card_image': self.business_card_image,
             'notes': self.notes,
             'created_at': self.created_at,
             'updated_at': self.updated_at,

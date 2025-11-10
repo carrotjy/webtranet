@@ -77,6 +77,7 @@ interface ServiceReport {
   is_locked?: boolean;
   locked_by?: number;
   locked_at?: string;
+  invoice_id?: number; // 거래명세서 ID (생성되면 잠금됨)
   created_at?: string;
   updated_at?: string;
   used_parts?: UsedPart[];
@@ -1248,8 +1249,8 @@ const ServiceReports: React.FC = () => {
 
       items.push({
         id: `work-${dateStr}`,
-        month: 0,  // 헤더 다음 행은 월/일 표시 안 함
-        day: 0,
+        month,  // 헤더와 동일한 날짜 표시
+        day,
         item_name: '작업시간',
         specification: '1인*1시간(H)',
         quantity: workQuantity,
@@ -1267,8 +1268,8 @@ const ServiceReports: React.FC = () => {
 
       items.push({
         id: `travel-${dateStr}`,
-        month: 0,
-        day: 0,
+        month,  // 헤더와 동일한 날짜 표시
+        day,
         item_name: '이동시간',
         specification: '1시간(H)',
         quantity: travelQuantity,
@@ -1283,10 +1284,14 @@ const ServiceReports: React.FC = () => {
     if (report.used_parts && report.used_parts.length > 0) {
       // 헤더 행: 2. 부품 비용
       const lastDate = sortedDates[sortedDates.length - 1] || '';
+      const lastDateObj = lastDate ? new Date(lastDate) : new Date();
+      const partsMonth = lastDateObj.getMonth() + 1;
+      const partsDay = lastDateObj.getDate();
+
       items.push({
         id: `header-parts`,
-        month: 0,
-        day: 0,
+        month: partsMonth,
+        day: partsDay,
         item_name: '2. 부품 비용',
         specification: '',
         quantity: 0,
@@ -1333,8 +1338,8 @@ const ServiceReports: React.FC = () => {
 
         items.push({
           id: `part-${part.id || Math.random()}`,
-          month: 0,
-          day: 0,
+          month: partsMonth,
+          day: partsDay,
           item_name: part.part_name,
           specification: part.part_number || '',
           quantity: part.quantity,
@@ -1630,12 +1635,23 @@ const ServiceReports: React.FC = () => {
           items: dbItems
         };
 
-        await invoiceAPI.createInvoice(invoiceData);
+        const response = await invoiceAPI.createInvoice(invoiceData);
         console.log('거래명세서가 DB에 저장되었습니다.');
 
         // 성공 메시지 표시
         alert('거래명세서가 성공적으로 생성되었습니다.\n\n거래명세서 목록에서 "엑셀생성" 버튼을 클릭하여 파일을 생성하세요.');
         setShowInvoiceModal(false);
+
+        // 리포트 정보를 다시 가져와서 잠금 표시 업데이트
+        if (viewingReport) {
+          try {
+            const updatedReport = await serviceReportAPI.getServiceReportById(viewingReport.id);
+            setViewingReport(updatedReport.data);
+          } catch (error) {
+            console.error('리포트 정보 갱신 실패:', error);
+          }
+        }
+
         setShowViewModal(true);
 
       } catch (dbError: any) {
@@ -3496,7 +3512,7 @@ const ServiceReports: React.FC = () => {
 
                 <div className="row mt-4">
                   <div className="col-12 d-flex gap-2 justify-content-end">
-                    {hasPermission('transaction_create') && (
+                    {hasPermission('transaction_create') && !viewingReport?.invoice_id && (
                       <button
                         type="button"
                         className="btn btn-success"
@@ -3517,6 +3533,17 @@ const ServiceReports: React.FC = () => {
                         </svg>
                         {loading ? '생성 중...' : '거래명세표 항목 입력'}
                       </button>
+                    )}
+                    {viewingReport?.invoice_id && (
+                      <div className="alert alert-info mb-0 me-auto" style={{ padding: '0.5rem 1rem' }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="icon me-2" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                          <rect x="5" y="11" width="14" height="10" rx="2"/>
+                          <circle cx="12" cy="16" r="1"/>
+                          <path d="M8 11v-4a4 4 0 0 1 8 0v4"/>
+                        </svg>
+                        거래명세서가 생성되어 잠금되었습니다
+                      </div>
                     )}
                     {/* {hasPermission('service_report_update') && (
                       <button

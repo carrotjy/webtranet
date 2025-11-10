@@ -475,9 +475,23 @@ def generate_invoice_excel_v2(invoice_id):
         wb.save(output_path)
         wb.close()
 
-        # 13. PDF 생성 (LibreOffice 사용)
+        # 13. PDF 생성 (LibreOffice 사용) - 월별 폴더에 저장
+        # 발행일자에서 년월 추출 (YYYY-MM-DD 형식)
+        issue_date_str = invoice['issue_date']
+        try:
+            issue_date = datetime.strptime(issue_date_str, '%Y-%m-%d')
+            monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
+        except:
+            # 날짜 파싱 실패 시 현재 날짜 사용
+            now = datetime.now()
+            monthly_folder_name = f"{now.year}년{now.month:02d}월"
+
+        # 월별 폴더 생성
+        monthly_folder = os.path.join(INVOICE_BASE_DIR, monthly_folder_name)
+        os.makedirs(monthly_folder, exist_ok=True)
+
         pdf_filename = f"거래명세서({invoice['customer_name']})-{invoice['invoice_number']}.pdf"
-        pdf_path = os.path.join(customer_folder, pdf_filename)
+        pdf_path = os.path.join(monthly_folder, pdf_filename)
         pdf_success = convert_excel_to_pdf(output_path, pdf_path)
 
         return {

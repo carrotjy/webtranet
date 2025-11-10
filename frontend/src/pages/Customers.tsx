@@ -16,6 +16,8 @@ interface Customer {
   president?: string;
   mobile?: string;
   contact?: string;
+  homepage?: string;
+  business_card_image?: string;
   updated_at?: string;
   resources?: Resource[];
 }
@@ -41,6 +43,8 @@ interface CustomerForm {
   president: string;
   mobile: string;
   contact: string;
+  homepage: string;
+  business_card_image: string;
 }
 
 const CATEGORIES = ['Pressbrake', 'Laser', 'Software'];
@@ -64,7 +68,9 @@ const Customers: React.FC = () => {
   const [customerResources, setCustomerResources] = useState<Resource[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [isExtractingCard, setIsExtractingCard] = useState(false);
+  const [showBusinessCardUpload, setShowBusinessCardUpload] = useState(false);
+
   const [formData, setFormData] = useState<CustomerForm>({
     company_name: '',
     contact_person: '',
@@ -75,7 +81,9 @@ const Customers: React.FC = () => {
     fax: '',
     president: '',
     mobile: '',
-    contact: ''
+    contact: '',
+    homepage: '',
+    business_card_image: ''
   });
 
   const [resourceFormData, setResourceFormData] = useState<Resource>({
@@ -201,7 +209,9 @@ const Customers: React.FC = () => {
         fax: '',
         president: '',
         mobile: '',
-        contact: ''
+        contact: '',
+        homepage: '',
+        business_card_image: ''
       });
       loadCustomers();
     } catch (error) {
@@ -282,7 +292,9 @@ const Customers: React.FC = () => {
       fax: customer.fax || '',
       president: customer.president || '',
       mobile: customer.mobile || '',
-      contact: customer.contact || ''
+      contact: customer.contact || '',
+      homepage: customer.homepage || '',
+      business_card_image: customer.business_card_image || ''
     });
     setShowForm(true);
   };
@@ -299,7 +311,9 @@ const Customers: React.FC = () => {
       fax: '',
       president: '',
       mobile: '',
-      contact: ''
+      contact: '',
+      homepage: '',
+      business_card_image: ''
     });
     setShowForm(true);
   };
@@ -353,6 +367,58 @@ const Customers: React.FC = () => {
     setCurrentPage(1); // 검색 클리어 시 첫 페이지로 이동
   };
 
+  // 명함 이미지로부터 정보 추출
+  const handleBusinessCardUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsExtractingCard(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const response = await fetch('/api/customers/extract-business-card', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          // 추출된 데이터로 폼 필드 채우기
+          setFormData(prev => ({
+            ...prev,
+            company_name: result.data.company_name || prev.company_name,
+            contact_person: result.data.contact_person || prev.contact_person,
+            email: result.data.email || prev.email,
+            phone: result.data.phone || prev.phone,
+            address: result.data.address || prev.address,
+            fax: result.data.fax || prev.fax,
+            mobile: result.data.mobile || prev.mobile,
+            homepage: result.data.homepage || prev.homepage,
+            president: result.data.president || prev.president,
+            business_card_image: result.data.business_card_image || prev.business_card_image
+          }));
+          setShowBusinessCardUpload(false);
+          alert('명함 정보가 성공적으로 추출되었습니다. 정보를 확인하고 수정해주세요.');
+        } else {
+          alert('명함 정보 추출에 실패했습니다.');
+        }
+      } else {
+        const error = await response.json();
+        alert(error.error || '명함 정보 추출에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('명함 정보 추출 실패:', error);
+      alert('명함 정보 추출 중 오류가 발생했습니다.');
+    } finally {
+      setIsExtractingCard(false);
+    }
+  };
+
   if (showForm) {
     return (
       <div className="page-header d-print-none">
@@ -364,7 +430,40 @@ const Customers: React.FC = () => {
               </h2>
             </div>
             <div className="col-auto">
-              <button 
+              {!editingCustomer && (
+                <>
+                  <input
+                    type="file"
+                    id="business-card-upload"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleBusinessCardUpload}
+                  />
+                  <button
+                    className="btn btn-primary me-2"
+                    onClick={() => document.getElementById('business-card-upload')?.click()}
+                    disabled={isExtractingCard}
+                  >
+                    {isExtractingCard ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                        추출 중...
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="icon me-2" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="4" width="18" height="16" rx="2"/>
+                          <line x1="7" y1="8" x2="17" y2="8"/>
+                          <line x1="7" y1="12" x2="13" y2="12"/>
+                          <line x1="7" y1="16" x2="10" y2="16"/>
+                        </svg>
+                        명함으로부터 등록
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+              <button
                 className="btn btn-outline-secondary"
                 onClick={() => {
                   setShowForm(false);
@@ -530,6 +629,20 @@ const Customers: React.FC = () => {
                           className="form-control"
                           value={formData.mobile}
                           onChange={(e) => setFormData({...formData, mobile: e.target.value})}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 홈페이지 */}
+                    <div className="col-md-12">
+                      <div className="mb-3">
+                        <label className="form-label">홈페이지</label>
+                        <input
+                          type="url"
+                          className="form-control"
+                          value={formData.homepage}
+                          onChange={(e) => setFormData({...formData, homepage: e.target.value})}
+                          placeholder="http://example.com"
                         />
                       </div>
                     </div>
@@ -918,6 +1031,37 @@ const Customers: React.FC = () => {
                       value={viewingCustomer.mobile || ''}
                       readOnly
                     />
+                  </div>
+                </div>
+
+                {/* 여섯 번째 줄: 홈페이지 */}
+                <div className="col-md-12">
+                  <div className="mb-3">
+                    <label className="form-label">홈페이지</label>
+                    <div className="input-group">
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={viewingCustomer.homepage || ''}
+                        readOnly
+                      />
+                      {viewingCustomer.homepage && (
+                        <a
+                          href={viewingCustomer.homepage}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-outline-primary"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                            <path d="M11 7h-5a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-5"></path>
+                            <line x1="10" y1="14" x2="20" y2="4"></line>
+                            <polyline points="15 4 20 4 20 9"></polyline>
+                          </svg>
+                          방문
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
