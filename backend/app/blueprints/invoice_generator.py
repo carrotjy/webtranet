@@ -1104,17 +1104,48 @@ def serve_invoice_excel(customer_name, filename):
 
 @invoice_generator_bp.route('/invoice-pdf/<path:customer_name>/<path:filename>', methods=['GET'])
 def serve_invoice_pdf(customer_name, filename):
-    """생성된 PDF 파일 제공"""
+    """생성된 PDF 파일 제공 (월별 폴더 지원)"""
     try:
         from urllib.parse import unquote
+        import re
 
         # URL 디코딩
         customer_name = unquote(customer_name)
         filename = unquote(filename)
 
-        # instance/거래명세서/고객사명/filename 경로
+        # 파일명에서 invoice_number 추출: 거래명세서(고객명)-241104.pdf -> 241104
+        match = re.search(r'-([^-]+)\.pdf$', filename)
+        if match:
+            invoice_number = match.group(1)
+
+            # invoice_number로 DB에서 issue_date 조회
+            from app.database.init_db import get_db_connection
+            conn = get_db_connection()
+            invoice_data = conn.execute(
+                'SELECT issue_date FROM invoices WHERE invoice_number = ?',
+                (invoice_number,)
+            ).fetchone()
+            conn.close()
+
+            if invoice_data and invoice_data['issue_date']:
+                try:
+                    from datetime import datetime
+                    issue_date = datetime.strptime(invoice_data['issue_date'], '%Y-%m-%d')
+                    monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
+                    monthly_folder = os.path.join(INVOICE_BASE_DIR, monthly_folder_name)
+                    pdf_path = os.path.join(monthly_folder, filename)
+
+                    print(f"PDF 다운로드 요청 (월별 폴더): {pdf_path}")
+                    print(f"파일 존재 여부: {os.path.exists(pdf_path)}")
+
+                    if os.path.exists(pdf_path):
+                        return send_file(pdf_path, mimetype='application/pdf')
+                except Exception as e:
+                    print(f"월별 폴더에서 PDF 찾기 실패: {str(e)}")
+
+        # 하위 호환성: 월별 폴더에서 못 찾으면 고객사 폴더에서 찾기
         pdf_path = os.path.join(INVOICE_BASE_DIR, customer_name, filename)
-        print(f"PDF 다운로드 요청: {pdf_path}")
+        print(f"PDF 다운로드 요청 (고객 폴더): {pdf_path}")
         print(f"파일 존재 여부: {os.path.exists(pdf_path)}")
 
         if os.path.exists(pdf_path):
@@ -1122,7 +1153,7 @@ def serve_invoice_pdf(customer_name, filename):
         else:
             return jsonify({
                 'success': False,
-                'error': f'PDF 파일을 찾을 수 없습니다: {pdf_path}'
+                'error': f'PDF 파일을 찾을 수 없습니다: {filename}'
             }), 404
     except Exception as e:
         import traceback

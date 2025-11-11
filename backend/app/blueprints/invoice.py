@@ -70,14 +70,26 @@ def get_invoices():
             # Excel 파일 존재 여부
             invoice_dict['has_excel'] = os.path.exists(excel_path)
 
-            # PDF 파일 존재 여부 - 날짜가 포함된 파일명 패턴으로 확인
-            # 예: 거래명세서(BNS)-241104.pdf
+            # PDF 파일 존재 여부 - 월별 폴더에서 확인
+            # issue_date에서 년월 추출하여 월별 폴더 확인
             has_pdf = False
-            if os.path.exists(customer_folder):
-                for filename in os.listdir(customer_folder):
-                    if filename.startswith(f'거래명세서({invoice.customer_name})') and filename.endswith('.pdf'):
-                        has_pdf = True
-                        break
+            if invoice.issue_date:
+                try:
+                    from datetime import datetime
+                    issue_date = datetime.strptime(invoice.issue_date, '%Y-%m-%d')
+                    monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
+                    monthly_folder = os.path.join(INVOICE_BASE_DIR, monthly_folder_name)
+
+                    pdf_filename = f"거래명세서({invoice.customer_name})-{invoice.invoice_number}.pdf"
+                    pdf_path = os.path.join(monthly_folder, pdf_filename)
+                    has_pdf = os.path.exists(pdf_path)
+                except:
+                    # 날짜 파싱 실패 시 고객 폴더에서 찾기 (하위 호환성)
+                    if os.path.exists(customer_folder):
+                        for filename in os.listdir(customer_folder):
+                            if filename.startswith(f'거래명세서({invoice.customer_name})') and filename.endswith('.pdf'):
+                                has_pdf = True
+                                break
             invoice_dict['has_pdf'] = has_pdf
 
             result.append(invoice_dict)
@@ -675,18 +687,35 @@ def bulk_download_invoices():
                 if not invoice:
                     continue
 
-                customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
-                
-                # PDF 파일 찾기 (날짜 포함된 패턴)
-                if os.path.exists(customer_folder):
-                    for filename in os.listdir(customer_folder):
-                        if filename.startswith(f'거래명세서({invoice.customer_name})') and filename.endswith('.pdf'):
-                            pdf_path = os.path.join(customer_folder, filename)
-                            # ZIP 내부 경로: 원본 파일명 유지
-                            arcname = filename
-                            zipf.write(pdf_path, arcname)
+                # 월별 폴더에서 PDF 파일 찾기
+                pdf_found = False
+                if invoice.issue_date:
+                    try:
+                        from datetime import datetime
+                        issue_date = datetime.strptime(invoice.issue_date, '%Y-%m-%d')
+                        monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
+                        monthly_folder = os.path.join(INVOICE_BASE_DIR, monthly_folder_name)
+
+                        pdf_filename = f"거래명세서({invoice.customer_name})-{invoice.invoice_number}.pdf"
+                        pdf_path = os.path.join(monthly_folder, pdf_filename)
+
+                        if os.path.exists(pdf_path):
+                            zipf.write(pdf_path, pdf_filename)
                             files_added += 1
-                            break  # 첫 번째 PDF만 추가
+                            pdf_found = True
+                    except:
+                        pass
+
+                # 하위 호환성: 월별 폴더에서 못 찾으면 고객 폴더에서 찾기
+                if not pdf_found:
+                    customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
+                    if os.path.exists(customer_folder):
+                        for filename in os.listdir(customer_folder):
+                            if filename.startswith(f'거래명세서({invoice.customer_name})') and filename.endswith('.pdf'):
+                                pdf_path = os.path.join(customer_folder, filename)
+                                zipf.write(pdf_path, filename)
+                                files_added += 1
+                                break
 
         if files_added == 0:
             # 파일이 하나도 추가되지 않음
