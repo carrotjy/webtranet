@@ -1,6 +1,6 @@
 """
 JSharp Blueprint
-J# 이미지 처리 관련 API 엔드포인트
+J# 이미지 처리 및 주문 관리 API 엔드포인트
 """
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required
@@ -10,6 +10,10 @@ import os
 import io
 import zipfile
 import tempfile
+import pandas as pd
+import re
+from datetime import datetime
+from app.database.jsharp_db import insert_order, get_all_orders, delete_order, clear_all_orders, update_order_status
 
 # HEIC 지원을 위한 pillow-heif 등록
 try:
@@ -23,7 +27,166 @@ except ImportError:
 jsharp_bp = Blueprint('jsharp', __name__)
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'heic', 'heif'}
+ALLOWED_EXCEL_EXTENSIONS = {'xlsx', 'xls'}
 IMAGE_SIZES = [430, 640, 860, 1000]
+
+
+def apply_field_replacements(field_value, replacements):
+    """
+    필드에 치환 규칙 적용 (product_name, option, additional_items 등)
+    
+    Args:
+        field_value: 원본 필드 값
+        replacements: 치환 규칙 리스트 [{"before": "...", "after": "..."}, ...]
+        
+    Returns:
+        치환된 필드 값
+    """
+    if not field_value or not replacements:
+        return field_value
+    
+    result = field_value
+    for replacement in replacements:
+        before = replacement.get('before', '')
+        after = replacement.get('after', '')
+        if before and after:
+            result = result.replace(before, after)
+    
+    return result
+
+
+def parse_column_reference(column_ref):
+    """
+    "A/수취인" 형식을 파싱하여 (컬럼 인덱스, 텍스트) 반환
+    
+    Args:
+        column_ref: "A/수취인" 형식의 문자열 또는 컬럼 문자만 (예: "A")
+        
+    Returns:
+        tuple: (컬럼_인덱스, 검색_텍스트) 또는 (None, None)
+    """
+    if not column_ref:
+        return None, None
+    
+    column_ref = column_ref.strip()
+    
+    # "A/수취인" 형식 파싱
+    if '/' in column_ref:
+        parts = column_ref.split('/', 1)
+        column_letter = parts[0].strip().upper()
+        search_text = parts[1].strip()
+        
+        if not search_text:  # 슬래시는 있지만 텍스트가 없는 경우 (예: "A/")
+            return None, None
+        
+        # 엑셀 컬럼 문자를 숫자 인덱스로 변환 (A=0, B=1, ...)
+        column_index = 0
+        for char in column_letter:
+            if not char.isalpha():
+                return None, None
+            column_index = column_index * 26 + (ord(char) - ord('A') + 1)
+        column_index -= 1  # 0-based index
+        
+        return column_index, search_text
+    
+    # 슬래시 없으면 컬럼 문자만 입력된 경우 (예: "A", "B")
+    # 이 경우 헤더 행에서 아무 텍스트나 찾기 (빈 문자열이 아닌)
+    column_letter = column_ref.upper()
+    if column_letter.isalpha():
+        column_index = 0
+        for char in column_letter:
+            column_index = column_index * 26 + (ord(char) - ord('A') + 1)
+        column_index -= 1
+        return column_index, None  # 텍스트 없이 컬럼만 지정
+    
+    # 그 외의 경우 (기존 방식: 컬럼명 전체 문자열)
+    return None, column_ref
+
+
+def find_header_row_and_detect_site(file_stream, column_mappings):
+    """
+    엑셀 파일에서 헤더행 위치를 찾고 사이트를 자동 감지
+    
+    Args:
+        file_stream: 파일 스트림
+        column_mappings: 각 사이트별 컬럼 매핑 정보 (프론트엔드에서 전달)
+        
+    Returns:
+        tuple: (감지된_사이트명, 헤더_행_번호, DataFrame) 또는 (None, None, None)
+    """
+    try:
+        # 전체 엑셀 읽기 (처음 10행만 - 헤더는 보통 상단에 있음)
+        df_preview = pd.read_excel(file_stream, header=None, nrows=10)
+        
+        # 각 사이트에 대해 검증
+        for site in ['ebay', 'smartstore', '11st', 'coupang', 'logen']:
+            if site not in column_mappings:
+                continue
+                
+            site_mapping = column_mappings[site]
+            
+            # 필수 3개 필드 확인
+            required_fields = ['recipient_name', 'phone', 'address']
+            matches = {}  # {field_name: header_row_index}
+            
+            for field in required_fields:
+                column_ref = site_mapping.get(field)
+                if not column_ref:
+                    break
+                    
+                col_index, search_text = parse_column_reference(column_ref)
+                
+                if col_index is None:
+                    break
+                
+                # 해당 컬럼에서 텍스트 검색 (처음 10행 내에서)
+                found = False
+                for row_idx in range(len(df_preview)):
+                    try:
+                        if col_index < len(df_preview.columns):
+                            cell_value = str(df_preview.iloc[row_idx, col_index])
+                            
+                            # search_text가 None이면 (컬럼만 지정) 빈 값이 아닌 셀을 헤더로 간주
+                            if search_text is None:
+                                if cell_value and cell_value != 'nan' and len(cell_value.strip()) > 0:
+                                    matches[field] = row_idx
+                                    found = True
+                                    print(f"[DEBUG] {site} - {field}: Found at row {row_idx}, col {col_index}, value='{cell_value}'")
+                                    break
+                            # search_text가 있으면 해당 텍스트를 찾음
+                            elif search_text in cell_value:
+                                matches[field] = row_idx
+                                found = True
+                                print(f"[DEBUG] {site} - {field}: Found '{search_text}' in row {row_idx}, col {col_index}, value='{cell_value}'")
+                                break
+                    except Exception as e:
+                        continue
+                
+                if not found:
+                    print(f"[DEBUG] {site} - {field}: NOT FOUND (col_index={col_index}, search_text='{search_text}')")
+                    # 디버깅: 해당 컬럼의 모든 값 출력
+                    if col_index < len(df_preview.columns):
+                        print(f"[DEBUG] Column {col_index} values:")
+                        for r in range(min(5, len(df_preview))):
+                            print(f"  Row {r}: '{df_preview.iloc[r, col_index]}'")
+                    break
+            
+            # 3개 필수 필드가 모두 매칭되었는지 확인
+            if len(matches) == 3:
+                # 모든 필드가 같은 행에 있는지 확인
+                header_rows = set(matches.values())
+                if len(header_rows) == 1:
+                    header_row = list(header_rows)[0]
+                    # 헤더 행을 기준으로 다시 엑셀 읽기
+                    file_stream.seek(0)
+                    df_full = pd.read_excel(file_stream, header=header_row)
+                    return site, header_row, df_full
+        
+        return None, None, None
+        
+    except Exception as e:
+        print(f"Error detecting site: {e}")
+        return None, None, None
 
 
 def allowed_file(filename):
@@ -526,5 +689,533 @@ def merge_images():
         return jsonify({
             'success': False,
             'message': f'이미지 병합 실패: {str(e)}'
+        }), 500
+
+
+def allowed_excel_file(filename):
+    """허용된 엑셀 파일 확장자 확인"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXCEL_EXTENSIONS
+
+
+def detect_site_from_excel(file_stream, column_mappings):
+    """
+    엑셀 파일에서 헤더행 위치를 찾고 사이트를 자동 감지 (새로운 방식)
+    find_header_row_and_detect_site를 래핑하여 기존 인터페이스 유지
+
+    Args:
+        file_stream: 파일 스트림
+        column_mappings: 사용자가 정의한 각 사이트별 컬럼 매핑 정보
+
+    Returns:
+        str: 감지된 사이트명 ('ebay', 'smartstore', '11st', 'coupang', 또는 None)
+    """
+    site, header_row, df = find_header_row_and_detect_site(file_stream, column_mappings)
+    return site
+
+
+def parse_excel_with_mapping(file_stream, site, column_mapping, replacement_rules=None):
+    """
+    사용자 정의 컬럼 매핑을 사용하여 엑셀 파일 파싱 (새로운 방식)
+
+    Args:
+        file_stream: 파일 스트림
+        site: 사이트명
+        column_mapping: 사용자가 정의한 컬럼 매핑 (dict)
+        replacement_rules: 필드 치환 규칙 딕셔너리 (optional)
+                          {'product_name': [...], 'option': [...], 'additional_items': [...]}
+
+    Returns:
+        dict: 파싱된 주문 데이터 리스트
+    """
+    try:
+        # 헤더 행 찾기
+        file_stream.seek(0)
+        site_dict = {site: column_mapping}
+        detected_site, header_row, df = find_header_row_and_detect_site(file_stream, site_dict)
+        
+        if df is None:
+            return {'success': False, 'message': f'{site} 엑셀 파일에서 헤더를 찾을 수 없습니다.'}
+
+        orders = []
+        
+        # 컬럼 매핑 정보를 파싱
+        column_map = {}  # {field_name: actual_column_name}
+        for field, col_ref in column_mapping.items():
+            if not col_ref:
+                continue
+            col_index, search_text = parse_column_reference(col_ref)
+            if col_index is not None:
+                # 헤더에서 실제 컬럼명 찾기
+                if col_index < len(df.columns):
+                    column_map[field] = df.columns[col_index]
+        
+        # 데이터 행 순회
+        for idx, row in df.iterrows():
+            try:
+                # eBay의 경우 A열(첫 번째 컬럼) 값을 site로 사용
+                actual_site = site
+                order_number = str(row.get(column_map.get('order_number', ''), '') or '')
+
+                if site == 'ebay' and len(df.columns) > 0:
+                    # A열 값 (판매자 아이디) 가져오기
+                    col_a_value = str(row.iloc[0] if len(row) > 0 else '')
+                    # A열 값을 site로 사용
+                    if col_a_value and col_a_value != 'nan':
+                        actual_site = col_a_value
+
+                order = {
+                    'site': actual_site,
+                    'order_number': order_number,
+                    'buyer_name': str(row.get(column_map.get('buyer_name', ''), '') or ''),
+                    'recipient_name': str(row.get(column_map.get('recipient_name', ''), '') or ''),
+                    'phone': str(row.get(column_map.get('phone', ''), '') or ''),
+                    'phone2': str(row.get(column_map.get('phone2', ''), '') or ''),
+                    'address': str(row.get(column_map.get('address', ''), '') or ''),
+                    'delivery_memo': str(row.get(column_map.get('delivery_memo', ''), '') or ''),
+                    'product_name': str(row.get(column_map.get('product_name', ''), '') or ''),
+                    'quantity': int(row.get(column_map.get('quantity', ''), 1) or 1),
+                    'option': str(row.get(column_map.get('option', ''), '') or ''),
+                    'additional_items': str(row.get(column_map.get('additional_items', ''), '') or ''),
+                    'price': float(row.get(column_map.get('price', ''), 0) or 0),
+                    'order_date': str(row.get(column_map.get('order_date', ''), '') or ''),
+                }
+                
+                # 필드 치환 적용
+                if replacement_rules:
+                    # 상품명 치환
+                    if order['product_name'] and replacement_rules.get('product_name'):
+                        order['product_name'] = apply_field_replacements(
+                            order['product_name'], 
+                            replacement_rules['product_name']
+                        )
+                    
+                    # 옵션 치환
+                    if order['option'] and replacement_rules.get('option'):
+                        order['option'] = apply_field_replacements(
+                            order['option'], 
+                            replacement_rules['option']
+                        )
+                    
+                    # 추가구성 치환
+                    if order['additional_items'] and replacement_rules.get('additional_items'):
+                        order['additional_items'] = apply_field_replacements(
+                            order['additional_items'], 
+                            replacement_rules['additional_items']
+                        )
+                
+                # 빈 행 건너뛰기 (필수 필드가 모두 비어있으면)
+                if not order['recipient_name'] and not order['product_name']:
+                    continue
+                    
+                orders.append(order)
+            except Exception as e:
+                print(f"Row {idx} parsing error: {e}")
+                continue
+
+        return {'success': True, 'orders': orders, 'count': len(orders)}
+
+    except Exception as e:
+        print(f"Excel parsing error: {str(e)}")
+        return {'success': False, 'message': f'{site} 엑셀 파싱 오류: {str(e)}'}
+
+
+@jsharp_bp.route('/jsharp/parse-order-excel', methods=['POST'])
+@jwt_required()
+def parse_order_excel():
+    """
+    주문 엑셀 파일 파싱 및 통합 (사용자 정의 컬럼 매핑 기반)
+    업로드된 엑셀 파일을 사용자가 정의한 컬럼 매핑을 사용하여 파싱
+    """
+    try:
+        # 업로드된 파일 확인
+        if 'files' not in request.files:
+            return jsonify({
+                'success': False,
+                'message': '파일이 없습니다.'
+            }), 400
+
+        files = request.files.getlist('files')
+
+        if not files or len(files) == 0:
+            return jsonify({
+                'success': False,
+                'message': '파일이 없습니다.'
+            }), 400
+
+        # 컬럼 매핑 정보 가져오기 (JSON 형식)
+        import json
+        column_mappings_json = request.form.get('columnMappings', '{}')
+        try:
+            column_mappings = json.loads(column_mappings_json)
+        except:
+            return jsonify({
+                'success': False,
+                'message': '컬럼 매핑 정보가 유효하지 않습니다.'
+            }), 400
+
+        # 필드 치환 규칙 가져오기 (새로운 형식)
+        replacement_rules_json = request.form.get('replacementRules', '{}')
+        try:
+            replacement_rules = json.loads(replacement_rules_json)
+            # 형식 검증: {product_name: [...], option: [...], additional_items: [...]}
+            if not isinstance(replacement_rules, dict):
+                replacement_rules = {}
+        except:
+            replacement_rules = {}
+
+        if not column_mappings:
+            return jsonify({
+                'success': False,
+                'message': '컬럼 매핑 정보가 없습니다. "사이트별 칼럼 지정" 탭에서 각 쇼핑몰의 컬럼을 먼저 설정해주세요.'
+            }), 400
+
+        all_orders = []
+        processed_sites = []
+
+        site_labels = {
+            'ebay': 'eBay',
+            'smartstore': '스마트스토어',
+            '11st': '11번가',
+            'coupang': '쿠팡'
+        }
+
+        # 각 파일 처리
+        for file in files:
+            if file and file.filename and allowed_excel_file(file.filename):
+                # 임시로 파일을 메모리에 저장
+                file_content = io.BytesIO(file.read())
+
+                # 사이트 자동 감지 (사용자 정의 컬럼 매핑 기반)
+                detected_site = detect_site_from_excel(file_content, column_mappings)
+
+                if detected_site and detected_site in column_mappings:
+                    # 파일 스트림 위치를 처음으로 리셋
+                    file_content.seek(0)
+
+                    # 파싱 (사용자 정의 컬럼 매핑 + 치환 규칙 사용)
+                    result = parse_excel_with_mapping(
+                        file_content,
+                        detected_site,
+                        column_mappings[detected_site],
+                        replacement_rules
+                    )
+
+                    if result['success']:
+                        all_orders.extend(result['orders'])
+                        processed_sites.append(site_labels.get(detected_site, detected_site))
+                    else:
+                        print(f"Warning: {result['message']}")
+                else:
+                    print(f"Warning: '{file.filename}' 파일의 쇼핑몰을 감지할 수 없습니다.")
+
+        if len(all_orders) == 0:
+            return jsonify({
+                'success': False,
+                'message': '유효한 주문 데이터가 없습니다. 컬럼 매핑 설정을 확인하고 지원되는 쇼핑몰(eBay, 스마트스토어, 11번가, 쿠팡)의 엑셀 파일을 업로드해주세요.'
+            }), 400
+
+        # DB에 저장 (중복 체크)
+        saved_count = 0
+        duplicate_count = 0
+        
+        for order in all_orders:
+            success, message, is_duplicate = insert_order(order)
+            if success:
+                saved_count += 1
+            elif is_duplicate:
+                duplicate_count += 1
+        
+        # 주문일자 기준으로 정렬 (최신순)
+        try:
+            all_orders.sort(key=lambda x: x['order_date'], reverse=True)
+        except:
+            pass  # 정렬 실패해도 계속 진행
+
+        sites_str = ', '.join(set(processed_sites))
+        message = f'{sites_str}에서 {len(all_orders)}개의 주문을 가져왔습니다.'
+        if duplicate_count > 0:
+            message += f' ({duplicate_count}개 중복, {saved_count}개 신규 저장)'
+        
+        return jsonify({
+            'success': True,
+            'orders': all_orders,
+            'count': len(all_orders),
+            'saved_count': saved_count,
+            'duplicate_count': duplicate_count,
+            'sites': list(set(processed_sites)),
+            'message': message
+        })
+
+    except Exception as e:
+        print(f"주문 엑셀 파싱 오류: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'주문 데이터 처리 실패: {str(e)}'
+        }), 500
+
+
+@jsharp_bp.route('/jsharp/get-orders', methods=['GET'])
+@jwt_required()
+def get_orders():
+    """
+    DB에서 주문 목록 조회
+    """
+    try:
+        site = request.args.get('site', None)
+        limit = request.args.get('limit', type=int)
+        
+        orders = get_all_orders(site=site, limit=limit)
+        
+        return jsonify({
+            'success': True,
+            'orders': orders,
+            'count': len(orders)
+        })
+        
+    except Exception as e:
+        print(f"주문 조회 오류: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'주문 조회 실패: {str(e)}'
+        }), 500
+
+
+@jsharp_bp.route('/jsharp/delete-order/<int:order_id>', methods=['DELETE'])
+@jwt_required()
+def delete_order_route(order_id):
+    """주문 삭제"""
+    try:
+        success, message = delete_order(order_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'주문 삭제 실패: {str(e)}'
+        }), 500
+
+
+@jsharp_bp.route('/jsharp/update-order-status/<int:order_id>', methods=['PUT'])
+@jwt_required()
+def update_order_status_route(order_id):
+    """주문 상태 업데이트"""
+    try:
+        data = request.get_json()
+        status = data.get('status', 'pending')
+        
+        if status not in ['pending', 'completed']:
+            return jsonify({
+                'success': False,
+                'message': '유효하지 않은 상태값입니다. (pending 또는 completed만 가능)'
+            }), 400
+        
+        success, message = update_order_status(order_id, status)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'상태 업데이트 실패: {str(e)}'
+        }), 500
+
+
+@jsharp_bp.route('/jsharp/export-orders', methods=['POST'])
+@jwt_required()
+def export_orders():
+    """선택된 주문들을 로젠 형식의 엑셀로 내보내기"""
+    try:
+        data = request.get_json()
+        export_rows = data.get('export_rows', [])
+        logen_mapping = data.get('logen_mapping', {})
+
+        if not export_rows:
+            return jsonify({
+                'success': False,
+                'message': '내보낼 주문이 없습니다.'
+            }), 400
+
+        # 엑셀 생성 - 컬럼 순서를 "A/텍스트" 형식의 A, B, C 순서대로 정렬
+        # 먼저 컬럼 순서를 파싱
+        column_order = []  # [(column_index, header_text, field_name), ...]
+
+        for field_name, column_ref in logen_mapping.items():
+            if not column_ref:
+                continue
+
+            # "A/텍스트" 형식 파싱
+            if '/' in column_ref:
+                parts = column_ref.split('/', 1)
+                column_letter = parts[0].strip().upper()
+                header_text = parts[1].strip()
+
+                # 컬럼 문자를 숫자로 변환 (A=0, B=1, ...)
+                column_index = 0
+                for char in column_letter:
+                    if char.isalpha():
+                        column_index = column_index * 26 + (ord(char) - ord('A') + 1)
+                column_index -= 1
+
+                column_order.append((column_index, header_text, field_name))
+            else:
+                # 슬래시가 없으면 필드명을 헤더로 사용
+                column_order.append((9999, field_name, field_name))  # 맨 뒤로
+
+        # 컬럼 순서대로 정렬
+        column_order.sort(key=lambda x: x[0])
+
+        # ExportRow 필드와 매핑
+        field_mapping = {
+            'recipient_name': 'recipient_name',
+            'phone': 'phone',
+            'phone2': 'phone2',
+            'address': 'address',
+            'quantity': 'quantity',
+            'delivery_memo': 'delivery_memo',
+            'parcel_quantity': 'parcel_quantity',
+            'parcel_fee': 'parcel_fee'
+        }
+
+        # 데이터 생성
+        df_data = []
+        for export_row in export_rows:
+            row_data = {}
+
+            # 정렬된 컬럼 순서대로 데이터 추가
+            for _, header_text, field_name in column_order:
+                row_field = field_mapping.get(field_name)
+                if row_field:
+                    row_data[header_text] = export_row.get(row_field, '')
+
+            df_data.append(row_data)
+
+        # DataFrame 생성 (컬럼 순서 유지)
+        if column_order:
+            ordered_headers = [header for _, header, _ in column_order]
+            df = pd.DataFrame(df_data, columns=ordered_headers)
+        else:
+            df = pd.DataFrame(df_data)
+        
+        # 엑셀 파일 생성
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='주문목록')
+        output.seek(0)
+        
+        # 파일명 생성
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'logen_orders_{timestamp}.xlsx'
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        print(f"엑셀 내보내기 오류: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'엑셀 내보내기 실패: {str(e)}'
+        }), 500
+
+
+# 설정 파일 저장 경로
+SETTINGS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'jsharp_settings')
+
+@jsharp_bp.route('/jsharp/save-settings', methods=['POST'])
+@jwt_required()
+def save_settings():
+    """설정을 서버 txt 파일로 저장"""
+    try:
+        data = request.get_json()
+        column_mappings = data.get('column_mappings', {})
+        replacement_rules = data.get('replacement_rules', {})
+
+        # 디렉토리 생성
+        os.makedirs(SETTINGS_DIR, exist_ok=True)
+
+        # 컬럼 매핑 저장
+        import json
+        column_mappings_path = os.path.join(SETTINGS_DIR, 'column_mappings.txt')
+        with open(column_mappings_path, 'w', encoding='utf-8') as f:
+            json.dump(column_mappings, f, ensure_ascii=False, indent=2)
+
+        # 치환 규칙 저장
+        replacement_rules_path = os.path.join(SETTINGS_DIR, 'replacement_rules.txt')
+        with open(replacement_rules_path, 'w', encoding='utf-8') as f:
+            json.dump(replacement_rules, f, ensure_ascii=False, indent=2)
+
+        return jsonify({
+            'success': True,
+            'message': '설정이 서버에 저장되었습니다.'
+        })
+
+    except Exception as e:
+        print(f"설정 저장 오류: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'설정 저장 실패: {str(e)}'
+        }), 500
+
+
+@jsharp_bp.route('/jsharp/load-settings', methods=['GET'])
+@jwt_required()
+def load_settings():
+    """서버에서 설정 파일 불러오기"""
+    try:
+        import json
+        result = {
+            'column_mappings': None,
+            'replacement_rules': None
+        }
+
+        # 컬럼 매핑 불러오기
+        column_mappings_path = os.path.join(SETTINGS_DIR, 'column_mappings.txt')
+        if os.path.exists(column_mappings_path):
+            with open(column_mappings_path, 'r', encoding='utf-8') as f:
+                result['column_mappings'] = json.load(f)
+
+        # 치환 규칙 불러오기
+        replacement_rules_path = os.path.join(SETTINGS_DIR, 'replacement_rules.txt')
+        if os.path.exists(replacement_rules_path):
+            with open(replacement_rules_path, 'r', encoding='utf-8') as f:
+                result['replacement_rules'] = json.load(f)
+
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+
+    except Exception as e:
+        print(f"설정 불러오기 오류: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'설정 불러오기 실패: {str(e)}'
         }), 500
 
