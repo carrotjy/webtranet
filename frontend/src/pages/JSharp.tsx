@@ -650,7 +650,7 @@ const JSharp: React.FC = () => {
   // 주문 상태 업데이트
   const handleUpdateOrderStatus = async (orderId: number, status: 'pending' | 'completed') => {
     try {
-      const response = await fetch(`http://localhost:5000/api/jsharp/update-order-status/${orderId}`, {
+      const response = await fetch(`/api/jsharp/update-order-status/${orderId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -704,7 +704,7 @@ const JSharp: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/jsharp/delete-order/${orderId}`, {
+      const response = await fetch(`/api/jsharp/delete-order/${orderId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -739,7 +739,7 @@ const JSharp: React.FC = () => {
 
     try {
       const promises = Array.from(selectedOrderIds).map(async (orderId) => {
-        const response = await fetch(`http://localhost:5000/api/jsharp/delete-order/${orderId}`, {
+        const response = await fetch(`/api/jsharp/delete-order/${orderId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
