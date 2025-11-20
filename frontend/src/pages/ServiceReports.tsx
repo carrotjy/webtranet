@@ -775,7 +775,8 @@ const ServiceReports: React.FC = () => {
       fax: '',
       president: '',
       mobile: '',
-      contact: ''
+      contact: '',
+      homepage: ''
     });
     setShowAddCustomerModal(true);
     setShowCustomerSearch(false); // 검색 드롭다운 닫기
@@ -833,7 +834,8 @@ const ServiceReports: React.FC = () => {
           fax: '',
           president: '',
           mobile: '',
-          contact: ''
+          contact: '',
+          homepage: ''
         });
       }
     } catch (error: any) {
