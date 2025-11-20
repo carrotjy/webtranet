@@ -353,7 +353,8 @@ const ServiceReports: React.FC = () => {
     fax: '',
     president: '',
     mobile: '',
-    contact: ''
+    contact: '',
+    homepage: ''
   });
   
   // 기술부 직원 관련 상태
@@ -3927,6 +3928,23 @@ const ServiceReports: React.FC = () => {
                           mobile: e.target.value
                         })}
                         placeholder="대표자 휴대폰 입력"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 홈페이지 */}
+                  <div className="col-md-12">
+                    <div className="mb-3">
+                      <label className="form-label">홈페이지</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newCustomerData.homepage}
+                        onChange={(e) => setNewCustomerData({
+                          ...newCustomerData,
+                          homepage: e.target.value
+                        })}
+                        placeholder="홈페이지 URL 입력 (예: https://example.com)"
                       />
                     </div>
                   </div>
