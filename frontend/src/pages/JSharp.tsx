@@ -2882,22 +2882,40 @@ const JSharp: React.FC = () => {
       {/* 프린트용 스타일 */}
       <style>{`
         @media print {
-          /* 페이지 전체 숨기기 후 선택된 테이블만 표시 */
-          body * {
-            visibility: hidden;
+          /* 페이지 기본 설정 */
+          html, body {
+            height: auto !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
 
-          /* 주문 목록 테이블만 표시 */
-          .card-table,
-          .card-table * {
-            visibility: visible;
+          /* 불필요한 요소 숨기기 */
+          .navbar, .card-header, .btn, .form-control, .form-select,
+          .nav-tabs, .modal, footer, header, .no-print, .btn-group {
+            display: none !important;
           }
 
+          /* 카드/컨테이너 스타일 초기화 */
+          .container-xl, .page-wrapper, .page-body, .card, .card-body,
+          .table-responsive {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+          }
+
+          /* 테이블 기본 설정 */
           .card-table {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 10pt;
+            border-collapse: collapse;
           }
 
           /* 선택되지 않은 주문 숨기기 */
@@ -2918,12 +2936,6 @@ const JSharp: React.FC = () => {
           /* 상태 뱃지 숨기기 */
           .col-status {
             display: none !important;
-          }
-
-          /* 테이블 최적화 */
-          .card-table {
-            font-size: 10pt;
-            border-collapse: collapse;
           }
 
           .card-table td, .card-table th {
