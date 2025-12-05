@@ -959,13 +959,21 @@ def parse_order_excel():
         # DB에 저장 (중복 체크)
         saved_count = 0
         duplicate_count = 0
-        
-        for order in all_orders:
-            success, message, is_duplicate = insert_order(order)
+        failed_count = 0
+
+        print(f"[DEBUG] Saving {len(all_orders)} orders to database...")
+        for idx, order in enumerate(all_orders):
+            success, msg, is_duplicate = insert_order(order)
+            print(f"[DEBUG] Order {idx+1}/{len(all_orders)}: {order.get('order_number', 'N/A')} - {order.get('product_name', 'N/A')[:30]} -> success={success}, duplicate={is_duplicate}")
             if success:
                 saved_count += 1
             elif is_duplicate:
                 duplicate_count += 1
+            else:
+                failed_count += 1
+                print(f"[ERROR] Failed to save order: {msg}")
+
+        print(f"[DEBUG] Save complete: saved={saved_count}, duplicate={duplicate_count}, failed={failed_count}")
         
         # 주문일자 기준으로 정렬 (최신순)
         try:
