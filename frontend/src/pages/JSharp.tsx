@@ -266,10 +266,10 @@ const JSharp: React.FC = () => {
   const [nextReplacementId, setNextReplacementId] = useState(() => {
     const rules = loadReplacementRules();
     const allIds: number[] = [];
-    Object.values(rules).forEach(siteRules => {
-      allIds.push(...siteRules.product_name.map(r => r.id));
-      allIds.push(...siteRules.option.map(r => r.id));
-      allIds.push(...siteRules.additional_items.map(r => r.id));
+    Object.values(rules).forEach((siteRules: ReplacementRules) => {
+      allIds.push(...siteRules.product_name.map((r: FieldReplacement) => r.id));
+      allIds.push(...siteRules.option.map((r: FieldReplacement) => r.id));
+      allIds.push(...siteRules.additional_items.map((r: FieldReplacement) => r.id));
     });
     return Math.max(...allIds, 0) + 1;
   });
