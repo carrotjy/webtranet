@@ -36,7 +36,7 @@ def init_db():
             price REAL DEFAULT 0,
             status TEXT DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(site, order_number)
+            UNIQUE(site, order_number, product_name, option_info)
         )
     ''')
     
@@ -48,6 +48,61 @@ def init_db():
     except sqlite3.OperationalError:
         # 컬럼이 이미 존재하면 무시
         pass
+
+    # UNIQUE 제약조건 마이그레이션 (site, order_number) -> (site, order_number, product_name, option_info)
+    try:
+        # 기존 제약조건 확인
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='orders'")
+        table_sql = cursor.fetchone()[0]
+
+        # 기존 제약조건이 (site, order_number)만 있는 경우 마이그레이션
+        if 'UNIQUE(site, order_number)' in table_sql and 'product_name' not in table_sql.split('UNIQUE')[1]:
+            print("Migrating UNIQUE constraint to include product_name and option_info...")
+
+            # 1. 기존 데이터 백업
+            cursor.execute("CREATE TABLE orders_backup AS SELECT * FROM orders")
+
+            # 2. 기존 테이블 삭제
+            cursor.execute("DROP TABLE orders")
+
+            # 3. 새 테이블 생성
+            cursor.execute('''
+                CREATE TABLE orders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    site TEXT NOT NULL,
+                    order_number TEXT NOT NULL,
+                    order_date TEXT,
+                    buyer_name TEXT,
+                    recipient_name TEXT NOT NULL,
+                    phone TEXT,
+                    phone2 TEXT,
+                    address TEXT,
+                    delivery_memo TEXT,
+                    product_name TEXT,
+                    quantity INTEGER DEFAULT 1,
+                    option_info TEXT,
+                    additional_items TEXT,
+                    price REAL DEFAULT 0,
+                    status TEXT DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(site, order_number, product_name, option_info)
+                )
+            ''')
+
+            # 4. 데이터 복원 (중복 제거하면서)
+            cursor.execute('''
+                INSERT OR IGNORE INTO orders
+                SELECT * FROM orders_backup
+            ''')
+
+            # 5. 백업 테이블 삭제
+            cursor.execute("DROP TABLE orders_backup")
+
+            conn.commit()
+            print("UNIQUE constraint migration completed successfully")
+    except Exception as e:
+        print(f"UNIQUE constraint migration skipped or failed: {e}")
+        conn.rollback()
     
     # 인덱스 생성
     cursor.execute('''
