@@ -18,6 +18,13 @@ interface ReplacementRules {
   additional_items: FieldReplacement[];
 }
 
+interface SiteReplacementRules {
+  ebay: ReplacementRules;
+  smartstore: ReplacementRules;
+  '11st': ReplacementRules;
+  coupang: ReplacementRules;
+}
+
 interface ProductPageRow {
   id: number;
   text: string;
@@ -81,19 +88,58 @@ interface ExportRow {
 }
 
 // 치환 규칙 로드 함수 (컴포넌트 외부)
-const loadReplacementRules = (): ReplacementRules => {
+const loadReplacementRules = (): SiteReplacementRules => {
   const saved = localStorage.getItem('jsharp_replacement_rules');
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      // 기존 형식(사이트 구분 없음)에서 새 형식으로 마이그레이션
+      if (parsed.product_name && !parsed.ebay) {
+        return {
+          ebay: parsed,
+          smartstore: {
+            product_name: [{ id: 1, before: '', after: '' }],
+            option: [{ id: 1, before: '', after: '' }],
+            additional_items: [{ id: 1, before: '', after: '' }]
+          },
+          '11st': {
+            product_name: [{ id: 1, before: '', after: '' }],
+            option: [{ id: 1, before: '', after: '' }],
+            additional_items: [{ id: 1, before: '', after: '' }]
+          },
+          coupang: {
+            product_name: [{ id: 1, before: '', after: '' }],
+            option: [{ id: 1, before: '', after: '' }],
+            additional_items: [{ id: 1, before: '', after: '' }]
+          }
+        };
+      }
+      return parsed;
     } catch (e) {
       console.error('치환 규칙 로드 실패:', e);
     }
   }
   return {
-    product_name: [{ id: 1, before: '', after: '' }],
-    option: [{ id: 1, before: '', after: '' }],
-    additional_items: [{ id: 1, before: '', after: '' }]
+    ebay: {
+      product_name: [{ id: 1, before: '', after: '' }],
+      option: [{ id: 1, before: '', after: '' }],
+      additional_items: [{ id: 1, before: '', after: '' }]
+    },
+    smartstore: {
+      product_name: [{ id: 1, before: '', after: '' }],
+      option: [{ id: 1, before: '', after: '' }],
+      additional_items: [{ id: 1, before: '', after: '' }]
+    },
+    '11st': {
+      product_name: [{ id: 1, before: '', after: '' }],
+      option: [{ id: 1, before: '', after: '' }],
+      additional_items: [{ id: 1, before: '', after: '' }]
+    },
+    coupang: {
+      product_name: [{ id: 1, before: '', after: '' }],
+      option: [{ id: 1, before: '', after: '' }],
+      additional_items: [{ id: 1, before: '', after: '' }]
+    }
   };
 };
 
@@ -215,15 +261,16 @@ const JSharp: React.FC = () => {
     return saved ? JSON.parse(saved) : {};
   });
 
-  // 치환 규칙 통합 관리
-  const [replacementRules, setReplacementRules] = useState<ReplacementRules>(loadReplacementRules());
+  // 치환 규칙 통합 관리 (사이트별)
+  const [replacementRules, setReplacementRules] = useState<SiteReplacementRules>(loadReplacementRules());
   const [nextReplacementId, setNextReplacementId] = useState(() => {
     const rules = loadReplacementRules();
-    const allIds = [
-      ...rules.product_name.map(r => r.id),
-      ...rules.option.map(r => r.id),
-      ...rules.additional_items.map(r => r.id)
-    ];
+    const allIds: number[] = [];
+    Object.values(rules).forEach(siteRules => {
+      allIds.push(...siteRules.product_name.map(r => r.id));
+      allIds.push(...siteRules.option.map(r => r.id));
+      allIds.push(...siteRules.additional_items.map(r => r.id));
+    });
     return Math.max(...allIds, 0) + 1;
   });
 
@@ -966,30 +1013,42 @@ const JSharp: React.FC = () => {
     }
   };
 
-  // 치환 규칙 관리 함수
+  // 치환 규칙 관리 함수 (사이트별)
   const addReplacement = (type: ReplacementType) => {
+    const site = selectedMappingSite as 'ebay' | 'smartstore' | '11st' | 'coupang';
     setReplacementRules(prev => ({
       ...prev,
-      [type]: [...prev[type], { id: nextReplacementId, before: '', after: '' }]
+      [site]: {
+        ...prev[site],
+        [type]: [...prev[site][type], { id: nextReplacementId, before: '', after: '' }]
+      }
     }));
     setNextReplacementId(prev => prev + 1);
   };
 
   const removeReplacement = (type: ReplacementType, id: number) => {
-    if (replacementRules[type].length <= 1) {
+    const site = selectedMappingSite as 'ebay' | 'smartstore' | '11st' | 'coupang';
+    if (replacementRules[site][type].length <= 1) {
       alert('최소 1개의 치환 규칙은 유지되어야 합니다.');
       return;
     }
     setReplacementRules(prev => ({
       ...prev,
-      [type]: prev[type].filter(r => r.id !== id)
+      [site]: {
+        ...prev[site],
+        [type]: prev[site][type].filter((r: FieldReplacement) => r.id !== id)
+      }
     }));
   };
 
   const updateReplacement = (type: ReplacementType, id: number, field: 'before' | 'after', value: string) => {
+    const site = selectedMappingSite as 'ebay' | 'smartstore' | '11st' | 'coupang';
     setReplacementRules(prev => ({
       ...prev,
-      [type]: prev[type].map(r => r.id === id ? { ...r, [field]: value } : r)
+      [site]: {
+        ...prev[site],
+        [type]: prev[site][type].map((r: FieldReplacement) => r.id === id ? { ...r, [field]: value } : r)
+      }
     }));
   };
 
@@ -2105,49 +2164,47 @@ const JSharp: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 엑셀 파일 비밀번호 섹션 */}
-                    <div className="card mt-4">
-                      <div className="card-header">
-                        <h3 className="card-title">엑셀 파일 비밀번호</h3>
-                        <p className="text-muted small mb-0 mt-1">
-                          암호로 보호된 엑셀 파일을 업로드하는 경우, 사이트별 비밀번호를 설정하세요.
-                        </p>
-                      </div>
-                      <div className="card-body">
-                        <div className="row g-3">
-                          {['ebay', 'smartstore', '11st', 'coupang', 'logen'].map(site => (
-                            <div key={site} className="col-md-4">
-                              <label className="form-label">
-                                {site === 'ebay' && 'eBay'}
-                                {site === 'smartstore' && '스마트스토어'}
-                                {site === '11st' && '11번가'}
-                                {site === 'coupang' && '쿠팡'}
-                                {site === 'logen' && '로젠'}
-                                {' '}비밀번호
-                              </label>
-                              <input
-                                type="password"
-                                className="form-control"
-                                placeholder="비밀번호 (선택)"
-                                value={sitePasswords[site] || ''}
-                                onChange={(e) => {
-                                  const newPasswords = { ...sitePasswords, [site]: e.target.value };
-                                  setSitePasswords(newPasswords);
-                                  localStorage.setItem('jsharp_site_passwords', JSON.stringify(newPasswords));
-                                }}
-                              />
-                            </div>
-                          ))}
+                    {/* 엑셀 파일 비밀번호 섹션 - 로젠 제외 */}
+                    {selectedMappingSite !== 'logen' && (
+                      <div className="card mt-4">
+                        <div className="card-header">
+                          <h3 className="card-title">엑셀 파일 비밀번호</h3>
+                          <p className="text-muted small mb-0 mt-1">
+                            암호로 보호된 엑셀 파일을 업로드하는 경우, 비밀번호를 설정하세요.
+                          </p>
                         </div>
-                        <div className="mt-3">
-                          <small className="text-muted">
-                            비밀번호는 로컬 저장소에 저장되며, 엑셀 업로드 시 자동으로 암호를 해제합니다.
-                          </small>
+                        <div className="card-body">
+                          <div className="mb-3">
+                            <label className="form-label">
+                              {selectedMappingSite === 'ebay' && 'eBay'}
+                              {selectedMappingSite === 'smartstore' && '스마트스토어'}
+                              {selectedMappingSite === '11st' && '11번가'}
+                              {selectedMappingSite === 'coupang' && '쿠팡'}
+                              {' '}비밀번호
+                            </label>
+                            <input
+                              type="password"
+                              className="form-control"
+                              placeholder="비밀번호 (선택)"
+                              value={sitePasswords[selectedMappingSite] || ''}
+                              onChange={(e) => {
+                                const newPasswords = { ...sitePasswords, [selectedMappingSite]: e.target.value };
+                                setSitePasswords(newPasswords);
+                                localStorage.setItem('jsharp_site_passwords', JSON.stringify(newPasswords));
+                              }}
+                            />
+                          </div>
+                          <div className="mt-3">
+                            <small className="text-muted">
+                              비밀번호는 로컬 저장소에 저장되며, 엑셀 업로드 시 자동으로 암호를 해제합니다.
+                            </small>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
 
-                    {/* 필드 치환 섹션 */}
+                    {/* 필드 치환 섹션 - 로젠 제외 */}
+                    {selectedMappingSite !== 'logen' && (
                     <div className="card mt-4">
                       <div className="card-header">
                         <h3 className="card-title">필드 치환 설정</h3>
@@ -2167,7 +2224,7 @@ const JSharp: React.FC = () => {
                               + 추가
                             </button>
                           </div>
-                          {replacementRules.product_name.map((replacement, index) => (
+                          {replacementRules[selectedMappingSite as 'ebay' | 'smartstore' | '11st' | 'coupang'].product_name.map((replacement: FieldReplacement, index: number) => (
                             <div key={replacement.id} className="row g-2 mb-2 align-items-center">
                               <div className="col-auto" style={{ width: '40px' }}>
                                 <span className="badge bg-secondary">{index + 1}</span>
@@ -2195,7 +2252,7 @@ const JSharp: React.FC = () => {
                                 <button
                                   className="btn btn-sm btn-outline-danger"
                                   onClick={() => removeReplacement('product_name', replacement.id)}
-                                  disabled={replacementRules.product_name.length <= 1}
+                                  disabled={replacementRules[selectedMappingSite as 'ebay' | 'smartstore' | '11st' | 'coupang'].product_name.length <= 1}
                                 >
                                   삭제
                                 </button>
@@ -2217,7 +2274,7 @@ const JSharp: React.FC = () => {
                               + 추가
                             </button>
                           </div>
-                          {replacementRules.option.map((replacement, index) => (
+                          {replacementRules[selectedMappingSite as 'ebay' | 'smartstore' | '11st' | 'coupang'].option.map((replacement: FieldReplacement, index: number) => (
                             <div key={replacement.id} className="row g-2 mb-2 align-items-center">
                               <div className="col-auto" style={{ width: '40px' }}>
                                 <span className="badge bg-secondary">{index + 1}</span>
@@ -2245,7 +2302,7 @@ const JSharp: React.FC = () => {
                                 <button
                                   className="btn btn-sm btn-outline-danger"
                                   onClick={() => removeReplacement('option', replacement.id)}
-                                  disabled={replacementRules.option.length <= 1}
+                                  disabled={replacementRules[selectedMappingSite as 'ebay' | 'smartstore' | '11st' | 'coupang'].option.length <= 1}
                                 >
                                   삭제
                                 </button>
@@ -2267,7 +2324,7 @@ const JSharp: React.FC = () => {
                               + 추가
                             </button>
                           </div>
-                          {replacementRules.additional_items.map((replacement, index) => (
+                          {replacementRules[selectedMappingSite as 'ebay' | 'smartstore' | '11st' | 'coupang'].additional_items.map((replacement: FieldReplacement, index: number) => (
                             <div key={replacement.id} className="row g-2 mb-2 align-items-center">
                               <div className="col-auto" style={{ width: '40px' }}>
                                 <span className="badge bg-secondary">{index + 1}</span>
@@ -2295,7 +2352,7 @@ const JSharp: React.FC = () => {
                                 <button
                                   className="btn btn-sm btn-outline-danger"
                                   onClick={() => removeReplacement('additional_items', replacement.id)}
-                                  disabled={replacementRules.additional_items.length <= 1}
+                                  disabled={replacementRules[selectedMappingSite as 'ebay' | 'smartstore' | '11st' | 'coupang'].additional_items.length <= 1}
                                 >
                                   삭제
                                 </button>
@@ -2305,6 +2362,7 @@ const JSharp: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                    )}
                   </div>
                 )}
 

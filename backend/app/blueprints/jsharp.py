@@ -998,11 +998,13 @@ def parse_order_excel():
 
                     # 파싱 (사용자 정의 컬럼 매핑 + 치환 규칙 사용)
                     print(f"[DEBUG] Parsing file as {detected_site}")
+                    # 사이트별 치환 규칙 가져오기
+                    site_replacement_rules = replacement_rules.get(detected_site) if isinstance(replacement_rules, dict) else {}
                     result = parse_excel_with_mapping(
                         decrypted_content,
                         detected_site,
                         column_mappings[detected_site],
-                        replacement_rules
+                        site_replacement_rules
                     )
                     print(f"[DEBUG] Parse result: success={result.get('success')}, orders={len(result.get('orders', []))}")
 
