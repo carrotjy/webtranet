@@ -209,6 +209,12 @@ const JSharp: React.FC = () => {
     return saved ? parseInt(saved) : 3850;
   });
 
+  // 사이트별 엑셀 비밀번호
+  const [sitePasswords, setSitePasswords] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('jsharp_site_passwords');
+    return saved ? JSON.parse(saved) : {};
+  });
+
   // 치환 규칙 통합 관리
   const [replacementRules, setReplacementRules] = useState<ReplacementRules>(loadReplacementRules());
   const [nextReplacementId, setNextReplacementId] = useState(() => {
@@ -507,6 +513,9 @@ const JSharp: React.FC = () => {
 
       // 치환 규칙 추가 (통합)
       formData.append('replacementRules', JSON.stringify(replacementRules));
+
+      // 사이트별 비밀번호 추가
+      formData.append('sitePasswords', JSON.stringify(sitePasswords));
 
       const response = await fetch('/api/jsharp/parse-order-excel', {
         method: 'POST',
@@ -2092,6 +2101,48 @@ const JSharp: React.FC = () => {
                             <strong>주의:</strong> <span className="text-danger">*</span> 표시된 필드는 필수 항목입니다.
                             이 필드들이 비어있으면 해당 사이트의 엑셀을 자동 감지할 수 없습니다.
                           </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 엑셀 파일 비밀번호 섹션 */}
+                    <div className="card mt-4">
+                      <div className="card-header">
+                        <h3 className="card-title">엑셀 파일 비밀번호</h3>
+                        <p className="text-muted small mb-0 mt-1">
+                          암호로 보호된 엑셀 파일을 업로드하는 경우, 사이트별 비밀번호를 설정하세요.
+                        </p>
+                      </div>
+                      <div className="card-body">
+                        <div className="row g-3">
+                          {['ebay', 'smartstore', '11st', 'coupang', 'logen'].map(site => (
+                            <div key={site} className="col-md-4">
+                              <label className="form-label">
+                                {site === 'ebay' && 'eBay'}
+                                {site === 'smartstore' && '스마트스토어'}
+                                {site === '11st' && '11번가'}
+                                {site === 'coupang' && '쿠팡'}
+                                {site === 'logen' && '로젠'}
+                                {' '}비밀번호
+                              </label>
+                              <input
+                                type="password"
+                                className="form-control"
+                                placeholder="비밀번호 (선택)"
+                                value={sitePasswords[site] || ''}
+                                onChange={(e) => {
+                                  const newPasswords = { ...sitePasswords, [site]: e.target.value };
+                                  setSitePasswords(newPasswords);
+                                  localStorage.setItem('jsharp_site_passwords', JSON.stringify(newPasswords));
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3">
+                          <small className="text-muted">
+                            비밀번호는 로컬 저장소에 저장되며, 엑셀 업로드 시 자동으로 암호를 해제합니다.
+                          </small>
                         </div>
                       </div>
                     </div>

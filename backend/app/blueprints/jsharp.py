@@ -13,6 +13,7 @@ import tempfile
 import pandas as pd
 import re
 from datetime import datetime
+import msoffcrypto
 from app.database.jsharp_db import insert_order, get_all_orders, delete_order, clear_all_orders, update_order_status
 
 # HEIC 지원을 위한 pillow-heif 등록
@@ -53,6 +54,40 @@ def apply_field_replacements(field_value, replacements):
             result = result.replace(before, after)
     
     return result
+
+
+def decrypt_excel_file(file_stream, password):
+    """
+    암호화된 엑셀 파일을 해제
+
+    Args:
+        file_stream: 암호화된 엑셀 파일 스트림
+        password: 비밀번호
+
+    Returns:
+        BytesIO: 해제된 파일 스트림 또는 None
+    """
+    try:
+        if not password:
+            return file_stream
+
+        print(f"[DEBUG] Attempting to decrypt Excel file with password")
+        file_stream.seek(0)
+
+        # msoffcrypto로 암호 해제
+        decrypted = io.BytesIO()
+        office_file = msoffcrypto.OfficeFile(file_stream)
+        office_file.load_key(password=password)
+        office_file.decrypt(decrypted)
+
+        decrypted.seek(0)
+        print(f"[DEBUG] Excel file decrypted successfully")
+        return decrypted
+    except Exception as e:
+        print(f"[ERROR] Failed to decrypt Excel file: {e}")
+        # 암호 해제 실패 시 원본 스트림 반환 (암호가 없는 파일일 수 있음)
+        file_stream.seek(0)
+        return file_stream
 
 
 def safe_int(value, default=0):
@@ -897,6 +932,16 @@ def parse_order_excel():
         except:
             replacement_rules = {}
 
+        # 사이트별 비밀번호 가져오기
+        site_passwords_json = request.form.get('sitePasswords', '{}')
+        try:
+            site_passwords = json.loads(site_passwords_json)
+            if not isinstance(site_passwords, dict):
+                site_passwords = {}
+        except:
+            site_passwords = {}
+        print(f"[DEBUG] Site passwords configured: {list(site_passwords.keys())}")
+
         if not column_mappings:
             return jsonify({
                 'success': False,
@@ -921,20 +966,40 @@ def parse_order_excel():
                 file_content = io.BytesIO(file.read())
                 print(f"[DEBUG] File size: {len(file_content.getvalue())} bytes")
 
+                # 사이트 자동 감지를 위해 먼저 모든 사이트 비밀번호로 시도
+                detected_site = None
+                decrypted_content = None
+
                 # 사이트 자동 감지 (사용자 정의 컬럼 매핑 기반)
                 print(f"[DEBUG] Detecting site for file: {file.filename}")
                 print(f"[DEBUG] Available column mappings: {list(column_mappings.keys())}")
-                detected_site = detect_site_from_excel(file_content, column_mappings)
+
+                # 각 사이트의 비밀번호로 암호 해제 시도
+                for site, password in site_passwords.items():
+                    if password:
+                        test_content = decrypt_excel_file(io.BytesIO(file_content.getvalue()), password)
+                        test_detected_site = detect_site_from_excel(test_content, column_mappings)
+                        if test_detected_site:
+                            print(f"[DEBUG] File decrypted successfully with {site} password")
+                            detected_site = test_detected_site
+                            decrypted_content = test_content
+                            break
+
+                # 비밀번호로 해제되지 않으면 원본 파일로 감지 시도
+                if not detected_site:
+                    file_content.seek(0)
+                    detected_site = detect_site_from_excel(file_content, column_mappings)
+                    decrypted_content = file_content
                 print(f"[DEBUG] Detected site: {detected_site}")
 
                 if detected_site and detected_site in column_mappings:
                     # 파일 스트림 위치를 처음으로 리셋
-                    file_content.seek(0)
+                    decrypted_content.seek(0)
 
                     # 파싱 (사용자 정의 컬럼 매핑 + 치환 규칙 사용)
                     print(f"[DEBUG] Parsing file as {detected_site}")
                     result = parse_excel_with_mapping(
-                        file_content,
+                        decrypted_content,
                         detected_site,
                         column_mappings[detected_site],
                         replacement_rules
