@@ -81,15 +81,21 @@ def insert_order(order_data):
     cursor = conn.cursor()
     
     try:
-        # 중복 체크
+        # 중복 체크 - 11번가처럼 같은 주문번호에 여러 상품이 있을 수 있으므로
+        # site + order_number + product_name + option 조합으로 체크
         cursor.execute('''
-            SELECT id FROM orders 
-            WHERE site = ? AND order_number = ?
-        ''', (order_data['site'], order_data['order_number']))
-        
+            SELECT id FROM orders
+            WHERE site = ? AND order_number = ? AND product_name = ? AND option_info = ?
+        ''', (
+            order_data['site'],
+            order_data['order_number'],
+            order_data.get('product_name', ''),
+            order_data.get('option', '')
+        ))
+
         if cursor.fetchone():
             conn.close()
-            return (False, f"중복: {order_data['site']} - {order_data['order_number']}", True)
+            return (False, f"중복: {order_data['site']} - {order_data['order_number']} - {order_data.get('product_name', '')}", True)
         
         # 삽입
         cursor.execute('''
