@@ -55,6 +55,34 @@ def apply_field_replacements(field_value, replacements):
     return result
 
 
+def safe_int(value, default=0):
+    """
+    안전하게 정수로 변환 (쉼표 제거)
+    """
+    try:
+        if pd.isna(value) or value == '' or value == 'nan':
+            return default
+        # 쉼표 제거 후 변환
+        cleaned = str(value).replace(',', '').strip()
+        return int(float(cleaned)) if cleaned else default
+    except (ValueError, AttributeError):
+        return default
+
+
+def safe_float(value, default=0.0):
+    """
+    안전하게 실수로 변환 (쉼표 제거)
+    """
+    try:
+        if pd.isna(value) or value == '' or value == 'nan':
+            return default
+        # 쉼표 제거 후 변환
+        cleaned = str(value).replace(',', '').strip()
+        return float(cleaned) if cleaned else default
+    except (ValueError, AttributeError):
+        return default
+
+
 def parse_column_reference(column_ref):
     """
     "A/수취인" 형식을 파싱하여 (컬럼 인덱스, 텍스트) 반환
@@ -779,10 +807,10 @@ def parse_excel_with_mapping(file_stream, site, column_mapping, replacement_rule
                     'address': str(row.get(column_map.get('address', ''), '') or ''),
                     'delivery_memo': str(row.get(column_map.get('delivery_memo', ''), '') or ''),
                     'product_name': str(row.get(column_map.get('product_name', ''), '') or ''),
-                    'quantity': int(row.get(column_map.get('quantity', ''), 1) or 1),
+                    'quantity': safe_int(row.get(column_map.get('quantity', ''), 1), 1),
                     'option': str(row.get(column_map.get('option', ''), '') or ''),
                     'additional_items': str(row.get(column_map.get('additional_items', ''), '') or ''),
-                    'price': float(row.get(column_map.get('price', ''), 0) or 0),
+                    'price': safe_float(row.get(column_map.get('price', ''), 0), 0),
                     'order_date': str(row.get(column_map.get('order_date', ''), '') or ''),
                 }
                 
