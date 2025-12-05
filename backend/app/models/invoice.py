@@ -37,21 +37,26 @@ class Invoice:
         """모든 거래명세표 조회 (페이징)"""
         conn = get_db_connection()
         offset = (page - 1) * per_page
-        
+
         invoices_data = conn.execute('''
-            SELECT * FROM invoices
-            ORDER BY created_at DESC
+            SELECT i.*, ic.code AS invoice_code, ic.description AS invoice_description
+            FROM invoices i
+            LEFT JOIN invoice_codes ic ON i.invoice_code_id = ic.id
+            ORDER BY i.created_at DESC
             LIMIT ? OFFSET ?
         ''', (per_page, offset)).fetchall()
-        
+
         total = conn.execute('SELECT COUNT(*) FROM invoices').fetchone()[0]
         conn.close()
-        
+
         invoices = []
         for data in invoices_data:
             invoice = cls._from_db_row(data)
+            # invoice_code와 invoice_description 추가
+            invoice.invoice_code = data['invoice_code'] if 'invoice_code' in data.keys() else None
+            invoice.invoice_description = data['invoice_description'] if 'invoice_description' in data.keys() else None
             invoices.append(invoice)
-        
+
         return invoices, total
     
     @classmethod
@@ -316,7 +321,9 @@ class Invoice:
             'bill_status': getattr(self, 'bill_status', 'pending'),
             'bill_issued_at': getattr(self, 'bill_issued_at', None),
             'bill_issued_by': getattr(self, 'bill_issued_by', None),
-            'invoice_code_id': getattr(self, 'invoice_code_id', None)
+            'invoice_code_id': getattr(self, 'invoice_code_id', None),
+            'invoice_code': getattr(self, 'invoice_code', None),
+            'invoice_description': getattr(self, 'invoice_description', None)
         }
     
     def get_items(self):

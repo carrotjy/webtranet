@@ -1097,23 +1097,40 @@ def export_orders():
             'parcel_fee': 'parcel_fee'
         }
 
-        # 데이터 생성
+        # 최대 컬럼 인덱스 찾기
+        max_column_index = max([col_idx for col_idx, _, _ in column_order]) if column_order else 0
+
+        # 모든 컬럼 헤더 생성 (빈 열 포함)
+        all_headers = [''] * (max_column_index + 1)
+        column_field_map = {}  # {column_index: field_name}
+
+        for col_idx, header_text, field_name in column_order:
+            all_headers[col_idx] = header_text
+            column_field_map[col_idx] = field_name
+
+        # 데이터 생성 (빈 열 포함)
         df_data = []
         for export_row in export_rows:
-            row_data = {}
+            row_data = []
 
-            # 정렬된 컬럼 순서대로 데이터 추가
-            for _, header_text, field_name in column_order:
-                row_field = field_mapping.get(field_name)
-                if row_field:
-                    row_data[header_text] = export_row.get(row_field, '')
+            # 모든 컬럼 인덱스에 대해 데이터 추가 (빈 열 포함)
+            for col_idx in range(max_column_index + 1):
+                if col_idx in column_field_map:
+                    field_name = column_field_map[col_idx]
+                    row_field = field_mapping.get(field_name)
+                    if row_field:
+                        row_data.append(export_row.get(row_field, ''))
+                    else:
+                        row_data.append('')
+                else:
+                    # 매핑되지 않은 열은 빈 값
+                    row_data.append('')
 
             df_data.append(row_data)
 
-        # DataFrame 생성 (컬럼 순서 유지)
+        # DataFrame 생성 (컬럼 순서 및 빈 열 유지)
         if column_order:
-            ordered_headers = [header for _, header, _ in column_order]
-            df = pd.DataFrame(df_data, columns=ordered_headers)
+            df = pd.DataFrame(df_data, columns=all_headers)
         else:
             df = pd.DataFrame(df_data)
         

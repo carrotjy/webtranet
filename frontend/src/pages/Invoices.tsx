@@ -23,6 +23,8 @@ interface Invoice {
   bill_status?: string;
   bill_issued_at?: string;
   bill_issued_by?: number;
+  invoice_code?: string;
+  invoice_description?: string;
 }
 
 const Invoices: React.FC = () => {
@@ -52,6 +54,9 @@ const Invoices: React.FC = () => {
     try {
       setLoading(true);
       const response = await invoiceAPI.getInvoices({ page, per_page: perPage });
+
+      console.log('Invoice API 응답:', response.data);
+      console.log('첫 번째 invoice:', response.data.invoices?.[0]);
 
       setInvoices(response.data.invoices || []);
       setTotal(response.data.total || 0);
@@ -616,6 +621,7 @@ const Invoices: React.FC = () => {
                             <th style={{ textAlign: 'center' }}>고객명</th>
                             <th style={{ textAlign: 'center' }}>팩스번호</th>
                             <th style={{ textAlign: 'center' }}>발행일</th>
+                            <th style={{ textAlign: 'center' }}>Invoice Code</th>
                             <th style={{ textAlign: 'right' }}>총합계</th>
                             <th style={{ textAlign: 'center' }} className="w-1">계산서 발행</th>
                             <th style={{ textAlign: 'center' }} className="w-1">잠금 상태</th>
@@ -745,6 +751,9 @@ const Invoices: React.FC = () => {
                               </td>
                               <td data-label="발행일" style={{ textAlign: 'center' }}>
                                 {new Date(invoice.issue_date).toLocaleDateString()}
+                              </td>
+                              <td data-label="Invoice Code" style={{ textAlign: 'center' }}>
+                                {invoice.invoice_code || '-'}
                               </td>
                               <td data-label="총합계" className="text-end">
                                 <span className="fw-bold" style={{ color: '#0054a6' }}>

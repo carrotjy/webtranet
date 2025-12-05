@@ -1155,14 +1155,19 @@ const ServiceReports: React.FC = () => {
       // 스페어파트 설정 로드
       await loadSparePartSettings();
 
-      // viewingReport에서 데이터 추출
-      if (!viewingReport) {
-        alert('리포트 정보를 불러올 수 없습니다.');
-        return;
+      // 서비스 리포트 정보를 직접 로드
+      let reportData: ServiceReport;
+      if (viewingReport && viewingReport.id === serviceReportId) {
+        reportData = viewingReport;
+      } else {
+        const response = await serviceReportAPI.getServiceReportById(serviceReportId);
+        // API 응답이 {report: {...}} 형식인 경우 처리
+        reportData = response.data.report || response.data;
+        setViewingReport(reportData);
       }
 
       // 거래명세서 항목 생성
-      const lineItems = await generateInvoiceLineItems(viewingReport);
+      const lineItems = await generateInvoiceLineItems(reportData);
       setInvoiceLineItems(lineItems);
 
       // 모달 표시
@@ -1181,12 +1186,37 @@ const ServiceReports: React.FC = () => {
   const generateInvoiceLineItems = async (report: ServiceReport): Promise<InvoiceLineItem[]> => {
     const items: InvoiceLineItem[] = [];
 
+    console.log('거래명세서 항목 생성 - 리포트 데이터:', report);
+
     // 시간 기록에서 일자별 항목 생성
-    const timeRecords = (report as any).time_records || [];
+    // time_records 배열이 있으면 사용하고, 없으면 time_record 단일 객체를 배열로 변환
+    let timeRecordsArray: TimeRecord[] = [];
+    const timeRecordsData = (report as any).time_records;
+    const timeRecordData = report.time_record;
+
+    if (Array.isArray(timeRecordsData) && timeRecordsData.length > 0) {
+      timeRecordsArray = timeRecordsData;
+    } else if (timeRecordData) {
+      // 단일 객체를 배열로 변환
+      timeRecordsArray = [{
+        date: timeRecordData.date || (timeRecordData as any).work_date || report.service_date || '',
+        departure_time: timeRecordData.departure_time || '',
+        work_start_time: timeRecordData.work_start_time || '',
+        work_end_time: timeRecordData.work_end_time || '',
+        travel_end_time: timeRecordData.travel_end_time || '',
+        work_meal_time: timeRecordData.work_meal_time || '',
+        travel_meal_time: timeRecordData.travel_meal_time || '',
+        calculated_work_time: timeRecordData.calculated_work_time,
+        calculated_travel_time: timeRecordData.calculated_travel_time,
+      }];
+    }
+
+    console.log('시간 기록 데이터:', timeRecordsArray);
+
     const dateGroups = new Map<string, {workHours: number, travelHours: number}>();
 
     // 일자별로 시간 집계
-    timeRecords.forEach((record: TimeRecord) => {
+    timeRecordsArray.forEach((record: TimeRecord) => {
       const date = record.date;
       if (!date) return;
 
@@ -1629,6 +1659,7 @@ const ServiceReports: React.FC = () => {
           customer_name: viewingReport.customer_name,
           customer_address: customer?.address || viewingReport.customer_address || '',
           issue_date: new Date().toISOString().split('T')[0],
+          invoice_code_id: viewingReport.invoice_code_id || null,
           work_subtotal,
           travel_subtotal,
           parts_subtotal,
@@ -1649,13 +1680,15 @@ const ServiceReports: React.FC = () => {
         if (viewingReport) {
           try {
             const updatedReport = await serviceReportAPI.getServiceReportById(viewingReport.id);
-            setViewingReport(updatedReport.data);
+            // API 응답이 {report: {...}} 형식인 경우 처리
+            setViewingReport(updatedReport.data.report || updatedReport.data);
           } catch (error) {
             console.error('리포트 정보 갱신 실패:', error);
           }
         }
 
-        setShowViewModal(true);
+        // 서비스 리포트 목록 새로고침 (자물쇠 아이콘 업데이트를 위해)
+        await loadReports();
 
       } catch (dbError: any) {
         console.error('거래명세서 생성 실패:', dbError);
@@ -2377,6 +2410,30 @@ const ServiceReports: React.FC = () => {
                               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                                 <circle cx="12" cy="12" r="3"/>
+                              </svg>
+                            </button>
+                          )}
+                          {user?.is_admin && !report?.invoice_id && (
+                            <button
+                              className="btn btn-sm btn-outline-success"
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '32px',
+                                height: '32px',
+                                padding: '0',
+                                textAlign: 'center'
+                              }}
+                              onClick={() => handleCreateInvoice(report.id)}
+                              disabled={loading}
+                              title="거래명세표 항목 입력"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="4" width="18" height="16" rx="3"/>
+                                <line x1="7" y1="8" x2="17" y2="8"/>
+                                <line x1="7" y1="12" x2="17" y2="12"/>
+                                <line x1="7" y1="16" x2="9" y2="16"/>
                               </svg>
                             </button>
                           )}
@@ -3515,28 +3572,6 @@ const ServiceReports: React.FC = () => {
 
                 <div className="row mt-4">
                   <div className="col-12 d-flex gap-2 justify-content-end">
-                    {hasPermission('transaction_create') && !viewingReport?.invoice_id && (
-                      <button
-                        type="button"
-                        className="btn btn-success"
-                        onClick={() => {
-                          if (viewingReport?.id) {
-                            handleCreateInvoice(viewingReport.id);
-                          }
-                        }}
-                        disabled={loading}
-                        title="이 서비스 리포트를 기반으로 거래명세표를 생성합니다"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="icon me-1" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                          <rect x="3" y="4" width="18" height="16" rx="3"/>
-                          <line x1="7" y1="8" x2="17" y2="8"/>
-                          <line x1="7" y1="12" x2="17" y2="12"/>
-                          <line x1="7" y1="16" x2="9" y2="16"/>
-                        </svg>
-                        {loading ? '생성 중...' : '거래명세표 항목 입력'}
-                      </button>
-                    )}
                     {viewingReport?.invoice_id && (
                       <div className="alert alert-info mb-0 me-auto" style={{ padding: '0.5rem 1rem' }}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="icon me-2" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">

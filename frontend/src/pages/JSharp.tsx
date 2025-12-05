@@ -57,6 +57,8 @@ interface ColumnMapping {
   additional_items: string;
   price: string;
   order_date: string;
+  parcel_quantity?: string;  // 로젠 전용
+  parcel_fee?: string;        // 로젠 전용
 }
 
 interface SiteColumnMappings {
@@ -164,6 +166,12 @@ const JSharp: React.FC = () => {
     order_date: ''
   });
 
+  const getDefaultLogenMapping = (): ColumnMapping => ({
+    ...getDefaultMapping(),
+    parcel_quantity: 'F/택배수량',  // 로젠 전용 기본값
+    parcel_fee: 'G/택배운임'        // 로젠 전용 기본값
+  });
+
   const loadColumnMappings = (): SiteColumnMappings => {
     const saved = localStorage.getItem('jsharp_column_mappings');
     if (saved) {
@@ -171,7 +179,14 @@ const JSharp: React.FC = () => {
         const parsed = JSON.parse(saved);
         // logen이 없으면 추가
         if (!parsed.logen) {
-          parsed.logen = getDefaultMapping();
+          parsed.logen = getDefaultLogenMapping();
+        }
+        // logen에 parcel 필드가 없으면 추가
+        if (parsed.logen && !parsed.logen.parcel_quantity) {
+          parsed.logen.parcel_quantity = 'F/택배수량';
+        }
+        if (parsed.logen && !parsed.logen.parcel_fee) {
+          parsed.logen.parcel_fee = 'G/택배운임';
         }
         return parsed;
       } catch (e) {
@@ -183,12 +198,16 @@ const JSharp: React.FC = () => {
       smartstore: getDefaultMapping(),
       '11st': getDefaultMapping(),
       coupang: getDefaultMapping(),
-      logen: getDefaultMapping()
+      logen: getDefaultLogenMapping()
     };
   };
 
   const [columnMappings, setColumnMappings] = useState<SiteColumnMappings>(loadColumnMappings());
   const [selectedMappingSite, setSelectedMappingSite] = useState<'ebay' | 'smartstore' | '11st' | 'coupang' | 'logen'>('ebay');
+  const [parcelFeePerUnit, setParcelFeePerUnit] = useState<number>(() => {
+    const saved = localStorage.getItem('jsharp_parcel_fee_per_unit');
+    return saved ? parseInt(saved) : 3850;
+  });
 
   // 치환 규칙 통합 관리
   const [replacementRules, setReplacementRules] = useState<ReplacementRules>(loadReplacementRules());
@@ -648,7 +667,7 @@ const JSharp: React.FC = () => {
   };
 
   // 주문 상태 업데이트
-  const handleUpdateOrderStatus = async (orderId: number, status: 'pending' | 'completed') => {
+  const handleUpdateOrderStatus = async (orderId: number, status: 'pending' | 'completed', silent: boolean = false, skipLocalUpdate: boolean = false) => {
     try {
       const response = await fetch(`/api/jsharp/update-order-status/${orderId}`, {
         method: 'PUT',
@@ -664,13 +683,18 @@ const JSharp: React.FC = () => {
         throw new Error(errorData.message || '상태 업데이트 실패');
       }
 
-      // 로컬 상태 업데이트
-      setOrders(orders.map(order =>
-        order.id === orderId ? { ...order, status } : order
-      ));
+      // 로컬 상태 업데이트 (일괄 처리가 아닌 경우만)
+      if (!skipLocalUpdate) {
+        setOrders(prevOrders => prevOrders.map(order =>
+          order.id === orderId ? { ...order, status } : order
+        ));
+      }
     } catch (error: any) {
       console.error('상태 업데이트 오류:', error);
-      alert(`상태 업데이트에 실패했습니다: ${error.message}`);
+      if (!silent) {
+        alert(`상태 업데이트에 실패했습니다: ${error.message}`);
+      }
+      throw error; // 에러를 다시 던져서 Promise.allSettled가 감지할 수 있도록 함
     }
   };
 
@@ -686,14 +710,41 @@ const JSharp: React.FC = () => {
     }
 
     try {
-      const promises = Array.from(selectedOrderIds).map(orderId =>
-        handleUpdateOrderStatus(orderId, status)
+      const orderIdsArray = Array.from(selectedOrderIds);
+      const promises = orderIdsArray.map(orderId =>
+        handleUpdateOrderStatus(orderId, status, true, true) // silent mode + skip local update
       );
-      await Promise.all(promises);
+
+      // Promise.allSettled를 사용하여 모든 요청이 완료되도록 함
+      const results = await Promise.allSettled(promises);
+
+      // 성공한 주문 ID 목록
+      const successfulOrderIds = new Set<number>();
+      orderIdsArray.forEach((orderId, index) => {
+        if (results[index].status === 'fulfilled') {
+          successfulOrderIds.add(orderId);
+        }
+      });
+
+      // 로컬 상태를 한 번에 업데이트
+      setOrders(prevOrders => prevOrders.map(order =>
+        successfulOrderIds.has(order.id) ? { ...order, status } : order
+      ));
+
+      // 실패한 항목 확인
+      const failedCount = results.filter(result => result.status === 'rejected').length;
+      const successCount = results.filter(result => result.status === 'fulfilled').length;
+
       setSelectedOrderIds(new Set());
-      alert('상태가 변경되었습니다.');
+
+      if (failedCount > 0) {
+        alert(`${successCount}개 성공, ${failedCount}개 실패했습니다.`);
+      } else {
+        alert(`${successCount}개의 주문 상태가 변경되었습니다.`);
+      }
     } catch (error) {
       console.error('일괄 상태 변경 오류:', error);
+      alert('일괄 상태 변경 중 오류가 발생했습니다.');
     }
   };
 
@@ -817,7 +868,7 @@ const JSharp: React.FC = () => {
         quantity: totalQuantity,
         delivery_memo: firstOrder.delivery_memo || '',
         parcel_quantity: 1,  // 기본값 1
-        parcel_fee: 3500     // 기본값 1 * 3500
+        parcel_fee: parcelFeePerUnit     // 기본값 1 * 택배운임 단가
       };
     });
 
@@ -870,7 +921,7 @@ const JSharp: React.FC = () => {
       updated[index] = {
         ...updated[index],
         parcel_quantity: quantity,
-        parcel_fee: quantity * 3500
+        parcel_fee: quantity * parcelFeePerUnit
       };
       return updated;
     });
@@ -898,7 +949,7 @@ const JSharp: React.FC = () => {
       setColumnMappings(prev => {
         const updated = {
           ...prev,
-          [site]: getDefaultMapping()
+          [site]: site === 'logen' ? getDefaultLogenMapping() : getDefaultMapping()
         };
         localStorage.setItem('jsharp_column_mappings', JSON.stringify(updated));
         return updated;
@@ -1929,11 +1980,11 @@ const JSharp: React.FC = () => {
 
                           {/* 수량 */}
                           <div className="col-md-6">
-                            <label className="form-label">수량</label>
+                            <label className="form-label">{selectedMappingSite === 'logen' ? '택배수량' : '수량'}</label>
                             <input
                               type="text"
                               className="form-control"
-                              placeholder="예: P/수량, Q/Quantity"
+                              placeholder={selectedMappingSite === 'logen' ? '예: P/택배수량' : '예: P/수량, Q/Quantity'}
                               value={columnMappings[selectedMappingSite].quantity}
                               onChange={(e) => updateColumnMapping(selectedMappingSite, 'quantity', e.target.value)}
                             />
@@ -1965,11 +2016,11 @@ const JSharp: React.FC = () => {
 
                           {/* 가격 */}
                           <div className="col-md-6">
-                            <label className="form-label">가격</label>
+                            <label className="form-label">{selectedMappingSite === 'logen' ? '택배운임' : '가격'}</label>
                             <input
                               type="text"
                               className="form-control"
-                              placeholder="예: V/판매가, W/Sale Price"
+                              placeholder={selectedMappingSite === 'logen' ? '예: V/택배운임' : '예: V/판매가, W/Sale Price'}
                               value={columnMappings[selectedMappingSite].price}
                               onChange={(e) => updateColumnMapping(selectedMappingSite, 'price', e.target.value)}
                             />
@@ -1986,6 +2037,54 @@ const JSharp: React.FC = () => {
                               onChange={(e) => updateColumnMapping(selectedMappingSite, 'order_date', e.target.value)}
                             />
                           </div>
+
+                          {/* 로젠 전용 필드 */}
+                          {selectedMappingSite === 'logen' && (
+                            <>
+                              {/* 택배수량 */}
+                              <div className="col-md-6">
+                                <label className="form-label">택배수량 (엑셀 열)</label>
+                                <input
+                                  type="text"
+                                  className="form-control"
+                                  placeholder="예: F/택배수량"
+                                  value={columnMappings.logen.parcel_quantity || ''}
+                                  onChange={(e) => updateColumnMapping('logen', 'parcel_quantity', e.target.value)}
+                                />
+                                <small className="form-hint">엑셀에 출력될 택배수량 컬럼 위치</small>
+                              </div>
+
+                              {/* 택배운임 */}
+                              <div className="col-md-6">
+                                <label className="form-label">택배운임 (엑셀 열)</label>
+                                <input
+                                  type="text"
+                                  className="form-control"
+                                  placeholder="예: G/택배운임"
+                                  value={columnMappings.logen.parcel_fee || ''}
+                                  onChange={(e) => updateColumnMapping('logen', 'parcel_fee', e.target.value)}
+                                />
+                                <small className="form-hint">엑셀에 출력될 택배운임 컬럼 위치</small>
+                              </div>
+
+                              {/* 택배운임 단가 */}
+                              <div className="col-md-6">
+                                <label className="form-label">택배운임 단가 (원)</label>
+                                <input
+                                  type="number"
+                                  className="form-control"
+                                  placeholder="예: 3850"
+                                  value={parcelFeePerUnit}
+                                  onChange={(e) => {
+                                    const value = parseInt(e.target.value) || 0;
+                                    setParcelFeePerUnit(value);
+                                    localStorage.setItem('jsharp_parcel_fee_per_unit', value.toString());
+                                  }}
+                                />
+                                <small className="form-hint">택배수량 × 이 단가로 택배운임이 자동 계산됩니다.</small>
+                              </div>
+                            </>
+                          )}
                         </div>
 
                         <div className="mt-4">
@@ -2496,7 +2595,7 @@ const JSharp: React.FC = () => {
                             <div className="modal-body">
                               <div className="mb-3">
                                 <p className="text-muted">
-                                  아래 데이터를 확인하고 택배수량을 조정하세요. 택배운임은 자동으로 계산됩니다 (택배수량 × 3,500원).
+                                  아래 데이터를 확인하고 택배수량을 조정하세요. 택배운임은 자동으로 계산됩니다 (택배수량 × {parcelFeePerUnit.toLocaleString()}원).
                                 </p>
                               </div>
                               <div className="table-responsive">
