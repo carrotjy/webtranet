@@ -106,23 +106,26 @@ def parse_column_reference(column_ref):
 def find_header_row_and_detect_site(file_stream, column_mappings):
     """
     엑셀 파일에서 헤더행 위치를 찾고 사이트를 자동 감지
-    
+
     Args:
         file_stream: 파일 스트림
         column_mappings: 각 사이트별 컬럼 매핑 정보 (프론트엔드에서 전달)
-        
+
     Returns:
         tuple: (감지된_사이트명, 헤더_행_번호, DataFrame) 또는 (None, None, None)
     """
     try:
+        print(f"[DEBUG] find_header_row_and_detect_site: Reading excel file preview...")
         # 전체 엑셀 읽기 (처음 10행만 - 헤더는 보통 상단에 있음)
         df_preview = pd.read_excel(file_stream, header=None, nrows=10)
+        print(f"[DEBUG] Preview shape: {df_preview.shape} (rows x cols)")
         
         # 각 사이트에 대해 검증
         for site in ['ebay', 'smartstore', '11st', 'coupang', 'logen']:
             if site not in column_mappings:
                 continue
-                
+
+            print(f"[DEBUG] Checking site: {site}")
             site_mapping = column_mappings[site]
             
             # 필수 3개 필드 확인
@@ -182,10 +185,13 @@ def find_header_row_and_detect_site(file_stream, column_mappings):
                     df_full = pd.read_excel(file_stream, header=header_row)
                     return site, header_row, df_full
         
+        print(f"[DEBUG] Could not detect any site from excel file")
         return None, None, None
-        
+
     except Exception as e:
-        print(f"Error detecting site: {e}")
+        print(f"[ERROR] Exception in find_header_row_and_detect_site: {e}")
+        import traceback
+        traceback.print_exc()
         return None, None, None
 
 
@@ -882,31 +888,39 @@ def parse_order_excel():
         # 각 파일 처리
         for file in files:
             if file and file.filename and allowed_excel_file(file.filename):
+                print(f"[DEBUG] Processing file: {file.filename}")
                 # 임시로 파일을 메모리에 저장
                 file_content = io.BytesIO(file.read())
+                print(f"[DEBUG] File size: {len(file_content.getvalue())} bytes")
 
                 # 사이트 자동 감지 (사용자 정의 컬럼 매핑 기반)
+                print(f"[DEBUG] Detecting site for file: {file.filename}")
+                print(f"[DEBUG] Available column mappings: {list(column_mappings.keys())}")
                 detected_site = detect_site_from_excel(file_content, column_mappings)
+                print(f"[DEBUG] Detected site: {detected_site}")
 
                 if detected_site and detected_site in column_mappings:
                     # 파일 스트림 위치를 처음으로 리셋
                     file_content.seek(0)
 
                     # 파싱 (사용자 정의 컬럼 매핑 + 치환 규칙 사용)
+                    print(f"[DEBUG] Parsing file as {detected_site}")
                     result = parse_excel_with_mapping(
                         file_content,
                         detected_site,
                         column_mappings[detected_site],
                         replacement_rules
                     )
+                    print(f"[DEBUG] Parse result: success={result.get('success')}, orders={len(result.get('orders', []))}")
 
                     if result['success']:
                         all_orders.extend(result['orders'])
                         processed_sites.append(site_labels.get(detected_site, detected_site))
+                        print(f"[DEBUG] Successfully added {len(result['orders'])} orders from {detected_site}")
                     else:
-                        print(f"Warning: {result['message']}")
+                        print(f"[ERROR] Parsing failed: {result.get('message')}")
                 else:
-                    print(f"Warning: '{file.filename}' 파일의 쇼핑몰을 감지할 수 없습니다.")
+                    print(f"[ERROR] Could not detect site for '{file.filename}'. detected_site={detected_site}, available={list(column_mappings.keys())}")
 
         if len(all_orders) == 0:
             return jsonify({
