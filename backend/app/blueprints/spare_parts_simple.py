@@ -16,6 +16,70 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def recalculate_stock_from_date(conn, part_number, from_date=None):
+    """
+    특정 날짜 이후의 모든 거래에 대해 재고 수량을 재계산합니다.
+
+    Args:
+        conn: 데이터베이스 연결
+        part_number: 부품 번호
+        from_date: 재계산 시작 날짜 (None이면 처음부터)
+    """
+    # from_date 이전의 마지막 재고 수량 계산
+    if from_date:
+        prev_history = conn.execute('''
+            SELECT new_stock
+            FROM stock_history
+            WHERE part_number = ? AND transaction_date < ?
+            ORDER BY transaction_date DESC, created_at DESC
+            LIMIT 1
+        ''', (part_number, from_date)).fetchone()
+
+        current_stock = prev_history['new_stock'] if prev_history else 0
+    else:
+        current_stock = 0
+
+    # from_date 이후의 모든 거래를 날짜순으로 조회
+    query = '''
+        SELECT id, transaction_type, quantity, transaction_date
+        FROM stock_history
+        WHERE part_number = ?
+    '''
+    params = [part_number]
+
+    if from_date:
+        query += ' AND transaction_date >= ?'
+        params.append(from_date)
+
+    query += ' ORDER BY transaction_date ASC, created_at ASC'
+
+    histories = conn.execute(query, params).fetchall()
+
+    # 각 거래의 new_stock 재계산 및 업데이트
+    for history in histories:
+        previous_stock = current_stock
+
+        if history['transaction_type'] == 'IN':
+            current_stock += history['quantity']
+        else:  # OUT
+            current_stock -= history['quantity']
+
+        # stock_history 테이블 업데이트
+        conn.execute('''
+            UPDATE stock_history
+            SET previous_stock = ?, new_stock = ?
+            WHERE id = ?
+        ''', (previous_stock, current_stock, history['id']))
+
+    # spare_parts 테이블의 현재 재고 업데이트
+    conn.execute('''
+        UPDATE spare_parts
+        SET stock_quantity = ?, updated_at = ?
+        WHERE part_number = ?
+    ''', (current_stock, datetime.now().isoformat(), part_number))
+
+    return current_stock
+
 @spare_parts_bp.route('/spare-parts', methods=['GET'])
 def get_spare_parts():
     """스페어파트 목록 조회"""
@@ -713,42 +777,58 @@ def create_stock_transaction():
                 'error': '부품을 찾을 수 없습니다.'
             }), 404
         
-        previous_stock = existing_part['stock_quantity']
-        
-        if transaction_type == 'IN':
-            new_stock = previous_stock + quantity
-        elif transaction_type == 'OUT':
-            if previous_stock < quantity:
-                conn.close()
-                return jsonify({
-                    'success': False,
-                    'error': f'재고가 부족합니다. (현재 재고: {previous_stock})'
-                }), 400
-            new_stock = previous_stock - quantity
-        else:
+        # 거래 날짜가 지정되지 않은 경우 현재 날짜 사용
+        if not transaction_date:
+            transaction_date = datetime.now().date()
+
+        # 거래 유형 검증
+        if transaction_type not in ['IN', 'OUT']:
             conn.close()
             return jsonify({
                 'success': False,
                 'error': '잘못된 거래 유형입니다.'
             }), 400
-        
-        # 재고 업데이트
+
+        # 재고 부족 확인 (출고의 경우)
+        if transaction_type == 'OUT':
+            # 해당 날짜까지의 재고를 계산
+            stock_at_date = conn.execute('''
+                SELECT new_stock
+                FROM stock_history
+                WHERE part_number = ? AND transaction_date <= ?
+                ORDER BY transaction_date DESC, created_at DESC
+                LIMIT 1
+            ''', (part_number, transaction_date)).fetchone()
+
+            current_stock_at_date = stock_at_date['new_stock'] if stock_at_date else 0
+
+            if current_stock_at_date < quantity:
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'error': f'재고가 부족합니다. (해당 날짜의 재고: {current_stock_at_date}개)'
+                }), 400
+
+        # 임시로 이전 재고와 새 재고 값을 0으로 설정 (나중에 재계산됨)
         conn.execute(
-            'UPDATE spare_parts SET stock_quantity = ? WHERE part_number = ?',
-            (new_stock, part_number)
-        )
-        
-        # 거래 내역 기록 (customer_name과 reference_number 포함)
-        conn.execute(
-            '''INSERT INTO stock_history 
-               (part_number, transaction_type, quantity, previous_stock, new_stock, 
-                transaction_date, reference_number, customer_name, created_at, created_by) 
+            '''INSERT INTO stock_history
+               (part_number, transaction_type, quantity, previous_stock, new_stock,
+                transaction_date, reference_number, customer_name, created_at, created_by)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-            (part_number, transaction_type, quantity, previous_stock, new_stock,
-             transaction_date or datetime.now().date(), reference_number, customer_name,
+            (part_number, transaction_type, quantity, 0, 0,
+             transaction_date, reference_number, customer_name,
              datetime.now(), user_name)
         )
-        
+
+        # 해당 거래 날짜부터 모든 재고 수량 재계산
+        recalculate_stock_from_date(conn, part_number, transaction_date)
+
+        # 재계산 후 최종 재고 조회
+        final_stock = conn.execute(
+            'SELECT stock_quantity FROM spare_parts WHERE part_number = ?',
+            (part_number,)
+        ).fetchone()['stock_quantity']
+
         conn.commit()
         conn.close()
         
@@ -759,8 +839,7 @@ def create_stock_transaction():
                 'part_number': part_number,
                 'transaction_type': transaction_type,
                 'quantity': quantity,
-                'previous_stock': previous_stock,
-                'new_stock': new_stock,
+                'new_stock': final_stock,
                 'reference_number': reference_number,
                 'customer_name': customer_name
             }
@@ -1184,39 +1263,34 @@ def process_service_parts():
                 if existing_part:
                     # 기존 부품 출고 처리
                     spare_part_id = existing_part['id']
-                    
-                    # 재고 확인 (경고만, 마이너스 재고 허용)
-                    current_stock = existing_part['stock_quantity']
-                    if current_stock < quantity:
-                        # 마이너스 재고 허용하되 기록
-                        pass
-                    
-                    # 재고 업데이트
-                    new_stock = current_stock - quantity
+
+                    # 출고 내역 기록 (임시 값으로 저장 후 재계산)
                     conn.execute('''
-                        UPDATE spare_parts 
-                        SET stock_quantity = ?, updated_at = ? 
-                        WHERE id = ?
-                    ''', (new_stock, datetime.now().isoformat(), spare_part_id))
-                    
-                    # 출고 내역 기록
-                    conn.execute('''
-                        INSERT INTO stock_history 
+                        INSERT INTO stock_history
                         (part_number, transaction_type, quantity, previous_stock, new_stock,
                          transaction_date, customer_name, reference_number, notes, created_by)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         part_number,
-                        'out',  # 출고
+                        'OUT',  # 출고 (대문자로 통일)
                         quantity,
-                        current_stock,
-                        new_stock,
-                        formatted_datetime,  # 포맷된 날짜/시간 사용
+                        0,  # 임시 값 (재계산됨)
+                        0,  # 임시 값 (재계산됨)
+                        service_date,  # 서비스 날짜 사용 (formatted_datetime 대신)
                         customer_name,  # 사용처를 고객사명으로
                         customer_name,  # reference_number도 고객사명으로
                         f'서비스 리포트 ID: {service_report_id}',
                         technician_name  # 레포트 작성자(기술자)를 출고 요청자로
                     ))
+
+                    # 해당 날짜부터 모든 재고 수량 재계산
+                    recalculate_stock_from_date(conn, part_number, service_date)
+
+                    # 재계산 후 최종 재고 조회
+                    updated_part = conn.execute('''
+                        SELECT stock_quantity FROM spare_parts WHERE part_number = ?
+                    ''', (part_number,)).fetchone()
+                    new_stock = updated_part['stock_quantity'] if updated_part else 0
                     
                     processed_parts.append({
                         'part_number': part_number,
@@ -1233,40 +1307,49 @@ def process_service_parts():
                             'success': False,
                             'error': f'파트번호 {part_number}의 파트명이 필요합니다.'
                         }), 400
-                    
-                    # 신규 부품 등록
+
+                    # 신규 부품 등록 (초기 재고 0으로 시작)
                     cursor = conn.execute('''
-                        INSERT INTO spare_parts 
+                        INSERT INTO spare_parts
                         (part_number, part_name, stock_quantity, created_at, updated_at)
                         VALUES (?, ?, ?, ?, ?)
                     ''', (
                         part_number,
                         part_name,
-                        -quantity,  # 초기 재고를 마이너스로 설정 (출고부터 시작)
+                        0,  # 초기 재고 0 (재계산으로 업데이트됨)
                         datetime.now().isoformat(),
                         datetime.now().isoformat()
                     ))
-                    
+
                     spare_part_id = cursor.lastrowid
-                    
-                    # 출고 내역 기록
+
+                    # 출고 내역 기록 (임시 값으로 저장 후 재계산)
                     conn.execute('''
-                        INSERT INTO stock_history 
+                        INSERT INTO stock_history
                         (part_number, transaction_type, quantity, previous_stock, new_stock,
                          transaction_date, customer_name, reference_number, notes, created_by)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         part_number,
-                        'out',  # 출고
+                        'OUT',  # 출고 (대문자로 통일)
                         quantity,
-                        0,  # 신규 부품이므로 이전 재고는 0
-                        -quantity,  # 새로운 재고 (마이너스)
-                        formatted_datetime,  # 포맷된 날짜/시간 사용
+                        0,  # 임시 값 (재계산됨)
+                        0,  # 임시 값 (재계산됨)
+                        service_date,  # 서비스 날짜 사용
                         customer_name,  # 사용처를 고객사명으로
                         customer_name,  # reference_number도 고객사명으로
                         f'서비스 리포트 ID: {service_report_id} (신규 부품 등록)',
                         technician_name  # 레포트 작성자(기술자)를 출고 요청자로
                     ))
+
+                    # 처음부터 재고 수량 재계산
+                    recalculate_stock_from_date(conn, part_number, None)
+
+                    # 재계산 후 최종 재고 조회
+                    updated_part = conn.execute('''
+                        SELECT stock_quantity FROM spare_parts WHERE part_number = ?
+                    ''', (part_number,)).fetchone()
+                    new_stock = updated_part['stock_quantity'] if updated_part else -quantity
                     
                     processed_parts.append({
                         'part_number': part_number,
@@ -1818,6 +1901,7 @@ def update_stock_history(history_id):
 
             part_number = history['part_number']
             old_quantity = history['quantity']
+            old_transaction_date = history['transaction_date']
             transaction_type = history['transaction_type']
 
             # 부품 정보 조회
@@ -1832,30 +1916,6 @@ def update_stock_history(history_id):
                     'message': '부품을 찾을 수 없습니다.'
                 }), 404
 
-            # 수량이 변경된 경우 재고 조정
-            if old_quantity != new_quantity:
-                current_stock = part['stock_quantity']
-                quantity_diff = new_quantity - old_quantity
-
-                # 입고: 재고 증가, 출고: 재고 감소
-                if transaction_type == 'IN':
-                    new_stock = current_stock + quantity_diff
-                else:  # OUT
-                    new_stock = current_stock - quantity_diff
-
-                # 재고가 음수가 되는지 확인
-                if new_stock < 0:
-                    return jsonify({
-                        'success': False,
-                        'message': f'재고가 부족합니다. 현재 재고: {current_stock}개'
-                    }), 400
-
-                # 재고 업데이트
-                conn.execute(
-                    'UPDATE spare_parts SET stock_quantity = ?, updated_at = ? WHERE part_number = ?',
-                    (new_stock, datetime.now().isoformat(), part_number)
-                )
-
             # 입출고 내역 업데이트
             conn.execute(
                 '''UPDATE stock_history
@@ -1863,6 +1923,12 @@ def update_stock_history(history_id):
                    WHERE id = ?''',
                 (new_quantity, new_transaction_date, new_reference_number, new_customer_name, history_id)
             )
+
+            # 수량 또는 날짜가 변경된 경우 재고 재계산
+            if old_quantity != new_quantity or old_transaction_date != new_transaction_date:
+                # 변경된 날짜와 이전 날짜 중 더 이른 날짜부터 재계산
+                min_date = min(old_transaction_date, new_transaction_date) if old_transaction_date and new_transaction_date else (old_transaction_date or new_transaction_date)
+                recalculate_stock_from_date(conn, part_number, min_date)
 
             conn.commit()
 
@@ -1918,35 +1984,15 @@ def delete_stock_history(history_id):
                     'message': '입출고 내역을 찾을 수 없습니다.'
                 }), 404
 
-            # 재고 복구 처리
+            # 재고 재계산을 위한 정보 저장
             part_number = history['part_number']
-            transaction_type = history['transaction_type']
-            quantity = history['quantity']
-
-            # 부품 정보 조회
-            part = conn.execute(
-                'SELECT * FROM spare_parts WHERE part_number = ?',
-                (part_number,)
-            ).fetchone()
-
-            if part:
-                current_stock = part['stock_quantity']
-
-                # 출고 내역 삭제 시: 재고 증가 (출고한 수량만큼 다시 더해줌)
-                # 입고 내역 삭제 시: 재고 감소 (입고한 수량만큼 빼줌)
-                if transaction_type == 'OUT':
-                    new_stock = current_stock + quantity
-                else:  # IN
-                    new_stock = current_stock - quantity
-
-                # 재고 업데이트
-                conn.execute(
-                    'UPDATE spare_parts SET stock_quantity = ?, updated_at = ? WHERE part_number = ?',
-                    (new_stock, datetime.now().isoformat(), part_number)
-                )
+            transaction_date = history['transaction_date']
 
             # 입출고 내역 삭제
             conn.execute('DELETE FROM stock_history WHERE id = ?', (history_id,))
+
+            # 삭제된 거래의 날짜부터 재고 재계산
+            recalculate_stock_from_date(conn, part_number, transaction_date)
 
             conn.commit()
 
