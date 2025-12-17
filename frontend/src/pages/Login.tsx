@@ -54,7 +54,6 @@ const Login: React.FC = () => {
       <div className="container-tight py-4">
         <div className="text-center mb-4">
           <h1 className="h2 text-primary">LVD Korea Webtranet</h1>
-          <p className="text-muted">v1.0 BETA</p>
         </div>
         
         <div className="card card-md">
