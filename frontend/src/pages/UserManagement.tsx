@@ -46,6 +46,7 @@ interface User {
   spare_parts_stock_history_delete: boolean;  // 입출고 내역 삭제 권한
   // 추가 기능 권한
   service_report_lock: boolean;
+  service_report_invoice_entry: boolean;  // 거래명세표 항목 입력 권한
   transaction_excel_export: boolean;
   transaction_lock: boolean;
   transaction_bill_view: boolean;
@@ -97,6 +98,7 @@ interface UserFormData {
   spare_parts_stock_history_delete: boolean;  // 입출고 내역 삭제 권한
   // 추가 기능 권한
   service_report_lock: boolean;
+  service_report_invoice_entry: boolean;  // 거래명세표 항목 입력 권한
   transaction_excel_export: boolean;
   transaction_lock: boolean;
   transaction_bill_view: boolean;
@@ -186,6 +188,7 @@ const UserManagement: React.FC = () => {
     spare_parts_stock_history_delete: false,
     // 추가 기능 권한
     service_report_lock: true,
+    service_report_invoice_entry: false,
     transaction_excel_export: true,
     transaction_lock: true,
     transaction_bill_view: true,
@@ -292,6 +295,7 @@ const UserManagement: React.FC = () => {
       spare_parts_stock_history_delete: user.spare_parts_stock_history_delete !== undefined ? user.spare_parts_stock_history_delete : false,
       // 추가 기능 권한
       service_report_lock: user.service_report_lock !== undefined ? user.service_report_lock : true,
+      service_report_invoice_entry: user.service_report_invoice_entry !== undefined ? user.service_report_invoice_entry : false,
       transaction_excel_export: user.transaction_excel_export !== undefined ? user.transaction_excel_export : true,
       transaction_lock: user.transaction_lock !== undefined ? user.transaction_lock : true,
       transaction_bill_view: user.transaction_bill_view !== undefined ? user.transaction_bill_view : true,
@@ -834,6 +838,17 @@ const UserManagement: React.FC = () => {
                                     onChange={(e) => setFormData({...formData, service_report_lock: e.target.checked})}
                                   />
                                   <span className="form-check-label">잠금 버튼</span>
+                                </label>
+                              </div>
+                              <div className="col-md-3 mt-2">
+                                <label className="form-check">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={formData.service_report_invoice_entry}
+                                    onChange={(e) => setFormData({...formData, service_report_invoice_entry: e.target.checked})}
+                                  />
+                                  <span className="form-check-label">거래명세표 항목 입력</span>
                                 </label>
                               </div>
                             </div>

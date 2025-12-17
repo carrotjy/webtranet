@@ -2413,7 +2413,7 @@ const ServiceReports: React.FC = () => {
                               </svg>
                             </button>
                           )}
-                          {user?.is_admin && !report?.invoice_id && (
+                          {(user?.is_admin || hasPermission('service_report_invoice_entry')) && !report?.invoice_id && (
                             <button
                               className="btn btn-sm btn-outline-success"
                               style={{
