@@ -71,6 +71,10 @@ const SpareParts: React.FC = () => {
   // 입출고 내역 페이지네이션 상태
   const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
   const [historyItemsPerPage] = useState(10);
+
+  // 입출고 내역 검색 및 필터 상태
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<'ALL' | 'IN' | 'OUT'>('ALL');
   
   // 가격 이력 페이지네이션 상태
   const [priceHistoryCurrentPage, setPriceHistoryCurrentPage] = useState(1);
@@ -1031,12 +1035,117 @@ const SpareParts: React.FC = () => {
             <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">
-                    입출고 내역 
-                    <span className="text-muted ms-2" style={{ fontSize: '14px', fontWeight: 'normal' }}>({history.length}건)</span>
+                    입출고 내역
+                    <span className="text-muted ms-2" style={{ fontSize: '14px', fontWeight: 'normal' }}>
+                      ({(() => {
+                        let count = history.length;
+                        if (historyTypeFilter !== 'ALL') {
+                          count = history.filter(r => r.transaction_type === historyTypeFilter).length;
+                        }
+                        if (historySearchTerm.trim()) {
+                          const searchLower = historySearchTerm.toLowerCase().trim();
+                          count = history.filter(record => {
+                            if (historyTypeFilter !== 'ALL' && record.transaction_type !== historyTypeFilter) return false;
+                            const date = new Date(record.transaction_date).toLocaleDateString('ko-KR');
+                            const partNumber = (record.part_number || '').toLowerCase();
+                            const partName = (record.part_name || '').toLowerCase();
+                            const createdBy = (record.created_by || '').toLowerCase();
+                            const customerName = (record.customer_name || '').toLowerCase();
+                            const referenceNumber = (record.reference_number || '').toLowerCase();
+                            return date.includes(searchLower) ||
+                                   partNumber.includes(searchLower) ||
+                                   partName.includes(searchLower) ||
+                                   createdBy.includes(searchLower) ||
+                                   customerName.includes(searchLower) ||
+                                   referenceNumber.includes(searchLower);
+                          }).length;
+                        }
+                        return count;
+                      })()}건)
+                    </span>
                   </h5>
-                  <button type="button" className="btn-close" onClick={() => setShowHistoryModal(false)}></button>
+                  <button type="button" className="btn-close" onClick={() => {
+                    setShowHistoryModal(false);
+                    setHistorySearchTerm('');
+                    setHistoryTypeFilter('ALL');
+                    setHistoryCurrentPage(1);
+                  }}></button>
                 </div>
                 <div className="modal-body">
+                  {/* 검색 및 필터 영역 */}
+                  <div className="mb-3">
+                    <div className="row g-2">
+                      <div className="col-md-8">
+                        <div className="input-group">
+                          <span className="input-group-text">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="11" cy="11" r="8"></circle>
+                              <path d="m21 21-4.35-4.35"></path>
+                            </svg>
+                          </span>
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="날짜, 부품번호, 부품명, 요청자, 사용처/참조로 검색..."
+                            value={historySearchTerm}
+                            onChange={(e) => {
+                              setHistorySearchTerm(e.target.value);
+                              setHistoryCurrentPage(1); // 검색 시 첫 페이지로
+                            }}
+                          />
+                          {historySearchTerm && (
+                            <button
+                              className="btn btn-outline-secondary"
+                              type="button"
+                              onClick={() => {
+                                setHistorySearchTerm('');
+                                setHistoryCurrentPage(1);
+                              }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="btn-group w-100" role="group">
+                          <button
+                            type="button"
+                            className={`btn ${historyTypeFilter === 'ALL' ? 'btn-primary' : 'btn-outline-primary'}`}
+                            onClick={() => {
+                              setHistoryTypeFilter('ALL');
+                              setHistoryCurrentPage(1);
+                            }}
+                          >
+                            전체
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn ${historyTypeFilter === 'IN' ? 'btn-primary' : 'btn-outline-primary'}`}
+                            onClick={() => {
+                              setHistoryTypeFilter('IN');
+                              setHistoryCurrentPage(1);
+                            }}
+                          >
+                            입고만
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn ${historyTypeFilter === 'OUT' ? 'btn-primary' : 'btn-outline-primary'}`}
+                            onClick={() => {
+                              setHistoryTypeFilter('OUT');
+                              setHistoryCurrentPage(1);
+                            }}
+                          >
+                            출고만
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div className="table-responsive">
                     <table className="table table-vcenter">
                       <thead>
@@ -1044,7 +1153,16 @@ const SpareParts: React.FC = () => {
                           <th>일시</th>
                           <th>부품번호</th>
                           <th>부품명</th>
-                          <th>구분</th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }}>
+                            <div className="d-flex align-items-center gap-2">
+                              구분
+                              {historyTypeFilter !== 'ALL' && (
+                                <span className="badge bg-primary" style={{ fontSize: '10px' }}>
+                                  {historyTypeFilter === 'IN' ? '입고' : '출고'}
+                                </span>
+                              )}
+                            </div>
+                          </th>
                           <th>수량</th>
                           <th>현재재고</th>
                           <th>요청자</th>
@@ -1054,10 +1172,43 @@ const SpareParts: React.FC = () => {
                       </thead>
                       <tbody>
                         {(() => {
+                          // 검색 및 필터링
+                          let filteredHistory = history;
+
+                          // 구분 필터 (입고/출고)
+                          if (historyTypeFilter !== 'ALL') {
+                            filteredHistory = filteredHistory.filter(record =>
+                              record.transaction_type === historyTypeFilter
+                            );
+                          }
+
+                          // 검색어 필터
+                          if (historySearchTerm.trim()) {
+                            const searchLower = historySearchTerm.toLowerCase().trim();
+                            filteredHistory = filteredHistory.filter(record => {
+                              const date = new Date(record.transaction_date).toLocaleDateString('ko-KR');
+                              const partNumber = (record.part_number || '').toLowerCase();
+                              const partName = (record.part_name || '').toLowerCase();
+                              const createdBy = (record.created_by || '').toLowerCase();
+                              const customerName = (record.customer_name || '').toLowerCase();
+                              const referenceNumber = (record.reference_number || '').toLowerCase();
+
+                              return date.includes(searchLower) ||
+                                     partNumber.includes(searchLower) ||
+                                     partName.includes(searchLower) ||
+                                     createdBy.includes(searchLower) ||
+                                     customerName.includes(searchLower) ||
+                                     referenceNumber.includes(searchLower);
+                            });
+                          }
+
                           // 페이지네이션 계산
                           const startIndex = (historyCurrentPage - 1) * historyItemsPerPage;
                           const endIndex = startIndex + historyItemsPerPage;
-                          const currentItems = history.slice(startIndex, endIndex);
+                          const currentItems = filteredHistory.slice(startIndex, endIndex);
+
+                          // filteredHistory를 외부에서도 사용할 수 있도록 window 객체에 임시 저장
+                          (window as any).__filteredHistory = filteredHistory;
                           
                           return currentItems.length > 0 ? (
                             currentItems.map((record) => (
@@ -1073,7 +1224,20 @@ const SpareParts: React.FC = () => {
                                 </td>
                                 <td><code>{record.part_number}</code></td>
                                 <td>{record.part_name || '-'}</td>
-                                <td>
+                                <td
+                                  style={{ cursor: 'pointer' }}
+                                  onClick={() => {
+                                    if (historyTypeFilter === record.transaction_type) {
+                                      // 이미 해당 타입으로 필터링 중이면 전체로 리셋
+                                      setHistoryTypeFilter('ALL');
+                                    } else {
+                                      // 해당 타입으로 필터링
+                                      setHistoryTypeFilter(record.transaction_type);
+                                    }
+                                    setHistoryCurrentPage(1);
+                                  }}
+                                  title={`클릭하여 ${record.transaction_type === 'IN' ? '입고' : '출고'} 내역만 보기`}
+                                >
                                   <span className={record.transaction_type === 'IN' ? 'text-primary' : 'text-warning'} style={{ fontSize: '14px', fontWeight: '600' }}>
                                     {record.transaction_type === 'IN' ? '입고' : '출고'}
                                   </span>
@@ -1159,24 +1323,32 @@ const SpareParts: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
-                  
+
                   {/* 페이지네이션 */}
-                  {history.length > historyItemsPerPage && (
-                    <div className="mt-4">
-                      <Pagination
-                        currentPage={historyCurrentPage}
-                        totalPages={Math.ceil(history.length / historyItemsPerPage)}
-                        totalItems={history.length}
-                        itemsPerPage={historyItemsPerPage}
-                        onPageChange={(page) => setHistoryCurrentPage(page)}
-                        onPreviousPage={() => setHistoryCurrentPage(historyCurrentPage - 1)}
-                        onNextPage={() => setHistoryCurrentPage(historyCurrentPage + 1)}
-                      />
-                    </div>
-                  )}
+                  {(() => {
+                    const filteredLength = (window as any).__filteredHistory?.length || history.length;
+                    return filteredLength > historyItemsPerPage && (
+                      <div className="mt-4">
+                        <Pagination
+                          currentPage={historyCurrentPage}
+                          totalPages={Math.ceil(filteredLength / historyItemsPerPage)}
+                          totalItems={filteredLength}
+                          itemsPerPage={historyItemsPerPage}
+                          onPageChange={(page) => setHistoryCurrentPage(page)}
+                          onPreviousPage={() => setHistoryCurrentPage(historyCurrentPage - 1)}
+                          onNextPage={() => setHistoryCurrentPage(historyCurrentPage + 1)}
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="modal-footer">
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowHistoryModal(false)}>
+                  <button type="button" className="btn btn-secondary" onClick={() => {
+                    setShowHistoryModal(false);
+                    setHistorySearchTerm('');
+                    setHistoryTypeFilter('ALL');
+                    setHistoryCurrentPage(1);
+                  }}>
                     닫기
                   </button>
                 </div>
