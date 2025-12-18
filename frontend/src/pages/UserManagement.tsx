@@ -378,6 +378,7 @@ const UserManagement: React.FC = () => {
       spare_parts_stock_history_delete: false,
       // 추가 기능 권한
       service_report_lock: true,
+      service_report_invoice_entry: false,
       transaction_excel_export: true,
       transaction_lock: true,
       transaction_bill_view: true,
