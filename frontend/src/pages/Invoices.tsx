@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { invoiceAPI } from '../services/api';
+import { invoiceAPI, serviceReportAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import Pagination from '../components/Pagination';
 
@@ -49,6 +49,12 @@ const Invoices: React.FC = () => {
   const [selectedPdfIds, setSelectedPdfIds] = useState<number[]>([]);
   const [excelSelectAll, setExcelSelectAll] = useState(false);
   const [pdfSelectAll, setPdfSelectAll] = useState(false);
+
+  // Service Report Modal
+  const [showServiceReportModal, setShowServiceReportModal] = useState(false);
+  const [selectedServiceReportId, setSelectedServiceReportId] = useState<number | null>(null);
+  const [serviceReportData, setServiceReportData] = useState<any>(null);
+  const [loadingServiceReport, setLoadingServiceReport] = useState(false);
 
   const fetchInvoices = async (page: number) => {
     try {
@@ -208,6 +214,22 @@ const Invoices: React.FC = () => {
       : '';
     const pdfUrl = `${backendUrl}/api/invoice-pdf/${encodeURIComponent(customerName)}/${encodeURIComponent(filename)}`;
     window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleViewServiceReport = async (serviceReportId: number) => {
+    try {
+      setLoadingServiceReport(true);
+      setSelectedServiceReportId(serviceReportId);
+
+      const response = await serviceReportAPI.getServiceReportById(serviceReportId);
+      setServiceReportData(response.data);
+      setShowServiceReportModal(true);
+    } catch (error) {
+      console.error('서비스 리포트 조회 실패:', error);
+      alert('서비스 리포트를 불러오는데 실패했습니다.');
+    } finally {
+      setLoadingServiceReport(false);
+    }
   };
 
   const toggleSelectExcel = (id: number) => {
@@ -621,6 +643,7 @@ const Invoices: React.FC = () => {
                             <th style={{ textAlign: 'center' }}>고객명</th>
                             <th style={{ textAlign: 'center' }}>팩스번호</th>
                             <th style={{ textAlign: 'center' }}>발행일</th>
+                            <th style={{ textAlign: 'center', width: '40px' }}>SR</th>
                             <th style={{ textAlign: 'center' }}>Invoice Code</th>
                             <th style={{ textAlign: 'right' }}>총합계</th>
                             <th style={{ textAlign: 'center' }} className="w-1">계산서 발행</th>
@@ -751,6 +774,29 @@ const Invoices: React.FC = () => {
                               </td>
                               <td data-label="발행일" style={{ textAlign: 'center' }}>
                                 {new Date(invoice.issue_date).toLocaleDateString()}
+                              </td>
+                              <td data-label="SR" style={{ textAlign: 'center' }}>
+                                {invoice.service_report_id ? (
+                                  <button
+                                    className="btn btn-sm btn-ghost-primary"
+                                    onClick={() => handleViewServiceReport(invoice.service_report_id!)}
+                                    disabled={loadingServiceReport}
+                                    title="서비스 리포트 보기"
+                                    style={{
+                                      padding: '4px 8px',
+                                      minWidth: 'auto'
+                                    }}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                      <polyline points="14 2 14 8 20 8"></polyline>
+                                      <line x1="12" y1="18" x2="12" y2="12"></line>
+                                      <line x1="9" y1="15" x2="15" y2="15"></line>
+                                    </svg>
+                                  </button>
+                                ) : (
+                                  <span className="text-muted">-</span>
+                                )}
                               </td>
                               <td data-label="Invoice Code" style={{ textAlign: 'center' }}>
                                 {invoice.invoice_code || '-'}
@@ -1159,6 +1205,164 @@ const Invoices: React.FC = () => {
         </div>
       )}
       */}
+
+      {/* 서비스 리포트 상세 모달 */}
+      {showServiceReportModal && serviceReportData && (
+        <div className="modal modal-blur fade show" style={{ display: 'block' }} tabIndex={-1}>
+          <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">서비스 리포트 상세</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => {
+                    setShowServiceReportModal(false);
+                    setServiceReportData(null);
+                    setSelectedServiceReportId(null);
+                  }}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="row g-3">
+                  {/* 기본 정보 */}
+                  <div className="col-12">
+                    <div className="card">
+                      <div className="card-header">
+                        <h3 className="card-title">기본 정보</h3>
+                      </div>
+                      <div className="card-body">
+                        <div className="row">
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label fw-bold">리포트 번호</label>
+                            <div>{serviceReportData.report_number || '-'}</div>
+                          </div>
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label fw-bold">서비스 날짜</label>
+                            <div>{serviceReportData.service_date ? new Date(serviceReportData.service_date).toLocaleDateString() : '-'}</div>
+                          </div>
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label fw-bold">고객사</label>
+                            <div>{serviceReportData.customer_name || '-'}</div>
+                          </div>
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label fw-bold">기술자</label>
+                            <div>{serviceReportData.technician_name || '-'}</div>
+                          </div>
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label fw-bold">장비 모델</label>
+                            <div>{serviceReportData.equipment_model || '-'}</div>
+                          </div>
+                          <div className="col-md-6 mb-3">
+                            <label className="form-label fw-bold">장비 시리얼 번호</label>
+                            <div>{serviceReportData.equipment_serial || '-'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 작업 내용 */}
+                  {serviceReportData.work_description && (
+                    <div className="col-12">
+                      <div className="card">
+                        <div className="card-header">
+                          <h3 className="card-title">작업 내용</h3>
+                        </div>
+                        <div className="card-body">
+                          <div style={{ whiteSpace: 'pre-wrap' }}>{serviceReportData.work_description}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 사용 부품 */}
+                  {serviceReportData.parts && serviceReportData.parts.length > 0 && (
+                    <div className="col-12">
+                      <div className="card">
+                        <div className="card-header">
+                          <h3 className="card-title">사용 부품</h3>
+                        </div>
+                        <div className="card-body">
+                          <div className="table-responsive">
+                            <table className="table table-sm">
+                              <thead>
+                                <tr>
+                                  <th>부품명</th>
+                                  <th>부품번호</th>
+                                  <th className="text-end">수량</th>
+                                  <th className="text-end">단가</th>
+                                  <th className="text-end">합계</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {serviceReportData.parts.map((part: any, index: number) => (
+                                  <tr key={index}>
+                                    <td>{part.part_name || '-'}</td>
+                                    <td><code>{part.part_number || '-'}</code></td>
+                                    <td className="text-end">{part.quantity || 0}</td>
+                                    <td className="text-end">{(part.unit_price || 0).toLocaleString()}원</td>
+                                    <td className="text-end">{(part.total_price || 0).toLocaleString()}원</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 작업 시간 */}
+                  {serviceReportData.time_records && serviceReportData.time_records.length > 0 && (
+                    <div className="col-12">
+                      <div className="card">
+                        <div className="card-header">
+                          <h3 className="card-title">작업 시간</h3>
+                        </div>
+                        <div className="card-body">
+                          <div className="table-responsive">
+                            <table className="table table-sm">
+                              <thead>
+                                <tr>
+                                  <th>작업 유형</th>
+                                  <th className="text-end">시간</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {serviceReportData.time_records.map((record: any, index: number) => (
+                                  <tr key={index}>
+                                    <td>{record.work_type || '-'}</td>
+                                    <td className="text-end">{record.hours || 0}시간</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowServiceReportModal(false);
+                    setServiceReportData(null);
+                    setSelectedServiceReportId(null);
+                  }}
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showServiceReportModal && <div className="modal-backdrop fade show"></div>}
     </>
   );
 };
