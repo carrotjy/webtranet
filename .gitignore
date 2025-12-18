@@ -250,6 +250,9 @@ backend/app/database/user.db
 !backend/sample_customers*.xlsx
 !backend/test_with_empty_cells.xlsx
 
+# Data files (user-specific settings and configurations)
+backend/data/
+
 # Claude Code local settings
 .claude/settings.local.json
 
