@@ -1215,7 +1215,7 @@ const Invoices: React.FC = () => {
         <>
           <div className="modal-backdrop fade show" style={{zIndex: 1040}}></div>
           <div
-            className="modal modal-blur fade show"
+            className="modal fade show"
             style={{display: 'block', zIndex: 1050, position: 'fixed'}}
             data-bs-backdrop="static"
             data-bs-keyboard="false"
