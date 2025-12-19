@@ -221,7 +221,10 @@ const Invoices: React.FC = () => {
       setLoadingServiceReport(true);
       setSelectedServiceReportId(serviceReportId);
 
+      console.log('서비스 리포트 조회 시작:', serviceReportId);
       const response = await serviceReportAPI.getServiceReportById(serviceReportId);
+      console.log('서비스 리포트 응답:', response);
+      console.log('서비스 리포트 데이터:', response.data);
       setServiceReportData(response.data);
       setShowServiceReportModal(true);
     } catch (error) {
@@ -1207,7 +1210,7 @@ const Invoices: React.FC = () => {
       */}
 
       {/* 서비스 리포트 상세 모달 */}
-      {showServiceReportModal && serviceReportData && (
+      {showServiceReportModal && (
         <>
           <div
             className="modal modal-blur fade show"
@@ -1247,8 +1250,17 @@ const Invoices: React.FC = () => {
                   </div>
                 </div>
                 <div className="modal-body">
-                  {/* 기본 정보 - 표 형태 */}
-                  <div className="mb-4">
+                  {loadingServiceReport ? (
+                    <div className="text-center py-5">
+                      <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">로딩 중...</span>
+                      </div>
+                      <div className="mt-3">서비스 리포트를 불러오는 중...</div>
+                    </div>
+                  ) : serviceReportData ? (
+                    <>
+                      {/* 기본 정보 - 표 형태 */}
+                      <div className="mb-4">
                     <h5 className="mb-3">기본 정보</h5>
                     <div className="table-responsive">
                       <table className="table table-bordered mb-0">
@@ -1374,6 +1386,12 @@ const Invoices: React.FC = () => {
                           </tbody>
                         </table>
                       </div>
+                    </div>
+                  )}
+                    </>
+                  ) : (
+                    <div className="text-center py-5">
+                      <p>서비스 리포트 데이터를 불러올 수 없습니다.</p>
                     </div>
                   )}
                 </div>
