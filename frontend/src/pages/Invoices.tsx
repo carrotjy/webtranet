@@ -225,7 +225,8 @@ const Invoices: React.FC = () => {
       const response = await serviceReportAPI.getServiceReportById(serviceReportId);
       console.log('서비스 리포트 응답:', response);
       console.log('서비스 리포트 데이터:', response.data);
-      setServiceReportData(response.data);
+      // API 응답이 {report: {...}} 형태이므로 report 객체를 추출
+      setServiceReportData(response.data.report || response.data);
       setShowServiceReportModal(true);
     } catch (error) {
       console.error('서비스 리포트 조회 실패:', error);
