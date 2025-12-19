@@ -288,15 +288,15 @@ class User:
                 spare_parts_update=bool(user_data['spare_parts_update'] if user_data['spare_parts_update'] is not None else 0),
                 spare_parts_delete_crud=bool(user_data['spare_parts_delete_crud'] if user_data['spare_parts_delete_crud'] is not None else 0),
                 # 추가 기능 권한
-                service_report_lock=bool(user_data['service_report_lock'] if user_data['service_report_lock'] is not None else 1),
-                service_report_invoice_entry=bool(user_data['service_report_invoice_entry'] if user_data['service_report_invoice_entry'] is not None else 0),
-                transaction_excel_export=bool(user_data['transaction_excel_export'] if user_data['transaction_excel_export'] is not None else 1),
-                transaction_lock=bool(user_data['transaction_lock'] if user_data['transaction_lock'] is not None else 1),
-                transaction_bill_view=bool(user_data['transaction_bill_view'] if user_data['transaction_bill_view'] is not None else 1),
-                transaction_fax_send=bool(user_data['transaction_fax_send'] if user_data['transaction_fax_send'] is not None else 1),
-                transaction_file_download=bool(user_data['transaction_file_download'] if user_data['transaction_file_download'] is not None else 1),
-                spare_parts_stock_history_edit=bool(user_data['spare_parts_stock_history_edit'] if user_data['spare_parts_stock_history_edit'] is not None else 0),
-                spare_parts_stock_history_delete=bool(user_data['spare_parts_stock_history_delete'] if user_data['spare_parts_stock_history_delete'] is not None else 0),
+                service_report_lock=bool(user_data.get('service_report_lock', 1)),
+                service_report_invoice_entry=bool(user_data.get('service_report_invoice_entry', 0)),
+                transaction_excel_export=bool(user_data.get('transaction_excel_export', 1)),
+                transaction_lock=bool(user_data.get('transaction_lock', 1)),
+                transaction_bill_view=bool(user_data.get('transaction_bill_view', 1)),
+                transaction_fax_send=bool(user_data.get('transaction_fax_send', 1)),
+                transaction_file_download=bool(user_data.get('transaction_file_download', 1)),
+                spare_parts_stock_history_edit=bool(user_data.get('spare_parts_stock_history_edit', 0)),
+                spare_parts_stock_history_delete=bool(user_data.get('spare_parts_stock_history_delete', 0)),
                 created_at=user_data['created_at']
             ))
         return users
@@ -355,15 +355,15 @@ class User:
                 spare_parts_update=bool(user_data['spare_parts_update'] if user_data['spare_parts_update'] is not None else 0),
                 spare_parts_delete_crud=bool(user_data['spare_parts_delete_crud'] if user_data['spare_parts_delete_crud'] is not None else 0),
                 # 추가 기능 권한
-                service_report_lock=bool(user_data['service_report_lock'] if user_data['service_report_lock'] is not None else 1),
-                service_report_invoice_entry=bool(user_data['service_report_invoice_entry'] if user_data['service_report_invoice_entry'] is not None else 0),
-                transaction_excel_export=bool(user_data['transaction_excel_export'] if user_data['transaction_excel_export'] is not None else 1),
-                transaction_lock=bool(user_data['transaction_lock'] if user_data['transaction_lock'] is not None else 1),
-                transaction_bill_view=bool(user_data['transaction_bill_view'] if user_data['transaction_bill_view'] is not None else 1),
-                transaction_fax_send=bool(user_data['transaction_fax_send'] if user_data['transaction_fax_send'] is not None else 1),
-                transaction_file_download=bool(user_data['transaction_file_download'] if user_data['transaction_file_download'] is not None else 1),
-                spare_parts_stock_history_edit=bool(user_data['spare_parts_stock_history_edit'] if user_data['spare_parts_stock_history_edit'] is not None else 0),
-                spare_parts_stock_history_delete=bool(user_data['spare_parts_stock_history_delete'] if user_data['spare_parts_stock_history_delete'] is not None else 0),
+                service_report_lock=bool(user_data.get('service_report_lock', 1)),
+                service_report_invoice_entry=bool(user_data.get('service_report_invoice_entry', 0)),
+                transaction_excel_export=bool(user_data.get('transaction_excel_export', 1)),
+                transaction_lock=bool(user_data.get('transaction_lock', 1)),
+                transaction_bill_view=bool(user_data.get('transaction_bill_view', 1)),
+                transaction_fax_send=bool(user_data.get('transaction_fax_send', 1)),
+                transaction_file_download=bool(user_data.get('transaction_file_download', 1)),
+                spare_parts_stock_history_edit=bool(user_data.get('spare_parts_stock_history_edit', 0)),
+                spare_parts_stock_history_delete=bool(user_data.get('spare_parts_stock_history_delete', 0)),
                 created_at=user_data['created_at']
             ))
         return users
