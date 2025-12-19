@@ -1221,7 +1221,7 @@ const Invoices: React.FC = () => {
             }}
           >
             <div className="modal-dialog modal-lg modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-content">
+              <div className="modal-content" style={{backgroundColor: '#fff'}}>
                 <div className="modal-header">
                   <h5 className="modal-title">서비스 리포트 상세 보기</h5>
                   <div className="ms-auto">
