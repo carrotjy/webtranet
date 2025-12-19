@@ -1208,161 +1208,181 @@ const Invoices: React.FC = () => {
 
       {/* 서비스 리포트 상세 모달 */}
       {showServiceReportModal && serviceReportData && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }} tabIndex={-1}>
-          <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">서비스 리포트 상세</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => {
-                    setShowServiceReportModal(false);
-                    setServiceReportData(null);
-                    setSelectedServiceReportId(null);
-                  }}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <div className="row g-3">
-                  {/* 기본 정보 */}
-                  <div className="col-12">
-                    <div className="card">
-                      <div className="card-header">
-                        <h3 className="card-title">기본 정보</h3>
-                      </div>
-                      <div className="card-body">
-                        <div className="row">
-                          <div className="col-md-6 mb-3">
-                            <label className="form-label fw-bold">리포트 번호</label>
-                            <div>{serviceReportData.report_number || '-'}</div>
-                          </div>
-                          <div className="col-md-6 mb-3">
-                            <label className="form-label fw-bold">서비스 날짜</label>
-                            <div>{serviceReportData.service_date ? new Date(serviceReportData.service_date).toLocaleDateString() : '-'}</div>
-                          </div>
-                          <div className="col-md-6 mb-3">
-                            <label className="form-label fw-bold">고객사</label>
-                            <div>{serviceReportData.customer_name || '-'}</div>
-                          </div>
-                          <div className="col-md-6 mb-3">
-                            <label className="form-label fw-bold">기술자</label>
-                            <div>{serviceReportData.technician_name || '-'}</div>
-                          </div>
-                          <div className="col-md-6 mb-3">
-                            <label className="form-label fw-bold">장비 모델</label>
-                            <div>{serviceReportData.equipment_model || '-'}</div>
-                          </div>
-                          <div className="col-md-6 mb-3">
-                            <label className="form-label fw-bold">장비 시리얼 번호</label>
-                            <div>{serviceReportData.equipment_serial || '-'}</div>
-                          </div>
-                        </div>
-                      </div>
+        <>
+          <div
+            className="modal modal-blur fade show"
+            style={{display: 'block', zIndex: 2000}}
+            data-bs-backdrop="static"
+            data-bs-keyboard="false"
+          >
+            <div className="modal-dialog modal-lg modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">서비스 리포트 상세 보기</h5>
+                  <div className="ms-auto">
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm"
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        padding: '0',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      onClick={() => {
+                        setShowServiceReportModal(false);
+                        setServiceReportData(null);
+                        setSelectedServiceReportId(null);
+                      }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="modal-body">
+                  {/* 기본 정보 - 표 형태 */}
+                  <div className="mb-4">
+                    <h5 className="mb-3">기본 정보</h5>
+                    <div className="table-responsive">
+                      <table className="table table-bordered mb-0">
+                        <tbody>
+                          <tr>
+                            <td className="bg-light fw-bold" style={{width: '120px'}}>서비스 날짜</td>
+                            <td className="bg-white" style={{width: '150px'}}>
+                              {serviceReportData.service_date ? new Date(serviceReportData.service_date).toLocaleDateString('ko-KR') : '-'}
+                            </td>
+                            <td className="bg-light fw-bold" style={{width: '100px'}}>서비스담당</td>
+                            <td className="bg-white" style={{width: '120px'}}>{serviceReportData.technician_name || '-'}</td>
+                          </tr>
+                          <tr>
+                            <td className="bg-light fw-bold">고객명</td>
+                            <td className="bg-white" colSpan={3}>{serviceReportData.customer_name || '-'}</td>
+                          </tr>
+                          <tr>
+                            <td className="bg-light fw-bold">Model</td>
+                            <td className="bg-white">{serviceReportData.machine_model || serviceReportData.equipment_model || '-'}</td>
+                            <td className="bg-light fw-bold">SN</td>
+                            <td className="bg-white">{serviceReportData.machine_serial || serviceReportData.equipment_serial || '-'}</td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   </div>
 
-                  {/* 작업 내용 */}
-                  {serviceReportData.work_description && (
-                    <div className="col-12">
-                      <div className="card">
-                        <div className="card-header">
-                          <h3 className="card-title">작업 내용</h3>
-                        </div>
-                        <div className="card-body">
-                          <div style={{ whiteSpace: 'pre-wrap' }}>{serviceReportData.work_description}</div>
-                        </div>
-                      </div>
+                  {/* 작업 내용 정보 - 표 형태 */}
+                  <div className="mb-4">
+                    <h5 className="mb-3">작업 내용</h5>
+                    <div className="table-responsive">
+                      <table className="table table-bordered mb-0">
+                        <tbody>
+                          <tr>
+                            <td className="bg-light fw-bold" style={{width: '150px', verticalAlign: 'top'}}>Job Description</td>
+                            <td className="bg-white">
+                              <div style={{minHeight: '80px', whiteSpace: 'pre-wrap', padding: '8px 0'}}>
+                                {serviceReportData.problem_description || serviceReportData.symptom || '-'}
+                              </div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="bg-light fw-bold" style={{verticalAlign: 'top'}}>처리 내용</td>
+                            <td className="bg-white">
+                              <div style={{minHeight: '100px', whiteSpace: 'pre-wrap', padding: '8px 0'}}>
+                                {serviceReportData.solution_description || serviceReportData.details || serviceReportData.work_description || '-'}
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
-                  )}
+                  </div>
 
-                  {/* 사용 부품 */}
+                  {/* 사용부품 내역 */}
                   {serviceReportData.parts && serviceReportData.parts.length > 0 && (
-                    <div className="col-12">
-                      <div className="card">
-                        <div className="card-header">
-                          <h3 className="card-title">사용 부품</h3>
-                        </div>
-                        <div className="card-body">
-                          <div className="table-responsive">
-                            <table className="table table-sm">
-                              <thead>
-                                <tr>
-                                  <th>부품명</th>
-                                  <th>부품번호</th>
-                                  <th className="text-end">수량</th>
-                                  <th className="text-end">단가</th>
-                                  <th className="text-end">합계</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {serviceReportData.parts.map((part: any, index: number) => (
-                                  <tr key={index}>
-                                    <td>{part.part_name || '-'}</td>
-                                    <td><code>{part.part_number || '-'}</code></td>
-                                    <td className="text-end">{part.quantity || 0}</td>
-                                    <td className="text-end">{(part.unit_price || 0).toLocaleString()}원</td>
-                                    <td className="text-end">{(part.total_price || 0).toLocaleString()}원</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+                    <div className="mb-4">
+                      <h5 className="mb-3">사용부품 내역</h5>
+                      <div className="table-responsive">
+                        <table className="table table-sm table-bordered">
+                          <thead className="table-light">
+                            <tr>
+                              <th>부품명</th>
+                              <th>부품번호</th>
+                              <th>수량</th>
+                              <th>단가</th>
+                              <th>총액</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {serviceReportData.parts.map((part: any, index: number) => (
+                              <tr key={index}>
+                                <td className="bg-white">{part.part_name || '-'}</td>
+                                <td className="bg-white">{part.part_number || '-'}</td>
+                                <td className="bg-white text-center">{part.quantity || '-'}</td>
+                                <td className="bg-white text-end">{typeof part.unit_price === 'number' ? part.unit_price.toLocaleString() : '0'}</td>
+                                <td className="bg-white text-end fw-bold">{typeof part.total_price === 'number' ? part.total_price.toLocaleString() : '0'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   )}
 
-                  {/* 작업 시간 */}
+                  {/* 시간 기록부 (테이블 형태) */}
                   {serviceReportData.time_records && serviceReportData.time_records.length > 0 && (
-                    <div className="col-12">
-                      <div className="card">
-                        <div className="card-header">
-                          <h3 className="card-title">작업 시간</h3>
-                        </div>
-                        <div className="card-body">
-                          <div className="table-responsive">
-                            <table className="table table-sm">
-                              <thead>
-                                <tr>
-                                  <th>작업 유형</th>
-                                  <th className="text-end">시간</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {serviceReportData.time_records.map((record: any, index: number) => (
-                                  <tr key={index}>
-                                    <td>{record.work_type || '-'}</td>
-                                    <td className="text-end">{record.hours || 0}시간</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+                    <div className="mb-4">
+                      <h5 className="mb-3">작업/이동 시간 기록부</h5>
+                      <div className="table-responsive">
+                        <table className="table table-sm table-bordered">
+                          <thead className="table-light">
+                            <tr>
+                              <th className="text-center" style={{width: '100px'}}>날짜</th>
+                              <th className="text-center" style={{width: '90px'}}>출발시간</th>
+                              <th className="text-center" style={{width: '90px'}}>작업시작</th>
+                              <th className="text-center" style={{width: '90px'}}>작업종료</th>
+                              <th className="text-center" style={{width: '90px'}}>이동종료</th>
+                              <th className="text-center" style={{width: '100px'}}>식사시간<br/><small>(작업)</small></th>
+                              <th className="text-center" style={{width: '100px'}}>식사시간<br/><small>(이동)</small></th>
+                              <th className="text-center text-primary" style={{width: '90px'}}>작업시간</th>
+                              <th className="text-center text-primary" style={{width: '90px'}}>이동시간</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {serviceReportData.time_records.map((record: any, index: number) => (
+                              <tr key={index}>
+                                <td className="bg-white text-center">{record.date || record.work_date ? new Date(record.date || record.work_date).toLocaleDateString('ko-KR') : '-'}</td>
+                                <td className="bg-white text-center">{record.departure_time || '-'}</td>
+                                <td className="bg-white text-center">{record.work_start_time || '-'}</td>
+                                <td className="bg-white text-center">{record.work_end_time || '-'}</td>
+                                <td className="bg-white text-center">{record.travel_end_time || '-'}</td>
+                                <td className="bg-white text-center">{record.work_meal_time || '-'}</td>
+                                <td className="bg-white text-center">{record.travel_meal_time || '-'}</td>
+                                <td className="bg-white text-center text-primary fw-bold">
+                                  {record.calculated_work_time || '-'}
+                                </td>
+                                <td className="bg-white text-center text-primary fw-bold">
+                                  {record.calculated_travel_time || '-'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setShowServiceReportModal(false);
-                    setServiceReportData(null);
-                    setSelectedServiceReportId(null);
-                  }}
-                >
-                  닫기
-                </button>
-              </div>
             </div>
           </div>
-        </div>
+          <div className="modal-backdrop fade show" style={{zIndex: 1999}}></div>
+        </>
       )}
-      {showServiceReportModal && <div className="modal-backdrop fade show"></div>}
     </>
   );
 };

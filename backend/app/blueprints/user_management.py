@@ -90,6 +90,7 @@ def create_user():
             spare_parts_stock_history_delete=data.get('spare_parts_stock_history_delete', False),
             # 추가 기능 권한
             service_report_lock=data.get('service_report_lock', True),
+            service_report_invoice_entry=data.get('service_report_invoice_entry', False),
             transaction_excel_export=data.get('transaction_excel_export', True),
             transaction_lock=data.get('transaction_lock', True),
             transaction_bill_view=data.get('transaction_bill_view', True),
@@ -189,6 +190,7 @@ def update_user(user_id):
         
         # 추가 기능 권한 업데이트
         user.service_report_lock = data.get('service_report_lock', getattr(user, 'service_report_lock', True))
+        user.service_report_invoice_entry = data.get('service_report_invoice_entry', getattr(user, 'service_report_invoice_entry', False))
         user.transaction_excel_export = data.get('transaction_excel_export', getattr(user, 'transaction_excel_export', True))
         user.transaction_lock = data.get('transaction_lock', getattr(user, 'transaction_lock', True))
         user.transaction_bill_view = data.get('transaction_bill_view', getattr(user, 'transaction_bill_view', True))
