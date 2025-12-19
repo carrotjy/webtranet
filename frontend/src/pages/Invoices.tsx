@@ -1213,12 +1213,16 @@ const Invoices: React.FC = () => {
       {/* 서비스 리포트 상세 모달 */}
       {showServiceReportModal && (
         <>
-          <div className="modal-backdrop fade show" style={{zIndex: 1040}}></div>
           <div
             className="modal fade show"
-            style={{display: 'block', zIndex: 1050, position: 'fixed'}}
-            data-bs-backdrop="static"
-            data-bs-keyboard="false"
+            style={{display: 'block', zIndex: 1050}}
+            onClick={(e) => {
+              // 모달 배경 클릭시 닫기
+              if (e.target === e.currentTarget) {
+                setShowServiceReportModal(false);
+                setServiceReportData(null);
+              }
+            }}
           >
             <div className="modal-dialog modal-lg modal-dialog-centered">
               <div className="modal-content">
@@ -1400,6 +1404,7 @@ const Invoices: React.FC = () => {
               </div>
             </div>
           </div>
+          <div className="modal-backdrop fade show" style={{zIndex: 1040}}></div>
         </>
       )}
     </>
