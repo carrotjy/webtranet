@@ -14,7 +14,10 @@ def get_all_users():
             'users': [user.to_dict() for user in users]
         }), 200
     except Exception as e:
-        return jsonify({'error': '사용자 목록 조회 중 오류가 발생했습니다.'}), 500
+        print(f"사용자 목록 조회 오류: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'사용자 목록 조회 중 오류가 발생했습니다: {str(e)}'}), 500
 
 @user_mgmt_bp.route('/technicians', methods=['GET'])
 def get_technicians():
@@ -25,7 +28,10 @@ def get_technicians():
             'technicians': [{'id': user.id, 'name': user.name} for user in users]
         }), 200
     except Exception as e:
-        return jsonify({'error': '기술부 직원 목록 조회 중 오류가 발생했습니다.'}), 500
+        print(f"기술부 직원 목록 조회 오류: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'기술부 직원 목록 조회 중 오류가 발생했습니다: {str(e)}'}), 500
 
 @user_mgmt_bp.route('/', methods=['POST'])
 @admin_required
