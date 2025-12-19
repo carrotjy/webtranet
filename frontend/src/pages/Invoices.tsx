@@ -221,11 +221,7 @@ const Invoices: React.FC = () => {
       setLoadingServiceReport(true);
       setSelectedServiceReportId(serviceReportId);
 
-      console.log('서비스 리포트 조회 시작:', serviceReportId);
       const response = await serviceReportAPI.getServiceReportById(serviceReportId);
-      console.log('서비스 리포트 응답:', response);
-      console.log('서비스 리포트 데이터:', response.data);
-      // API 응답이 {report: {...}} 형태이므로 report 객체를 추출
       setServiceReportData(response.data.report || response.data);
       setShowServiceReportModal(true);
     } catch (error) {
@@ -1224,7 +1220,7 @@ const Invoices: React.FC = () => {
               }
             }}
           >
-            <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-dialog modal-lg modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">서비스 리포트 상세 보기</h5>
@@ -1241,7 +1237,8 @@ const Invoices: React.FC = () => {
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setShowServiceReportModal(false);
                         setServiceReportData(null);
                         setSelectedServiceReportId(null);
