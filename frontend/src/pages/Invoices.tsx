@@ -1213,9 +1213,10 @@ const Invoices: React.FC = () => {
       {/* 서비스 리포트 상세 모달 */}
       {showServiceReportModal && (
         <>
+          <div className="modal-backdrop fade show" style={{zIndex: 1040}}></div>
           <div
             className="modal modal-blur fade show"
-            style={{display: 'block', zIndex: 2000}}
+            style={{display: 'block', zIndex: 1050, position: 'fixed'}}
             data-bs-backdrop="static"
             data-bs-keyboard="false"
           >
@@ -1399,7 +1400,6 @@ const Invoices: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show" style={{zIndex: 1999}}></div>
         </>
       )}
     </>
