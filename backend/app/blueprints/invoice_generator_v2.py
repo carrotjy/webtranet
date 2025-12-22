@@ -213,6 +213,11 @@ def generate_invoice_excel_v2(invoice_id):
         if not invoice:
             return {'success': False, 'message': '거래명세서를 찾을 수 없습니다.'}
 
+        # 디버깅: invoice_number 확인
+        print(f"🔍 Invoice ID {invoice_id} 조회: invoice_number = '{invoice['invoice_number']}'")
+        print(f"   customer_name = '{invoice['customer_name']}'")
+        print(f"   issue_date = '{invoice['issue_date']}'")
+
         # 2. Invoice 항목 조회 (row_order 순서로)
         items = conn.execute('''
             SELECT * FROM invoice_items
@@ -490,8 +495,18 @@ def generate_invoice_excel_v2(invoice_id):
         monthly_folder = os.path.join(INVOICE_BASE_DIR, monthly_folder_name)
         os.makedirs(monthly_folder, exist_ok=True)
 
-        pdf_filename = f"거래명세서({invoice['customer_name']})-{invoice['invoice_number']}.pdf"
+        # PDF 파일명 생성 (invoice_number가 없으면 고객명만 사용)
+        invoice_number = invoice['invoice_number']
+        if invoice_number:
+            pdf_filename = f"거래명세서({invoice['customer_name']})-{invoice_number}.pdf"
+            print(f"✅ PDF 파일명: {pdf_filename}")
+        else:
+            print(f"⚠️  경고: Invoice ID {invoice_id}의 invoice_number가 비어있습니다!")
+            pdf_filename = f"거래명세서({invoice['customer_name']}).pdf"
+            print(f"   기본 PDF 파일명 사용: {pdf_filename}")
+
         pdf_path = os.path.join(monthly_folder, pdf_filename)
+        print(f"📁 PDF 저장 경로: {pdf_path}")
         pdf_success = convert_excel_to_pdf(output_path, pdf_path)
 
         return {

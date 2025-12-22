@@ -1209,9 +1209,10 @@ const Invoices: React.FC = () => {
       {/* 서비스 리포트 상세 모달 */}
       {showServiceReportModal && (
         <>
+          <div className="modal-backdrop fade show" style={{zIndex: 1040}}></div>
           <div
             className="modal fade show"
-            style={{display: 'block', zIndex: 9999}}
+            style={{display: 'block', zIndex: 1050}}
             onClick={(e) => {
               // 모달 배경 클릭시 닫기
               if (e.target === e.currentTarget) {
@@ -1219,9 +1220,12 @@ const Invoices: React.FC = () => {
                 setServiceReportData(null);
               }
             }}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
           >
             <div className="modal-dialog modal-lg modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-content" style={{backgroundColor: '#fff'}}>
+              <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">서비스 리포트 상세 보기</h5>
                   <div className="ms-auto">
@@ -1319,7 +1323,7 @@ const Invoices: React.FC = () => {
                   </div>
 
                   {/* 사용부품 내역 */}
-                  {serviceReportData.parts && serviceReportData.parts.length > 0 && (
+                  {serviceReportData.used_parts && serviceReportData.used_parts.length > 0 && (
                     <div className="mb-4">
                       <h5 className="mb-3">사용부품 내역</h5>
                       <div className="table-responsive">
@@ -1334,7 +1338,7 @@ const Invoices: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {serviceReportData.parts.map((part: any, index: number) => (
+                            {serviceReportData.used_parts.map((part: any, index: number) => (
                               <tr key={index}>
                                 <td className="bg-white">{part.part_name || '-'}</td>
                                 <td className="bg-white">{part.part_number || '-'}</td>
@@ -1401,7 +1405,6 @@ const Invoices: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show" style={{zIndex: 9998, pointerEvents: 'none'}}></div>
         </>
       )}
     </>
