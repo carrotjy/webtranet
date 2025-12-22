@@ -514,15 +514,16 @@ def get_ytd_summary():
 
         has_null_categories = null_category_check[0] > 0
 
-        # 카테고리별로 work/travel 시간(hours) 집계 (네고 포함)
-        # total_price가 음수인 경우 quantity도 음수로 계산
+        # 카테고리별로 work/travel 시간(hours) 집계 (네고 항목 제외)
+        # 시간 계산: 네고 항목(total_price < 0)은 아예 무시
+        # 금액 계산: 네고 금액은 포함하여 차감 (Labor Total에서 처리)
         # invoice_code_id를 invoices 테이블에서 우선 가져오고, 없으면 service_reports에서 가져옴
         category_query = conn.execute('''
             SELECT
                 COALESCE(ic.category, 'Unknown') as category,
                 CAST(strftime('%m', i.issue_date) AS INTEGER) as month,
                 ii.item_type,
-                SUM(CASE WHEN ii.total_price < 0 THEN -ABS(ii.quantity) ELSE ii.quantity END) as total_hours
+                SUM(CASE WHEN ii.total_price >= 0 THEN ii.quantity ELSE 0 END) as total_hours
             FROM invoice_items ii
             INNER JOIN invoices i ON ii.invoice_id = i.id
             LEFT JOIN service_reports sr ON i.service_report_id = sr.id
