@@ -480,8 +480,8 @@ const InvoiceForm: React.FC = () => {
 
         // 수량이나 단가가 변경되면 합계 자동 계산
         if (field === 'quantity' || field === 'unit_price') {
-          const qty = field === 'quantity' ? parseFloat(value) || 0 : item.quantity;
-          const price = field === 'unit_price' ? parseFloat(value) || 0 : item.unit_price;
+          const qty = field === 'quantity' ? (parseFloat(value) || 0) : (parseFloat(String(item.quantity)) || 0);
+          const price = field === 'unit_price' ? (parseFloat(value) || 0) : (parseFloat(String(item.unit_price)) || 0);
           // 네고 행은 음수로 계산
           updated.total_price = item.isNego ? -Math.abs(Math.round(qty * price)) : Math.round(qty * price);
         }
