@@ -516,7 +516,7 @@ def get_ytd_summary():
 
         # 카테고리별로 work/travel 시간(hours) 집계 (네고 포함)
         # total_price가 음수인 경우 quantity도 음수로 계산
-        # invoice_code_id를 invoices 테이블 또는 service_reports에서 가져와서 category로 그룹화
+        # invoice_code_id를 invoices 테이블에서 우선 가져오고, 없으면 service_reports에서 가져옴
         category_query = conn.execute('''
             SELECT
                 COALESCE(ic.category, 'Unknown') as category,
@@ -525,12 +525,8 @@ def get_ytd_summary():
                 SUM(CASE WHEN ii.total_price < 0 THEN -ABS(ii.quantity) ELSE ii.quantity END) as total_hours
             FROM invoice_items ii
             INNER JOIN invoices i ON ii.invoice_id = i.id
-            LEFT JOIN invoice_codes ic ON (
-                i.invoice_code_id = ic.id
-                OR (i.service_report_id IN (
-                    SELECT sr.id FROM service_reports sr WHERE sr.invoice_code_id = ic.id
-                ))
-            )
+            LEFT JOIN service_reports sr ON i.service_report_id = sr.id
+            LEFT JOIN invoice_codes ic ON COALESCE(i.invoice_code_id, sr.invoice_code_id) = ic.id
             WHERE i.bill_status = 'issued'
                 AND CAST(strftime('%Y', i.issue_date) AS INTEGER) = ?
                 AND ii.is_header = 0
