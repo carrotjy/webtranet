@@ -46,6 +46,7 @@ const YTDSummaryCard: React.FC = () => {
 
         console.log('YTD API Response:', response.data);
         console.log('Parts Monthly Total:', response.data.data?.parts_monthly_total);
+        console.log('Categories:', JSON.stringify(response.data.data?.categories, null, 2));
 
         if (response.data.success) {
           setYtdData(response.data.data);

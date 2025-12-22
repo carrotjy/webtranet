@@ -537,11 +537,13 @@ def get_ytd_summary():
         # 카테고리별로 데이터 구조화
         category_data_map = {}
 
+        print(f"🔍 YTD category_query 결과 ({len(category_query)}개 행):")
         for row in category_query:
             category = row[0] if row[0] else 'Unknown'
             month = row[1]
             item_type = row[2]
             total_hours = row[3]
+            print(f"  Category={category}, Month={month}, Type={item_type}, Hours={total_hours}")
 
             # 카테고리가 처음 등장하면 초기화
             if category not in category_data_map:
