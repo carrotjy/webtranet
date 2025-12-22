@@ -531,7 +531,7 @@ def get_ytd_summary():
                 AND CAST(strftime('%Y', i.issue_date) AS INTEGER) = ?
                 AND ii.is_header = 0
                 AND ii.item_type IN ('work', 'travel')
-            GROUP BY COALESCE(ic.category, 'Unknown'), month, ii.item_type
+            GROUP BY COALESCE(ic.category, 'Unknown'), CAST(strftime('%m', i.issue_date) AS INTEGER), ii.item_type
         ''', (year,)).fetchall()
 
         # 카테고리별로 데이터 구조화
