@@ -1211,7 +1211,7 @@ const Invoices: React.FC = () => {
         <>
           <div
             className="modal fade show"
-            style={{display: 'block', zIndex: 1050}}
+            style={{display: 'block', zIndex: 9999}}
             onClick={(e) => {
               // 모달 배경 클릭시 닫기
               if (e.target === e.currentTarget) {
@@ -1401,7 +1401,7 @@ const Invoices: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show" style={{zIndex: 1040, pointerEvents: 'none'}}></div>
+          <div className="modal-backdrop fade show" style={{zIndex: 9998, pointerEvents: 'none'}}></div>
         </>
       )}
     </>
