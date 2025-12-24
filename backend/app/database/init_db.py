@@ -99,6 +99,7 @@ def init_database():
     # users 테이블에 추가 기능 권한 컬럼들 추가
     additional_permission_columns = [
         ('service_report_lock', 1),
+        ('service_report_invoice_entry', 0),
         ('transaction_excel_export', 1),
         ('transaction_lock', 1),
         ('transaction_bill_view', 1),
