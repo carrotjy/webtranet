@@ -341,7 +341,16 @@ def generate_invoice_excel_v2(invoice_id):
                     safe_write_to_cell(f'B{current_row}', item['day'])
                 if item['item_name']:
                     # 품목은 C:H merged range의 시작 셀인 C에 쓰기
-                    safe_write_to_cell(f'C{current_row}', item['item_name'])
+                    header_cell = safe_write_to_cell(f'C{current_row}', item['item_name'])
+                    # 헤더 행도 자동 줄바꿈 설정
+                    if header_cell:
+                        from openpyxl.styles import Alignment
+                        old_alignment = header_cell.alignment
+                        header_cell.alignment = Alignment(
+                            wrap_text=True,
+                            horizontal=old_alignment.horizontal if old_alignment else 'left',
+                            vertical=old_alignment.vertical if old_alignment else 'center'
+                        )
                 current_row += 1
                 continue
 
@@ -361,20 +370,30 @@ def generate_invoice_excel_v2(invoice_id):
                 # 품목은 C에 쓰기
                 item_name = str(item['item_name']).replace('네고', 'NEGO')
                 item_cell = safe_write_to_cell(f'C{current_row}', item_name)
-                # 네고 항목은 빨간색으로 표시 (기존 폰트 속성 유지)
-                if is_nego and item_cell:
-                    from openpyxl.styles import Font
-                    old_font = item_cell.font
-                    item_cell.font = Font(
-                        name=old_font.name,
-                        size=old_font.size,
-                        bold=old_font.bold,
-                        italic=old_font.italic,
-                        vertAlign=old_font.vertAlign,
-                        underline=old_font.underline,
-                        strike=old_font.strike,
-                        color="FF0000"
+
+                # 자동 줄바꿈 설정 (긴 품목명 처리)
+                if item_cell:
+                    from openpyxl.styles import Alignment, Font
+                    old_alignment = item_cell.alignment
+                    item_cell.alignment = Alignment(
+                        wrap_text=True,
+                        horizontal=old_alignment.horizontal if old_alignment else 'left',
+                        vertical=old_alignment.vertical if old_alignment else 'center'
                     )
+
+                    # 네고 항목은 빨간색으로 표시 (기존 폰트 속성 유지)
+                    if is_nego:
+                        old_font = item_cell.font
+                        item_cell.font = Font(
+                            name=old_font.name,
+                            size=old_font.size,
+                            bold=old_font.bold,
+                            italic=old_font.italic,
+                            vertAlign=old_font.vertAlign,
+                            underline=old_font.underline,
+                            strike=old_font.strike,
+                            color="FF0000"
+                        )
 
             if item['description']:
                 # 규격은 J에 쓰기
@@ -476,11 +495,24 @@ def generate_invoice_excel_v2(invoice_id):
 
             current_row += 1
 
-        # 12. 저장
+        # 12. 행 높이 자동 조정 (줄바꿈된 셀 대응)
+        # 14행부터 데이터가 입력된 마지막 행까지 처리
+        for row_num in range(14, current_row):
+            # 각 행의 최소 높이 유지 (기본 템플릿 높이)
+            # wrap_text가 설정된 셀이 있는 경우 자동으로 높이 조정됨
+            # openpyxl은 자동 높이 계산을 지원하지 않으므로,
+            # 최소 높이만 설정하고 LibreOffice PDF 변환 시 자동 조정됨
+            if row_num not in ws.row_dimensions:
+                ws.row_dimensions[row_num].height = None  # 자동 높이
+            elif ws.row_dimensions[row_num].height:
+                # 기존 높이가 있으면 최소 높이로 설정 (필요시 늘어남)
+                pass
+
+        # 13. 저장
         wb.save(output_path)
         wb.close()
 
-        # 13. PDF 생성 (LibreOffice 사용) - 월별 폴더에 저장
+        # 14. PDF 생성 (LibreOffice 사용) - 월별 폴더에 저장
         # 발행일자에서 년월 추출 (YYYY-MM-DD 형식)
         issue_date_str = invoice['issue_date']
         try:
