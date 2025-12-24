@@ -496,15 +496,15 @@ def generate_invoice_excel_v2(invoice_id):
             current_row += 1
 
         # 12. 행 높이 자동 조정 (줄바꿈된 셀 대응)
-        # 14행부터 데이터가 입력된 마지막 행까지 처리
-        for row_num in range(14, current_row):
+        # 16행부터 데이터가 입력된 마지막 행까지 처리
+        for row_num in range(16, current_row):
             # 각 행의 최소 높이 유지 (기본 템플릿 높이)
             # wrap_text가 설정된 셀이 있는 경우 자동으로 높이 조정됨
             # openpyxl은 자동 높이 계산을 지원하지 않으므로,
             # 최소 높이만 설정하고 LibreOffice PDF 변환 시 자동 조정됨
-            if row_num not in ws.row_dimensions:
-                ws.row_dimensions[row_num].height = None  # 자동 높이
-            elif ws.row_dimensions[row_num].height:
+            if row_num not in sheet.row_dimensions:
+                sheet.row_dimensions[row_num].height = None  # 자동 높이
+            elif sheet.row_dimensions[row_num].height:
                 # 기존 높이가 있으면 최소 높이로 설정 (필요시 늘어남)
                 pass
 
