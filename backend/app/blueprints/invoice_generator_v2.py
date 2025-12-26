@@ -258,16 +258,57 @@ def generate_invoice_excel_v2(invoice_id):
                 print(f"⚠️ 기존 시트 '{sheet_name}' 삭제")
                 del wb[sheet_name]
 
-            # 템플릿에서 시트를 완벽하게 복사
-            template_wb = load_workbook(TEMPLATE_PATH)
-            template_sheet = template_wb.active
+            # 방법: 기존 파일에 템플릿 시트가 있으면 복사, 없으면 임시로 추가
+            temp_sheet_name = '__TEMPLATE__'
 
-            # openpyxl의 copy_worksheet 사용 (완벽한 복사)
-            sheet = wb.copy_worksheet(template_sheet)
-            sheet.title = sheet_name
+            # 기존 시트 중 템플릿 역할을 할 시트 찾기 (가장 첫 번째 시트)
+            if len(wb.sheetnames) > 0:
+                # 기존 첫 번째 시트가 템플릿 형식이면 복사
+                first_sheet = wb[wb.sheetnames[0]]
+                sheet = wb.copy_worksheet(first_sheet)
+                sheet.title = sheet_name
+                print(f"✅ 기존 시트 '{first_sheet.title}' 복사하여 '{sheet_name}' 생성")
+            else:
+                # 시트가 없으면 템플릿에서 가져오기
+                template_wb = load_workbook(TEMPLATE_PATH)
+                template_sheet = template_wb.active
 
-            template_wb.close()
-            print(f"✅ 기존 파일에 새 시트 '{sheet_name}' 추가 완료")
+                # 임시로 템플릿 시트를 추가
+                temp_sheet = wb.create_sheet(title=temp_sheet_name)
+
+                # 템플릿 내용 복사
+                from copy import copy
+                for row in template_sheet.iter_rows():
+                    for cell in row:
+                        new_cell = temp_sheet[cell.coordinate]
+                        if cell.value:
+                            new_cell.value = cell.value
+                        if cell.has_style:
+                            new_cell.font = copy(cell.font)
+                            new_cell.border = copy(cell.border)
+                            new_cell.fill = copy(cell.fill)
+                            new_cell.number_format = cell.number_format
+                            new_cell.protection = copy(cell.protection)
+                            new_cell.alignment = copy(cell.alignment)
+
+                for merged_cell in template_sheet.merged_cells.ranges:
+                    temp_sheet.merge_cells(str(merged_cell))
+
+                for row_num, row_dim in template_sheet.row_dimensions.items():
+                    temp_sheet.row_dimensions[row_num].height = row_dim.height
+
+                for col_letter, col_dim in template_sheet.column_dimensions.items():
+                    temp_sheet.column_dimensions[col_letter].width = col_dim.width
+
+                template_wb.close()
+
+                # 임시 시트를 복사하여 최종 시트 생성
+                sheet = wb.copy_worksheet(temp_sheet)
+                sheet.title = sheet_name
+
+                # 임시 시트 삭제
+                wb.remove(temp_sheet)
+                print(f"✅ 템플릿 기반 새 시트 '{sheet_name}' 생성")
         else:
             # 기존 파일이 없으면 템플릿 복사 후 시트 이름만 변경
             print(f"📝 새 파일 생성: {output_path}")
