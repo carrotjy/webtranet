@@ -52,7 +52,6 @@ class Invoice:
             """
             search_pattern = f'%{search}%'
             params = [search_pattern, search_pattern, search_pattern]
-            print(f"🔎 검색 패턴: '{search_pattern}'")
 
         # 데이터 조회
         query = f'''
@@ -64,8 +63,6 @@ class Invoice:
             LIMIT ? OFFSET ?
         '''
         params.extend([per_page, offset])
-        print(f"📝 실행 쿼리: {query}")
-        print(f"📝 쿼리 파라미터: {params}")
         invoices_data = conn.execute(query, params).fetchall()
 
         # 총 개수 조회

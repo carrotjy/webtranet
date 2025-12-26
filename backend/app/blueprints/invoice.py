@@ -41,11 +41,7 @@ def get_invoices():
         per_page = request.args.get('per_page', 10, type=int)
         search = request.args.get('search', None, type=str)
 
-        print(f"🔍 거래명세표 조회 요청 - page: {page}, per_page: {per_page}, search: '{search}'")
-
         invoices, total = Invoice.get_all(page, per_page, search)
-
-        print(f"📊 조회 결과 - total: {total}, invoices count: {len(invoices)}")
 
         # instance 폴더 경로
         INSTANCE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'instance')
