@@ -252,56 +252,35 @@ def generate_invoice_excel_v2(invoice_id):
             # 기존 파일이 있으면 열기
             print(f"📂 기존 파일 발견: {output_path}")
             wb = load_workbook(output_path)
+
+            # 동일한 시트 이름이 있으면 삭제
+            if sheet_name in wb.sheetnames:
+                print(f"⚠️ 기존 시트 '{sheet_name}' 삭제")
+                del wb[sheet_name]
+
+            # 템플릿에서 시트를 완벽하게 복사
+            template_wb = load_workbook(TEMPLATE_PATH)
+            template_sheet = template_wb.active
+
+            # openpyxl의 copy_worksheet 사용 (완벽한 복사)
+            sheet = wb.copy_worksheet(template_sheet)
+            sheet.title = sheet_name
+
+            template_wb.close()
+            print(f"✅ 기존 파일에 새 시트 '{sheet_name}' 추가 완료")
         else:
-            # 기존 파일이 없으면 템플릿 복사
+            # 기존 파일이 없으면 템플릿 복사 후 시트 이름만 변경
             print(f"📝 새 파일 생성: {output_path}")
             shutil.copy2(TEMPLATE_PATH, output_path)
             wb = load_workbook(output_path)
 
-        # 8. 시트 준비 (동일 이름 시트가 있으면 삭제 후 재생성)
-        template_wb = load_workbook(TEMPLATE_PATH)
-        template_sheet = template_wb.active
+            # 첫 번째 시트 이름을 변경하고 작업 시트로 설정
+            sheet = wb.active
+            sheet.title = sheet_name
+            print(f"✅ 새 파일 생성 및 시트 이름 '{sheet_name}'로 변경 완료")
 
-        if sheet_name in wb.sheetnames:
-            print(f"⚠️ 기존 시트 '{sheet_name}' 삭제")
-            del wb[sheet_name]
-
-        # 템플릿 시트를 복사하여 새 시트 생성
-        new_sheet = wb.create_sheet(title=sheet_name)
-
-        # 템플릿 시트의 모든 내용을 새 시트로 복사
-        for row in template_sheet.iter_rows():
-            for cell in row:
-                new_cell = new_sheet[cell.coordinate]
-                # 값 복사
-                if cell.value:
-                    new_cell.value = cell.value
-                # 스타일 복사
-                if cell.has_style:
-                    new_cell.font = cell.font.copy()
-                    new_cell.border = cell.border.copy()
-                    new_cell.fill = cell.fill.copy()
-                    new_cell.number_format = cell.number_format
-                    new_cell.protection = cell.protection.copy()
-                    new_cell.alignment = cell.alignment.copy()
-
-        # 병합된 셀 복사
-        for merged_cell_range in template_sheet.merged_cells.ranges:
-            new_sheet.merge_cells(str(merged_cell_range))
-
-        # 행 높이 복사
-        for row_num, row_dimension in template_sheet.row_dimensions.items():
-            new_sheet.row_dimensions[row_num].height = row_dimension.height
-
-        # 열 너비 복사
-        for col_letter, col_dimension in template_sheet.column_dimensions.items():
-            new_sheet.column_dimensions[col_letter].width = col_dimension.width
-
-        template_wb.close()
-        print(f"✅ 새 시트 '{sheet_name}' 생성 완료")
-
-        # 9. 작업할 시트를 새로 생성한 시트로 설정
-        sheet = new_sheet
+        # 8. 작업할 시트 확인
+        print(f"📝 작업 시트: {sheet.title}")
 
         # 10. 병합된 셀에 안전하게 값을 쓰는 함수
         def safe_write_merged_cell(cell_ref, value):
