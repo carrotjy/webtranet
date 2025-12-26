@@ -239,100 +239,22 @@ def generate_invoice_excel_v2(invoice_id):
         customer_folder = os.path.join(INVOICE_BASE_DIR, invoice['customer_name'])
         os.makedirs(customer_folder, exist_ok=True)
 
-        output_filename = f"거래명세서({invoice['customer_name']}).xlsx"
+        # 6. 발행일 기준 파일명 생성 (yymmdd 형식)
+        issue_date = datetime.strptime(invoice['issue_date'], '%Y-%m-%d')
+        date_suffix = issue_date.strftime('%y%m%d')
+        output_filename = f"거래명세서({invoice['customer_name']})-{date_suffix}.xlsx"
         output_path = os.path.join(customer_folder, output_filename)
 
-        # 6. 발행일 기준 시트 이름 생성 (yymmdd 형식)
-        issue_date = datetime.strptime(invoice['issue_date'], '%Y-%m-%d')
-        sheet_name = issue_date.strftime('%y%m%d')
-        print(f"📅 시트 이름: {sheet_name} (발행일: {invoice['issue_date']})")
+        print(f"📅 파일명: {output_filename}")
 
-        # 7. Excel 파일 열기 또는 생성
-        if os.path.exists(output_path):
-            # 기존 파일이 있으면 열기
-            print(f"📂 기존 파일 발견: {output_path}")
-            wb = load_workbook(output_path)
+        # 7. 템플릿 파일 복사
+        print(f"📋 템플릿 복사: {TEMPLATE_PATH} -> {output_path}")
+        shutil.copy2(TEMPLATE_PATH, output_path)
 
-            # 동일한 시트 이름이 있으면 삭제
-            if sheet_name in wb.sheetnames:
-                print(f"⚠️ 기존 시트 '{sheet_name}' 삭제")
-                del wb[sheet_name]
-
-            # 항상 템플릿 파일에서 빈 양식을 가져와서 복사
-            print(f"📋 템플릿에서 빈 양식 복사 중...")
-            template_wb = load_workbook(TEMPLATE_PATH)
-            template_sheet = template_wb.active
-
-            # 임시 시트를 추가하고 템플릿 내용 복사
-            temp_sheet_name = '__TEMPLATE__'
-            temp_sheet = wb.create_sheet(title=temp_sheet_name)
-
-            # 템플릿 내용을 임시 시트에 복사
-            from copy import copy
-            for row in template_sheet.iter_rows():
-                for cell in row:
-                    new_cell = temp_sheet[cell.coordinate]
-                    if cell.value:
-                        new_cell.value = cell.value
-                    if cell.has_style:
-                        new_cell.font = copy(cell.font)
-                        new_cell.border = copy(cell.border)
-                        new_cell.fill = copy(cell.fill)
-                        new_cell.number_format = cell.number_format
-                        new_cell.protection = copy(cell.protection)
-                        new_cell.alignment = copy(cell.alignment)
-
-            for merged_cell in template_sheet.merged_cells.ranges:
-                temp_sheet.merge_cells(str(merged_cell))
-
-            for row_num, row_dim in template_sheet.row_dimensions.items():
-                temp_sheet.row_dimensions[row_num].height = row_dim.height
-
-            for col_letter, col_dim in template_sheet.column_dimensions.items():
-                temp_sheet.column_dimensions[col_letter].width = col_dim.width
-
-            template_wb.close()
-
-            # 임시 시트를 복사하여 최종 시트 생성 (같은 워크북 내 복사)
-            sheet = wb.copy_worksheet(temp_sheet)
-            sheet.title = sheet_name
-
-            # 임시 시트 삭제
-            wb.remove(temp_sheet)
-            print(f"✅ 템플릿 기반 빈 시트 '{sheet_name}' 생성 완료")
-        else:
-            # 기존 파일이 없으면 템플릿 복사 후 시트 이름만 변경
-            print(f"📝 새 파일 생성: {output_path}")
-            shutil.copy2(TEMPLATE_PATH, output_path)
-            wb = load_workbook(output_path)
-
-            # 첫 번째 시트 이름을 변경하고 작업 시트로 설정
-            sheet = wb.active
-            sheet.title = sheet_name
-            print(f"✅ 새 파일 생성 및 시트 이름 '{sheet_name}'로 변경 완료")
-
-        # 8. 템플릿의 샘플 데이터 제거 (16행부터 40행까지, W37/AC37/AB39 셀 초기화)
-        print(f"🧹 템플릿 샘플 데이터 제거 중...")
-
-        # 데이터 행 초기화 (16~40행)
-        for row_num in range(16, 41):
-            for col_letter in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG']:
-                cell = sheet[f'{col_letter}{row_num}']
-                # 수식이 아닌 값만 제거 (수식은 유지)
-                if cell.value and not str(cell.value).startswith('='):
-                    cell.value = None
-
-        # 합계 셀 초기화 (W37, AC37, AB39)
-        if sheet['W37'].value and not str(sheet['W37'].value).startswith('='):
-            sheet['W37'].value = None
-        if sheet['AC37'].value and not str(sheet['AC37'].value).startswith('='):
-            sheet['AC37'].value = None
-        if sheet['AB39'].value and not str(sheet['AB39'].value).startswith('='):
-            sheet['AB39'].value = None
-
-        print(f"✅ 샘플 데이터 제거 완료")
-
-        # 9. 작업할 시트 확인
+        # 8. Excel 파일 열기
+        wb = load_workbook(output_path)
+        sheet = wb.active
+        print(f"✅ 파일 생성 완료")
         print(f"📝 작업 시트: {sheet.title}")
 
         # 10. 병합된 셀에 안전하게 값을 쓰는 함수
@@ -659,84 +581,16 @@ def generate_invoice_excel_v2(invoice_id):
         pdf_path = os.path.join(monthly_folder, pdf_filename)
         print(f"📁 PDF 저장 경로: {pdf_path}")
 
-        # 특정 시트만 PDF로 변환하기 위해 임시 Excel 파일 생성
-        temp_excel_path = os.path.join(customer_folder, f"_temp_{sheet_name}.xlsx")
-        try:
-            # 새 워크북 생성하고 해당 시트만 복사
-            from openpyxl import Workbook
-            temp_wb = Workbook()
-            temp_wb.remove(temp_wb.active)  # 기본 시트 삭제
-
-            # 원본 시트 다시 로드 (wb.save() 후 다시 열어야 최신 데이터 반영됨)
-            wb.close()
-            wb = load_workbook(output_path)
-            source_sheet = wb[sheet_name]
-
-            # 새 시트 생성
-            temp_sheet = temp_wb.create_sheet(title='Sheet1')  # 기본 이름 사용
-
-            # 모든 셀 복사
-            for row in source_sheet.iter_rows():
-                for cell in row:
-                    new_cell = temp_sheet[cell.coordinate]
-                    if cell.value:
-                        new_cell.value = cell.value
-                    if cell.has_style:
-                        new_cell.font = cell.font.copy()
-                        new_cell.border = cell.border.copy()
-                        new_cell.fill = cell.fill.copy()
-                        new_cell.number_format = cell.number_format
-                        new_cell.protection = cell.protection.copy()
-                        new_cell.alignment = cell.alignment.copy()
-
-            # 병합된 셀 복사
-            for merged_cell_range in source_sheet.merged_cells.ranges:
-                temp_sheet.merge_cells(str(merged_cell_range))
-
-            # 행 높이 복사
-            for row_num, row_dimension in source_sheet.row_dimensions.items():
-                if row_dimension.height:
-                    temp_sheet.row_dimensions[row_num].height = row_dimension.height
-
-            # 열 너비 복사
-            for col_letter, col_dimension in source_sheet.column_dimensions.items():
-                temp_sheet.column_dimensions[col_letter].width = col_dimension.width
-
-            # 임시 파일 저장
-            temp_wb.save(temp_excel_path)
-            temp_wb.close()
-            wb.close()
-
-            print(f"📄 임시 Excel 파일 생성: {temp_excel_path}")
-
-            # 임시 파일을 PDF로 변환
-            pdf_success = convert_excel_to_pdf(temp_excel_path, pdf_path)
-
-            # 임시 파일 삭제
-            if os.path.exists(temp_excel_path):
-                os.remove(temp_excel_path)
-                print(f"🗑️  임시 파일 삭제: {temp_excel_path}")
-
-        except Exception as e:
-            print(f"❌ PDF 변환 중 오류: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            pdf_success = False
-            # 임시 파일 정리
-            if os.path.exists(temp_excel_path):
-                try:
-                    os.remove(temp_excel_path)
-                except:
-                    pass
+        # Excel 파일을 직접 PDF로 변환
+        pdf_success = convert_excel_to_pdf(output_path, pdf_path)
 
         return {
             'success': True,
             'file_path': output_path,
             'filename': output_filename,
-            'sheet_name': sheet_name,
             'pdf_path': pdf_path if pdf_success else None,
             'pdf_filename': pdf_filename if pdf_success else None,
-            'message': f'거래명세서가 성공적으로 생성되었습니다. (시트: {sheet_name})' + (' (PDF 포함)' if pdf_success else ' (Excel만)')
+            'message': f'거래명세서가 성공적으로 생성되었습니다.' + (' (PDF 포함)' if pdf_success else ' (Excel만)')
         }
 
     except Exception as e:
