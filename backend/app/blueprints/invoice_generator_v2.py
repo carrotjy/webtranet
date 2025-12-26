@@ -303,11 +303,26 @@ def generate_invoice_excel_v2(invoice_id):
         # 9. 작업할 시트를 새로 생성한 시트로 설정
         sheet = new_sheet
 
-        # 10. Name Define을 새 시트에 복사 (템플릿에서 가져오기)
-        # openpyxl의 Name Define은 워크북 레벨이므로 시트별로 복사할 필요 없음
-        # 하지만 템플릿에 있는 Name Define 위치를 참조하여 직접 셀에 쓰기
+        # 10. 병합된 셀에 안전하게 값을 쓰는 함수
+        def safe_write_merged_cell(cell_ref, value):
+            """병합된 셀을 안전하게 처리하며 값 입력"""
+            try:
+                # 병합된 셀 범위 확인
+                for merged_range in sheet.merged_cells.ranges:
+                    if cell_ref in merged_range:
+                        # 병합 범위의 왼쪽 상단 셀 좌표 가져오기
+                        min_col, min_row, max_col, max_row = merged_range.bounds
+                        top_left_cell = sheet.cell(row=min_row, column=min_col)
+                        top_left_cell.value = value
+                        return
+                # 병합되지 않은 셀이면 직접 입력
+                sheet[cell_ref].value = value
+            except Exception as e:
+                print(f"셀 {cell_ref}에 값 입력 실패: {str(e)}")
+                import traceback
+                traceback.print_exc()
 
-        # 템플릿의 Name Define 정보를 기반으로 셀 좌표 매핑
+        # 11. 템플릿의 Name Define 정보를 기반으로 셀 좌표 매핑
         name_mappings = {
             'provider_name': 'M5',
             'provider_president': 'M6',
@@ -326,30 +341,30 @@ def generate_invoice_excel_v2(invoice_id):
             'total_amount': 'AB39'
         }
 
-        # 11. 공급자 정보 입력
-        sheet[name_mappings['provider_name']] = supplier['company_name']
-        sheet[name_mappings['provider_president']] = supplier['ceo_name']
-        sheet[name_mappings['provider_address']] = supplier['address']
-        sheet[name_mappings['provider_number']] = supplier['registration_number']
-        sheet[name_mappings['provider_tel']] = supplier['phone']
-        sheet[name_mappings['provider_fax']] = supplier['fax']
+        # 12. 공급자 정보 입력
+        safe_write_merged_cell(name_mappings['provider_name'], supplier['company_name'])
+        safe_write_merged_cell(name_mappings['provider_president'], supplier['ceo_name'])
+        safe_write_merged_cell(name_mappings['provider_address'], supplier['address'])
+        safe_write_merged_cell(name_mappings['provider_number'], supplier['registration_number'])
+        safe_write_merged_cell(name_mappings['provider_tel'], supplier['phone'])
+        safe_write_merged_cell(name_mappings['provider_fax'], supplier['fax'])
 
-        # 12. 고객사 정보 입력
-        sheet[name_mappings['customer_name']] = invoice['customer_name']
-        sheet[name_mappings['customer_address']] = invoice['customer_address'] or (customer['address'] if customer else '')
-        sheet[name_mappings['customer_tel']] = invoice['customer_tel'] or (customer['phone'] if customer else '')
-        sheet[name_mappings['customer_fax']] = invoice['customer_fax'] or (customer['fax'] if customer else '')
+        # 13. 고객사 정보 입력
+        safe_write_merged_cell(name_mappings['customer_name'], invoice['customer_name'])
+        safe_write_merged_cell(name_mappings['customer_address'], invoice['customer_address'] or (customer['address'] if customer else ''))
+        safe_write_merged_cell(name_mappings['customer_tel'], invoice['customer_tel'] or (customer['phone'] if customer else ''))
+        safe_write_merged_cell(name_mappings['customer_fax'], invoice['customer_fax'] or (customer['fax'] if customer else ''))
 
-        # 13. 기타 정보 입력
-        sheet[name_mappings['invoice_number']] = invoice['invoice_number']
-        sheet[name_mappings['issue_date']] = invoice['issue_date']
+        # 14. 기타 정보 입력
+        safe_write_merged_cell(name_mappings['invoice_number'], invoice['invoice_number'])
+        safe_write_merged_cell(name_mappings['issue_date'], invoice['issue_date'])
 
-        # 14. 금액 정보 입력
-        sheet[name_mappings['amount_price']] = invoice['total_amount']
-        sheet[name_mappings['tax_price']] = invoice['vat_amount']
-        sheet[name_mappings['total_amount']] = invoice['grand_total']
+        # 15. 금액 정보 입력
+        safe_write_merged_cell(name_mappings['amount_price'], invoice['total_amount'])
+        safe_write_merged_cell(name_mappings['tax_price'], invoice['vat_amount'])
+        safe_write_merged_cell(name_mappings['total_amount'], invoice['grand_total'])
 
-        # 15. 항목 데이터 입력 (16행부터 시작 - 15행은 헤더)
+        # 16. 항목 데이터 입력 (16행부터 시작 - 15행은 헤더)
         current_row = 16  # 시작 행 (15행은 헤더 행)
 
         # 34행 이후 추가 행이 필요한 경우를 위한 템플릿 행 준비
