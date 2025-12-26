@@ -34,13 +34,14 @@ def handle_preflight(*args, **kwargs):
 @invoice_bp.route('/invoices', methods=['GET'])
 @jwt_required()
 def get_invoices():
-    """거래명세표 목록 조회"""
+    """거래명세표 목록 조회 (검색 지원)"""
     try:
         import os
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
+        search = request.args.get('search', None, type=str)
 
-        invoices, total = Invoice.get_all(page, per_page)
+        invoices, total = Invoice.get_all(page, per_page, search)
 
         # instance 폴더 경로
         INSTANCE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'instance')

@@ -33,20 +33,45 @@ class Invoice:
         self.invoice_code_id = invoice_code_id
     
     @classmethod
-    def get_all(cls, page=1, per_page=10):
-        """모든 거래명세표 조회 (페이징)"""
+    def get_all(cls, page=1, per_page=10, search=None):
+        """모든 거래명세표 조회 (페이징 + 검색)"""
         conn = get_db_connection()
         offset = (page - 1) * per_page
 
-        invoices_data = conn.execute('''
+        # 검색 조건 구성
+        where_clause = ""
+        params = []
+
+        if search:
+            where_clause = """
+                WHERE (
+                    i.invoice_number LIKE ? OR
+                    i.customer_name LIKE ? OR
+                    i.issue_date LIKE ?
+                )
+            """
+            search_pattern = f'%{search}%'
+            params = [search_pattern, search_pattern, search_pattern]
+
+        # 데이터 조회
+        query = f'''
             SELECT i.*, ic.code AS invoice_code, ic.description AS invoice_description
             FROM invoices i
             LEFT JOIN invoice_codes ic ON i.invoice_code_id = ic.id
+            {where_clause}
             ORDER BY i.created_at DESC
             LIMIT ? OFFSET ?
-        ''', (per_page, offset)).fetchall()
+        '''
+        params.extend([per_page, offset])
+        invoices_data = conn.execute(query, params).fetchall()
 
-        total = conn.execute('SELECT COUNT(*) FROM invoices').fetchone()[0]
+        # 총 개수 조회
+        count_query = f'SELECT COUNT(*) FROM invoices i {where_clause}'
+        if search:
+            total = conn.execute(count_query, [search_pattern, search_pattern, search_pattern]).fetchone()[0]
+        else:
+            total = conn.execute(count_query).fetchone()[0]
+
         conn.close()
 
         invoices = []

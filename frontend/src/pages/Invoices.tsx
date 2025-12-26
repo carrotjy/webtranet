@@ -56,10 +56,17 @@ const Invoices: React.FC = () => {
   const [serviceReportData, setServiceReportData] = useState<any>(null);
   const [loadingServiceReport, setLoadingServiceReport] = useState(false);
 
-  const fetchInvoices = async (page: number) => {
+  const fetchInvoices = async (page: number, search?: string) => {
     try {
       setLoading(true);
-      const response = await invoiceAPI.getInvoices({ page, per_page: perPage });
+      const params: any = { page, per_page: perPage };
+
+      // 검색어가 있으면 search 파라미터 추가
+      if (search && search.trim()) {
+        params.search = search.trim();
+      }
+
+      const response = await invoiceAPI.getInvoices(params);
 
       console.log('Invoice API 응답:', response.data);
       console.log('첫 번째 invoice:', response.data.invoices?.[0]);
@@ -78,25 +85,30 @@ const Invoices: React.FC = () => {
 
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
-      fetchInvoices(page);
+      fetchInvoices(page, searchTerm);
     }
   };
 
   const handlePreviousPage = () => {
     if (currentPage > 1) {
-      fetchInvoices(currentPage - 1);
+      fetchInvoices(currentPage - 1, searchTerm);
     }
   };
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
-      fetchInvoices(currentPage + 1);
+      fetchInvoices(currentPage + 1, searchTerm);
     }
   };
 
   const handleSearchClear = () => {
     setSearchTerm('');
-    setCurrentPage(1);
+    fetchInvoices(1, '');  // 검색 초기화 시 첫 페이지로 이동
+  };
+
+  // 검색어가 변경되면 첫 페이지부터 다시 검색
+  const handleSearch = () => {
+    fetchInvoices(1, searchTerm);
   };
 
   const handleDelete = async (invoiceId: number) => {
@@ -107,7 +119,7 @@ const Invoices: React.FC = () => {
     try {
       await invoiceAPI.deleteInvoice(invoiceId);
       alert('거래명세표가 삭제되었습니다.');
-      fetchInvoices(currentPage);
+      fetchInvoices(currentPage, searchTerm);
     } catch (error) {
       console.error('거래명세표 삭제 실패:', error);
       alert('거래명세표 삭제에 실패했습니다.');
@@ -123,7 +135,7 @@ const Invoices: React.FC = () => {
         alert('Excel 파일이 성공적으로 생성되었습니다.');
 
         // Refresh the invoice list to update file status
-        await fetchInvoices(currentPage);
+        await fetchInvoices(currentPage, searchTerm);
       } else {
         alert(`Excel 생성 실패: ${response.data.error}`);
       }
@@ -437,7 +449,7 @@ const Invoices: React.FC = () => {
 
       if (response.ok) {
         alert(data.message);
-        await fetchInvoices(currentPage);
+        await fetchInvoices(currentPage, searchTerm);
       } else {
         alert(data.error || '처리 실패');
       }
@@ -475,7 +487,7 @@ const Invoices: React.FC = () => {
 
       if (response.ok) {
         alert(data.message);
-        await fetchInvoices(currentPage);
+        await fetchInvoices(currentPage, searchTerm);
       } else {
         alert(data.error || '계산서 발행 처리 실패');
       }
@@ -486,17 +498,18 @@ const Invoices: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchInvoices(1);
+    fetchInvoices(1, searchTerm);
   }, [perPage]);
 
-  // 검색 필터링
-  const filteredInvoices = searchTerm
-    ? invoices.filter(invoice =>
-        invoice.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.issue_date?.includes(searchTerm)
-      )
-    : invoices;
+  // 검색어 입력 시 엔터키 처리
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  // 서버 사이드 검색으로 변경 - 클라이언트 필터링 제거
+  const filteredInvoices = invoices;
 
   return (
     <>
@@ -531,8 +544,8 @@ const Invoices: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
-                  setCurrentPage(1);
                 }}
+                onKeyDown={handleSearchKeyDown}
               />
               {searchTerm && (
                 <button
