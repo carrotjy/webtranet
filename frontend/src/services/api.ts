@@ -295,10 +295,11 @@ export const sparePartsAPI = {
 
 // Invoice API
 export const invoiceAPI = {
-  getInvoices: (params?: { page?: number; per_page?: number }) => {
+  getInvoices: (params?: { page?: number; per_page?: number; search?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.per_page) searchParams.append('per_page', params.per_page.toString());
+    if (params?.search) searchParams.append('search', params.search);
 
     const queryString = searchParams.toString();
     return api.get(`/api/invoices${queryString ? `?${queryString}` : ''}`);
