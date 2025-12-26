@@ -235,44 +235,121 @@ def generate_invoice_excel_v2(invoice_id):
         # 4. 공급자 정보 조회
         supplier = get_supplier_info()
 
-        # 5. 템플릿 복사
+        # 5. 파일 경로 설정
         customer_folder = os.path.join(INVOICE_BASE_DIR, invoice['customer_name'])
         os.makedirs(customer_folder, exist_ok=True)
 
         output_filename = f"거래명세서({invoice['customer_name']}).xlsx"
         output_path = os.path.join(customer_folder, output_filename)
 
-        # 템플릿 복사
-        shutil.copy2(TEMPLATE_PATH, output_path)
+        # 6. 발행일 기준 시트 이름 생성 (yymmdd 형식)
+        issue_date = datetime.strptime(invoice['issue_date'], '%Y-%m-%d')
+        sheet_name = issue_date.strftime('%y%m%d')
+        print(f"📅 시트 이름: {sheet_name} (발행일: {invoice['issue_date']})")
 
-        # 6. Excel 파일 열기
-        wb = load_workbook(output_path)
+        # 7. Excel 파일 열기 또는 생성
+        if os.path.exists(output_path):
+            # 기존 파일이 있으면 열기
+            print(f"📂 기존 파일 발견: {output_path}")
+            wb = load_workbook(output_path)
+        else:
+            # 기존 파일이 없으면 템플릿 복사
+            print(f"📝 새 파일 생성: {output_path}")
+            shutil.copy2(TEMPLATE_PATH, output_path)
+            wb = load_workbook(output_path)
 
-        # 7. 공급자 정보 입력
-        write_value_by_name(wb, 'provider_name', supplier['company_name'])
-        write_value_by_name(wb, 'provider_president', supplier['ceo_name'])
-        write_value_by_name(wb, 'provider_address', supplier['address'])
-        write_value_by_name(wb, 'provider_number', supplier['registration_number'])
-        write_value_by_name(wb, 'provider_tel', supplier['phone'])
-        write_value_by_name(wb, 'provider_fax', supplier['fax'])
+        # 8. 시트 준비 (동일 이름 시트가 있으면 삭제 후 재생성)
+        template_wb = load_workbook(TEMPLATE_PATH)
+        template_sheet = template_wb.active
 
-        # 8. 고객사 정보 입력
-        write_value_by_name(wb, 'customer_name', invoice['customer_name'])
-        write_value_by_name(wb, 'customer_address', invoice['customer_address'] or (customer['address'] if customer else ''))
-        write_value_by_name(wb, 'customer_tel', invoice['customer_tel'] or (customer['phone'] if customer else ''))
-        write_value_by_name(wb, 'customer_fax', invoice['customer_fax'] or (customer['fax'] if customer else ''))
+        if sheet_name in wb.sheetnames:
+            print(f"⚠️ 기존 시트 '{sheet_name}' 삭제")
+            del wb[sheet_name]
 
-        # 9. 기타 정보 입력
-        write_value_by_name(wb, 'invoice_number', invoice['invoice_number'])
-        write_value_by_name(wb, 'issue_date', invoice['issue_date'])
+        # 템플릿 시트를 복사하여 새 시트 생성
+        new_sheet = wb.create_sheet(title=sheet_name)
 
-        # 10. 금액 정보 입력
-        write_value_by_name(wb, 'amount_price', invoice['total_amount'])
-        write_value_by_name(wb, 'tax_price', invoice['vat_amount'])
-        write_value_by_name(wb, 'total_amount', invoice['grand_total'])
+        # 템플릿 시트의 모든 내용을 새 시트로 복사
+        for row in template_sheet.iter_rows():
+            for cell in row:
+                new_cell = new_sheet[cell.coordinate]
+                # 값 복사
+                if cell.value:
+                    new_cell.value = cell.value
+                # 스타일 복사
+                if cell.has_style:
+                    new_cell.font = cell.font.copy()
+                    new_cell.border = cell.border.copy()
+                    new_cell.fill = cell.fill.copy()
+                    new_cell.number_format = cell.number_format
+                    new_cell.protection = cell.protection.copy()
+                    new_cell.alignment = cell.alignment.copy()
 
-        # 11. 항목 데이터 입력 (16행부터 시작 - 15행은 헤더)
-        sheet = wb.active
+        # 병합된 셀 복사
+        for merged_cell_range in template_sheet.merged_cells.ranges:
+            new_sheet.merge_cells(str(merged_cell_range))
+
+        # 행 높이 복사
+        for row_num, row_dimension in template_sheet.row_dimensions.items():
+            new_sheet.row_dimensions[row_num].height = row_dimension.height
+
+        # 열 너비 복사
+        for col_letter, col_dimension in template_sheet.column_dimensions.items():
+            new_sheet.column_dimensions[col_letter].width = col_dimension.width
+
+        template_wb.close()
+        print(f"✅ 새 시트 '{sheet_name}' 생성 완료")
+
+        # 9. 작업할 시트를 새로 생성한 시트로 설정
+        sheet = new_sheet
+
+        # 10. Name Define을 새 시트에 복사 (템플릿에서 가져오기)
+        # openpyxl의 Name Define은 워크북 레벨이므로 시트별로 복사할 필요 없음
+        # 하지만 템플릿에 있는 Name Define 위치를 참조하여 직접 셀에 쓰기
+
+        # 템플릿의 Name Define 정보를 기반으로 셀 좌표 매핑
+        name_mappings = {
+            'provider_name': 'M5',
+            'provider_president': 'M6',
+            'provider_address': 'M7',
+            'provider_number': 'M8',
+            'provider_tel': 'M9',
+            'provider_fax': 'M10',
+            'customer_name': 'D5',
+            'customer_address': 'D7',
+            'customer_tel': 'D9',
+            'customer_fax': 'D10',
+            'invoice_number': 'AB5',
+            'issue_date': 'AB7',
+            'amount_price': 'W37',
+            'tax_price': 'AC37',
+            'total_amount': 'AB39'
+        }
+
+        # 11. 공급자 정보 입력
+        sheet[name_mappings['provider_name']] = supplier['company_name']
+        sheet[name_mappings['provider_president']] = supplier['ceo_name']
+        sheet[name_mappings['provider_address']] = supplier['address']
+        sheet[name_mappings['provider_number']] = supplier['registration_number']
+        sheet[name_mappings['provider_tel']] = supplier['phone']
+        sheet[name_mappings['provider_fax']] = supplier['fax']
+
+        # 12. 고객사 정보 입력
+        sheet[name_mappings['customer_name']] = invoice['customer_name']
+        sheet[name_mappings['customer_address']] = invoice['customer_address'] or (customer['address'] if customer else '')
+        sheet[name_mappings['customer_tel']] = invoice['customer_tel'] or (customer['phone'] if customer else '')
+        sheet[name_mappings['customer_fax']] = invoice['customer_fax'] or (customer['fax'] if customer else '')
+
+        # 13. 기타 정보 입력
+        sheet[name_mappings['invoice_number']] = invoice['invoice_number']
+        sheet[name_mappings['issue_date']] = invoice['issue_date']
+
+        # 14. 금액 정보 입력
+        sheet[name_mappings['amount_price']] = invoice['total_amount']
+        sheet[name_mappings['tax_price']] = invoice['vat_amount']
+        sheet[name_mappings['total_amount']] = invoice['grand_total']
+
+        # 15. 항목 데이터 입력 (16행부터 시작 - 15행은 헤더)
         current_row = 16  # 시작 행 (15행은 헤더 행)
 
         # 34행 이후 추가 행이 필요한 경우를 위한 템플릿 행 준비
@@ -510,18 +587,13 @@ def generate_invoice_excel_v2(invoice_id):
 
         # 13. 저장
         wb.save(output_path)
-        wb.close()
+        print(f"✅ Excel 파일 저장 완료: {output_path}")
+        print(f"   시트 목록: {wb.sheetnames}")
 
-        # 14. PDF 생성 (LibreOffice 사용) - 월별 폴더에 저장
+        # 14. PDF 생성 (특정 시트만 PDF로 변환) - 월별 폴더에 저장
         # 발행일자에서 년월 추출 (YYYY-MM-DD 형식)
         issue_date_str = invoice['issue_date']
-        try:
-            issue_date = datetime.strptime(issue_date_str, '%Y-%m-%d')
-            monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
-        except:
-            # 날짜 파싱 실패 시 현재 날짜 사용
-            now = datetime.now()
-            monthly_folder_name = f"{now.year}년{now.month:02d}월"
+        monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
 
         # 월별 폴더 생성
         monthly_folder = os.path.join(INVOICE_BASE_DIR, monthly_folder_name)
@@ -539,15 +611,85 @@ def generate_invoice_excel_v2(invoice_id):
 
         pdf_path = os.path.join(monthly_folder, pdf_filename)
         print(f"📁 PDF 저장 경로: {pdf_path}")
-        pdf_success = convert_excel_to_pdf(output_path, pdf_path)
+
+        # 특정 시트만 PDF로 변환하기 위해 임시 Excel 파일 생성
+        temp_excel_path = os.path.join(customer_folder, f"_temp_{sheet_name}.xlsx")
+        try:
+            # 새 워크북 생성하고 해당 시트만 복사
+            from openpyxl import Workbook
+            temp_wb = Workbook()
+            temp_wb.remove(temp_wb.active)  # 기본 시트 삭제
+
+            # 원본 시트 다시 로드 (wb.save() 후 다시 열어야 최신 데이터 반영됨)
+            wb.close()
+            wb = load_workbook(output_path)
+            source_sheet = wb[sheet_name]
+
+            # 새 시트 생성
+            temp_sheet = temp_wb.create_sheet(title='Sheet1')  # 기본 이름 사용
+
+            # 모든 셀 복사
+            for row in source_sheet.iter_rows():
+                for cell in row:
+                    new_cell = temp_sheet[cell.coordinate]
+                    if cell.value:
+                        new_cell.value = cell.value
+                    if cell.has_style:
+                        new_cell.font = cell.font.copy()
+                        new_cell.border = cell.border.copy()
+                        new_cell.fill = cell.fill.copy()
+                        new_cell.number_format = cell.number_format
+                        new_cell.protection = cell.protection.copy()
+                        new_cell.alignment = cell.alignment.copy()
+
+            # 병합된 셀 복사
+            for merged_cell_range in source_sheet.merged_cells.ranges:
+                temp_sheet.merge_cells(str(merged_cell_range))
+
+            # 행 높이 복사
+            for row_num, row_dimension in source_sheet.row_dimensions.items():
+                if row_dimension.height:
+                    temp_sheet.row_dimensions[row_num].height = row_dimension.height
+
+            # 열 너비 복사
+            for col_letter, col_dimension in source_sheet.column_dimensions.items():
+                temp_sheet.column_dimensions[col_letter].width = col_dimension.width
+
+            # 임시 파일 저장
+            temp_wb.save(temp_excel_path)
+            temp_wb.close()
+            wb.close()
+
+            print(f"📄 임시 Excel 파일 생성: {temp_excel_path}")
+
+            # 임시 파일을 PDF로 변환
+            pdf_success = convert_excel_to_pdf(temp_excel_path, pdf_path)
+
+            # 임시 파일 삭제
+            if os.path.exists(temp_excel_path):
+                os.remove(temp_excel_path)
+                print(f"🗑️  임시 파일 삭제: {temp_excel_path}")
+
+        except Exception as e:
+            print(f"❌ PDF 변환 중 오류: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            pdf_success = False
+            # 임시 파일 정리
+            if os.path.exists(temp_excel_path):
+                try:
+                    os.remove(temp_excel_path)
+                except:
+                    pass
 
         return {
             'success': True,
             'file_path': output_path,
             'filename': output_filename,
+            'sheet_name': sheet_name,
             'pdf_path': pdf_path if pdf_success else None,
             'pdf_filename': pdf_filename if pdf_success else None,
-            'message': '거래명세서가 성공적으로 생성되었습니다.' + (' (PDF 포함)' if pdf_success else ' (Excel만)')
+            'message': f'거래명세서가 성공적으로 생성되었습니다. (시트: {sheet_name})' + (' (PDF 포함)' if pdf_success else ' (Excel만)')
         }
 
     except Exception as e:
