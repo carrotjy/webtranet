@@ -64,12 +64,16 @@ const Invoices: React.FC = () => {
       // 검색어가 있으면 search 파라미터 추가
       if (search && search.trim()) {
         params.search = search.trim();
+        console.log('🔍 검색 요청:', { search: search.trim(), page, per_page: perPage });
+      } else {
+        console.log('📄 전체 목록 요청:', { page, per_page: perPage });
       }
 
       const response = await invoiceAPI.getInvoices(params);
 
       console.log('Invoice API 응답:', response.data);
       console.log('첫 번째 invoice:', response.data.invoices?.[0]);
+      console.log('검색 파라미터:', params);
 
       setInvoices(response.data.invoices || []);
       setTotal(response.data.total || 0);
@@ -108,6 +112,7 @@ const Invoices: React.FC = () => {
 
   // 검색어가 변경되면 첫 페이지부터 다시 검색
   const handleSearch = () => {
+    console.log('🔎 handleSearch 호출됨, searchTerm:', searchTerm);
     fetchInvoices(1, searchTerm);
   };
 
@@ -503,7 +508,9 @@ const Invoices: React.FC = () => {
 
   // 검색어 입력 시 엔터키 처리
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    console.log('⌨️ 키 입력:', e.key, 'searchTerm:', searchTerm);
     if (e.key === 'Enter') {
+      console.log('✅ 엔터키 감지! handleSearch 호출');
       handleSearch();
     }
   };
