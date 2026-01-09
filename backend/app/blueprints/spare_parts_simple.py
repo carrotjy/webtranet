@@ -201,8 +201,11 @@ def create_spare_part():
             'success': True,
             'message': '스페어파트가 생성되었습니다.'
         })
-        
+
     except Exception as e:
+        print(f"Exception occurred during part creation: {str(e)}")  # 추가 디버깅
+        import traceback
+        traceback.print_exc()  # 스택 트레이스 출력
         return jsonify({
             'success': False,
             'error': str(e)

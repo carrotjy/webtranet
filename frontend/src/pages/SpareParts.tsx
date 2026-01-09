@@ -577,7 +577,9 @@ const SpareParts: React.FC = () => {
       setSelectedPart(null);
       fetchSpareParts();
     } catch (err: any) {
-      setError('부품 등록에 실패했습니다.');
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || '부품 등록에 실패했습니다.';
+      setError(errorMessage);
+      console.error('부품 등록 에러:', err.response?.data);
     }
   };
 

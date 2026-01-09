@@ -239,10 +239,10 @@ def generate_invoice_excel_v2(invoice_id):
         customer_folder = os.path.join(INVOICE_BASE_DIR, invoice['customer_name'])
         os.makedirs(customer_folder, exist_ok=True)
 
-        # 발행일 기준 파일명 생성 (yymmdd 형식)
+        # 거래명세표 번호 기준 파일명 생성 (yymmdd## 형식, 8자리)
         issue_date = datetime.strptime(invoice['issue_date'], '%Y-%m-%d')
-        date_suffix = issue_date.strftime('%y%m%d')
-        output_filename = f"거래명세서({invoice['customer_name']})-{date_suffix}.xlsx"
+        invoice_number = invoice['invoice_number']
+        output_filename = f"거래명세서({invoice['customer_name']})-{invoice_number}.xlsx"
         output_path = os.path.join(customer_folder, output_filename)
 
         # 템플릿 복사
