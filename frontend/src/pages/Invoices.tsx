@@ -145,9 +145,9 @@ const Invoices: React.FC = () => {
     }
   };
 
-  const handleDownloadExcel = async (customerName: string) => {
+  const handleDownloadExcel = async (customerName: string, invoiceNumber: string) => {
     try {
-      const filename = `거래명세서(${customerName}).xlsx`;
+      const filename = `거래명세서(${customerName})-${invoiceNumber}.xlsx`;
       const excelUrl = `/api/invoice-excel/${encodeURIComponent(customerName)}/${encodeURIComponent(filename)}`;
 
       // fetch를 사용하여 파일 다운로드
@@ -906,7 +906,7 @@ const Invoices: React.FC = () => {
                                       onChange={() => toggleSelectExcel(invoice.id)}
                                     />
                                     <span
-                                      onClick={() => handleDownloadExcel(invoice.customer_name)}
+                                      onClick={() => handleDownloadExcel(invoice.customer_name, invoice.invoice_number)}
                                       className="badge"
                                       style={{
                                         cursor: 'pointer',

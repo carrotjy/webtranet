@@ -66,7 +66,8 @@ def get_invoices():
 
             # 파일 존재 여부 확인
             customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
-            excel_path = os.path.join(customer_folder, f'거래명세서({invoice.customer_name}).xlsx')
+            excel_filename = f'거래명세서({invoice.customer_name})-{invoice.invoice_number}.xlsx'
+            excel_path = os.path.join(customer_folder, excel_filename)
 
             # Excel 파일 존재 여부
             invoice_dict['has_excel'] = os.path.exists(excel_path)
