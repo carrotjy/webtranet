@@ -50,6 +50,38 @@ def migrate_invoices_table(conn):
         conn.rollback()
         return False
 
+def migrate_users_soft_delete(conn):
+    """users 테이블에 소프트 삭제 컬럼 추가"""
+    print("=== users 테이블 소프트 삭제 마이그레이션 시작 ===")
+
+    # is_deleted 컬럼 확인 및 추가
+    if not check_column_exists(conn, 'users', 'is_deleted'):
+        try:
+            conn.execute('ALTER TABLE users ADD COLUMN is_deleted BOOLEAN DEFAULT 0')
+            conn.commit()
+            print("✓ is_deleted 컬럼이 성공적으로 추가되었습니다.")
+        except Exception as e:
+            print(f"✗ is_deleted 컬럼 추가 실패: {str(e)}")
+            conn.rollback()
+            return False
+    else:
+        print("✓ is_deleted 컬럼이 이미 존재합니다.")
+
+    # deleted_at 컬럼 확인 및 추가
+    if not check_column_exists(conn, 'users', 'deleted_at'):
+        try:
+            conn.execute('ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP')
+            conn.commit()
+            print("✓ deleted_at 컬럼이 성공적으로 추가되었습니다.")
+        except Exception as e:
+            print(f"✗ deleted_at 컬럼 추가 실패: {str(e)}")
+            conn.rollback()
+            return False
+    else:
+        print("✓ deleted_at 컬럼이 이미 존재합니다.")
+
+    return True
+
 def verify_migration(conn):
     """마이그레이션 검증"""
     print("\n=== 마이그레이션 검증 ===")
@@ -133,10 +165,17 @@ def main():
     # 마이그레이션 실행
     print("\n3. 마이그레이션 실행 중...")
     try:
+        # 1) invoices 테이블 마이그레이션
         success = migrate_invoices_table(conn)
-
         if not success:
-            print("\n마이그레이션이 실패했습니다.")
+            print("\ninvoices 테이블 마이그레이션이 실패했습니다.")
+            conn.close()
+            return
+
+        # 2) users 소프트 삭제 마이그레이션
+        success = migrate_users_soft_delete(conn)
+        if not success:
+            print("\nusers 테이블 마이그레이션이 실패했습니다.")
             conn.close()
             return
 
