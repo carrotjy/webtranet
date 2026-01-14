@@ -637,37 +637,22 @@ const ServiceReports: React.FC = () => {
     }
   };
 
-  // 고객 검색 함수 - API를 통해 전체 고객 리스트에서 검색
-  const searchCustomers = async (searchTerm: string) => {
+  // 고객 검색 함수 - 로컬 customers 배열에서 즉시 필터링 (거래명세표와 동일한 방식)
+  const searchCustomers = (searchTerm: string) => {
     if (searchTerm.length < 1) {
       setCustomerSearchResults([]);
       setShowCustomerSearch(false);
       return;
     }
 
-    try {
-      // API를 통해 전체 고객 리스트에서 검색
-      const response = await customerAPI.getCustomers();
-      const allCustomers = response.data?.customers || response.data || [];
-      
-      const filteredCustomers = allCustomers.filter((customer: Customer) =>
-        customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
-      ); // 제한 없이 모든 검색 결과 표시
-      
-      setCustomerSearchResults(filteredCustomers);
-      setShowCustomerSearch(true); // 검색 결과가 없어도 드롭다운을 표시 (새 고객사 추가 옵션 때문에)
-    } catch (error) {
-      console.error('고객 검색 실패:', error);
-      // API 실패 시 로컬 customers 배열에서 검색
-      const filteredCustomers = customers.filter(customer =>
-        customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      
-      setCustomerSearchResults(filteredCustomers);
-      setShowCustomerSearch(true); // 검색 결과가 없어도 드롭다운을 표시 (새 고객사 추가 옵션 때문에)
-    }
+    // 로컬 customers 배열에서 즉시 필터링 (API 호출 없음)
+    const filteredCustomers = customers.filter(customer =>
+      customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    setCustomerSearchResults(filteredCustomers);
+    setShowCustomerSearch(true); // 검색 결과가 없어도 드롭다운을 표시 (새 고객사 추가 옵션 때문에)
   };
 
   // 고객 선택 시 리소스 통합 (핵심 기능)
