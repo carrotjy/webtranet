@@ -61,6 +61,17 @@ def init_database():
     except sqlite3.OperationalError:
         pass  # 컬럼이 이미 존재함
 
+    # users 테이블에 소프트 삭제 컬럼 추가 (마이그레이션)
+    try:
+        conn.execute('ALTER TABLE users ADD COLUMN is_deleted BOOLEAN DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+
+    try:
+        conn.execute('ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP')
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재함
+
     # users 테이블에 spare_parts 관련 권한 컬럼 추가
     spare_parts_columns = [
         'spare_parts_edit', 'spare_parts_delete',

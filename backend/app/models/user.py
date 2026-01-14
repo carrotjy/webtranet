@@ -87,10 +87,10 @@ class User:
     
     @classmethod
     def get_by_email(cls, email):
-        """이메일로 사용자 조회"""
+        """이메일로 사용자 조회 (로그인용, 삭제된 사용자 제외)"""
         conn = get_db_connection()
         user_data = conn.execute(
-            'SELECT * FROM users WHERE email = ?', (email,)
+            'SELECT * FROM users WHERE email = ? AND (is_deleted = 0 OR is_deleted IS NULL)', (email,)
         ).fetchone()
         conn.close()
 
@@ -237,10 +237,10 @@ class User:
     
     @classmethod
     def get_all(cls):
-        """모든 사용자 조회"""
+        """모든 사용자 조회 (삭제되지 않은 사용자만)"""
         conn = get_db_connection()
         users_data = conn.execute(
-            'SELECT * FROM users ORDER BY name'
+            'SELECT * FROM users WHERE is_deleted = 0 OR is_deleted IS NULL ORDER BY name'
         ).fetchall()
         conn.close()
 
@@ -303,10 +303,10 @@ class User:
     
     @classmethod
     def get_by_department(cls, department):
-        """부서별 사용자 조회"""
+        """부서별 사용자 조회 (삭제되지 않은 사용자만)"""
         conn = get_db_connection()
         users_data = conn.execute(
-            'SELECT * FROM users WHERE department = ? ORDER BY name',
+            'SELECT * FROM users WHERE department = ? AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY name',
             (department,)
         ).fetchall()
         conn.close()
@@ -597,10 +597,13 @@ class User:
             return None
     
     def delete(self):
-        """사용자 삭제"""
+        """사용자 소프트 삭제 (실제 삭제가 아닌 is_deleted 플래그만 변경)"""
         if self.id:
             conn = get_db_connection()
-            conn.execute('DELETE FROM users WHERE id = ?', (self.id,))
+            conn.execute(
+                'UPDATE users SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP WHERE id = ?',
+                (self.id,)
+            )
             conn.commit()
             conn.close()
             return True
