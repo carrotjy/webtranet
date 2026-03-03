@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
+import api from '../services/api';
 
 interface User {
   id: number;
@@ -66,35 +67,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchUser = async () => {
       if (token) {
         try {
-          // 환경에 따른 API URL 설정
-          const API_BASE_URL = process.env.REACT_APP_API_URL || (
-            process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000'
-          );
-
-          // API로부터 최신 사용자 정보 가져오기
-          const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            setUser(data.user);
-            localStorage.setItem('user', JSON.stringify(data.user));
-          } else {
-            // 토큰이 유효하지 않으면 즉시 로그아웃
-            throw new Error('Invalid or expired token');
+          // axios api 인스턴스 사용 - 인터셉터가 자동으로 토큰 갱신 처리
+          const response = await api.get('/api/auth/me');
+          setUser(response.data.user);
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+          // api.ts 인터셉터가 토큰을 갱신했을 수 있으므로 state 동기화
+          const currentToken = localStorage.getItem('token');
+          if (currentToken && currentToken !== token) {
+            setToken(currentToken);
           }
         } catch (error) {
+          // api.ts 인터셉터가 refresh 시도 후 실패하면 이미 /login으로 리다이렉트함
+          // 여기서는 state만 초기화
           console.error('사용자 정보 조회 실패:', error);
-          localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
           setToken(null);
           setUser(null);
-          // 로그인 페이지로 즉시 리디렉션
-          window.location.href = '/login';
         }
       }
       setLoading(false);
@@ -103,40 +90,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchUser();
   }, [token]);
 
-  // 주기적으로 토큰 유효성 검증 (5분마다)
+  // 주기적으로 토큰 유효성 검증 (10분마다)
+  // api 인스턴스 사용으로 access token 만료 시 refresh token으로 자동 갱신됨
+  // refresh token도 만료된 경우에만 api.ts 인터셉터가 /login으로 리다이렉트
   useEffect(() => {
     if (!token || !user) return;
 
     const validateToken = async () => {
       try {
-        const API_BASE_URL = process.env.REACT_APP_API_URL || (
-          process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000'
-        );
-
-        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (!response.ok) {
-          // 토큰이 만료되었으면 즉시 로그아웃
-          console.error('토큰이 만료되었습니다. 다시 로그인해주세요.');
-          localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
-          setToken(null);
-          setUser(null);
-          alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-          window.location.href = '/login';
+        const response = await api.get('/api/auth/me');
+        // 토큰이 갱신됐을 수 있으므로 state 동기화
+        const currentToken = localStorage.getItem('token');
+        if (currentToken && currentToken !== token) {
+          setToken(currentToken);
         }
+        setUser(response.data.user);
       } catch (error) {
+        // api.ts 인터셉터가 refresh 실패 시 이미 /login으로 리다이렉트 처리함
         console.error('토큰 검증 실패:', error);
       }
     };
 
-    // 5분마다 토큰 유효성 검증
-    const interval = setInterval(validateToken, 5 * 60 * 1000);
+    // 10분마다 토큰 유효성 검증
+    const interval = setInterval(validateToken, 10 * 60 * 1000);
 
     // 컴포넌트 언마운트 시 interval 정리
     return () => clearInterval(interval);
