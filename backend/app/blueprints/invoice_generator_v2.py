@@ -345,12 +345,14 @@ def generate_invoice_excel_v2(invoice_id):
                 if item['item_name']:
                     # 품목은 C:H merged range의 시작 셀인 C에 쓰기
                     header_cell = safe_write_to_cell(f'C{current_row}', item['item_name'])
-                    # 헤더 행도 자동 줄바꿈 설정
                     if header_cell:
                         from openpyxl.styles import Alignment
                         old_alignment = header_cell.alignment
+                        h = item['item_name']
+                        is_long = len(h.encode('euc-kr', errors='replace')) >= 14
                         header_cell.alignment = Alignment(
-                            wrap_text=True,
+                            shrink_to_fit=is_long,
+                            wrap_text=(not is_long),
                             horizontal=old_alignment.horizontal if old_alignment else 'left',
                             vertical=old_alignment.vertical if old_alignment else 'center'
                         )
@@ -374,12 +376,14 @@ def generate_invoice_excel_v2(invoice_id):
                 item_name = str(item['item_name']).replace('네고', 'NEGO')
                 item_cell = safe_write_to_cell(f'C{current_row}', item_name)
 
-                # 자동 줄바꿈 설정 (긴 품목명 처리)
+                # 14바이트 이상이면 셀맞춤(shrink_to_fit), 미만이면 줄바꿈
                 if item_cell:
                     from openpyxl.styles import Alignment, Font
                     old_alignment = item_cell.alignment
+                    is_long = len(item_name.encode('euc-kr', errors='replace')) >= 14
                     item_cell.alignment = Alignment(
-                        wrap_text=True,
+                        shrink_to_fit=is_long,
+                        wrap_text=(not is_long),
                         horizontal=old_alignment.horizontal if old_alignment else 'left',
                         vertical=old_alignment.vertical if old_alignment else 'center'
                     )
