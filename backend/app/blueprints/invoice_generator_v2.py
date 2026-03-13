@@ -450,55 +450,76 @@ def generate_invoice_excel_v2(invoice_id):
             if item['unit_price']:
                 # 단가는 S에 쓰기
                 price_cell = safe_write_to_cell(f'S{current_row}', item['unit_price'])
-                if is_nego and price_cell:
-                    from openpyxl.styles import Font
-                    old_font = price_cell.font
-                    price_cell.font = Font(
-                        name=old_font.name,
-                        size=old_font.size,
-                        bold=old_font.bold,
-                        italic=old_font.italic,
-                        vertAlign=old_font.vertAlign,
-                        underline=old_font.underline,
-                        strike=old_font.strike,
-                        color="FF0000"
+                if price_cell:
+                    from openpyxl.styles import Alignment, Font
+                    old_alignment = price_cell.alignment
+                    price_cell.alignment = Alignment(
+                        shrink_to_fit=True,
+                        horizontal=old_alignment.horizontal if old_alignment else 'right',
+                        vertical=old_alignment.vertical if old_alignment else 'center'
                     )
+                    if is_nego:
+                        old_font = price_cell.font
+                        price_cell.font = Font(
+                            name=old_font.name,
+                            size=old_font.size,
+                            bold=old_font.bold,
+                            italic=old_font.italic,
+                            vertAlign=old_font.vertAlign,
+                            underline=old_font.underline,
+                            strike=old_font.strike,
+                            color="FF0000"
+                        )
 
             if item['total_price']:
                 # 공급가액은 X에 쓰기
                 total_cell = safe_write_to_cell(f'X{current_row}', item['total_price'])
-                if is_nego and total_cell:
-                    from openpyxl.styles import Font
-                    old_font = total_cell.font
-                    total_cell.font = Font(
-                        name=old_font.name,
-                        size=old_font.size,
-                        bold=old_font.bold,
-                        italic=old_font.italic,
-                        vertAlign=old_font.vertAlign,
-                        underline=old_font.underline,
-                        strike=old_font.strike,
-                        color="FF0000"
+                if total_cell:
+                    from openpyxl.styles import Alignment, Font
+                    old_alignment = total_cell.alignment
+                    total_cell.alignment = Alignment(
+                        shrink_to_fit=True,
+                        horizontal=old_alignment.horizontal if old_alignment else 'right',
+                        vertical=old_alignment.vertical if old_alignment else 'center'
                     )
+                    if is_nego:
+                        old_font = total_cell.font
+                        total_cell.font = Font(
+                            name=old_font.name,
+                            size=old_font.size,
+                            bold=old_font.bold,
+                            italic=old_font.italic,
+                            vertAlign=old_font.vertAlign,
+                            underline=old_font.underline,
+                            strike=old_font.strike,
+                            color="FF0000"
+                        )
 
             # 세액 계산 (10%)
             vat = round(item['total_price'] * 0.1) if item['total_price'] else 0
             if vat:
                 # 세액은 AC에 쓰기
                 vat_cell = safe_write_to_cell(f'AC{current_row}', vat)
-                if is_nego and vat_cell:
-                    from openpyxl.styles import Font
-                    old_font = vat_cell.font
-                    vat_cell.font = Font(
-                        name=old_font.name,
-                        size=old_font.size,
-                        bold=old_font.bold,
-                        italic=old_font.italic,
-                        vertAlign=old_font.vertAlign,
-                        underline=old_font.underline,
-                        strike=old_font.strike,
-                        color="FF0000"
+                if vat_cell:
+                    from openpyxl.styles import Alignment, Font
+                    old_alignment = vat_cell.alignment
+                    vat_cell.alignment = Alignment(
+                        shrink_to_fit=True,
+                        horizontal=old_alignment.horizontal if old_alignment else 'right',
+                        vertical=old_alignment.vertical if old_alignment else 'center'
                     )
+                    if is_nego:
+                        old_font = vat_cell.font
+                        vat_cell.font = Font(
+                            name=old_font.name,
+                            size=old_font.size,
+                            bold=old_font.bold,
+                            italic=old_font.italic,
+                            vertAlign=old_font.vertAlign,
+                            underline=old_font.underline,
+                            strike=old_font.strike,
+                            color="FF0000"
+                        )
 
             current_row += 1
 
