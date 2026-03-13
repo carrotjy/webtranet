@@ -214,7 +214,8 @@ const Customers: React.FC = () => {
         mobile: '',
         contact: '',
         homepage: '',
-        business_card_image: ''
+        business_card_image: '',
+        statement_receive_method: '팩스'
       });
       loadCustomers();
     } catch (error) {
