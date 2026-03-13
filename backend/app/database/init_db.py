@@ -209,6 +209,11 @@ def init_database():
     except sqlite3.OperationalError:
         pass
 
+    try:
+        conn.execute("ALTER TABLE customers ADD COLUMN statement_receive_method TEXT DEFAULT '팩스'")
+    except sqlite3.OperationalError:
+        pass
+
     # service_reports 테이블에 invoice_code_id 컬럼 추가
     try:
         conn.execute('ALTER TABLE service_reports ADD COLUMN invoice_code_id INTEGER')

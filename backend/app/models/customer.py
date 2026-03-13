@@ -6,6 +6,7 @@ class Customer:
                  email=None, phone=None, address=None, notes=None,
                  postal_code=None, tel=None, fax=None, president=None,
                  mobile=None, contact=None, homepage=None, business_card_image=None,
+                 statement_receive_method=None,
                  created_at=None, updated_at=None):
 
         # None 값을 빈 문자열로 안전하게 변환하는 헬퍼 함수
@@ -29,6 +30,7 @@ class Customer:
         self.contact = safe_str(contact)
         self.homepage = safe_str(homepage)
         self.business_card_image = safe_str(business_card_image)
+        self.statement_receive_method = safe_str(statement_receive_method) if statement_receive_method else '팩스'
         self.created_at = created_at
         self.updated_at = updated_at
     
@@ -160,28 +162,28 @@ class Customer:
                     company_name=?, contact_person=?, email=?, phone=?,
                     address=?, postal_code=?, tel=?, fax=?, president=?,
                     mobile=?, contact=?, homepage=?, business_card_image=?,
-                    notes=?, updated_at=CURRENT_TIMESTAMP
+                    notes=?, statement_receive_method=?, updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
                 ''', (safe_value(self.company_name), safe_value(self.contact_person),
                       safe_value(self.email), safe_value(self.phone), safe_value(self.address),
                       safe_value(self.postal_code), safe_value(self.tel), safe_value(self.fax),
                       safe_value(self.president), safe_value(self.mobile), safe_value(self.contact),
                       safe_value(self.homepage), safe_value(self.business_card_image),
-                      safe_value(self.notes), self.id))
+                      safe_value(self.notes), safe_value(self.statement_receive_method), self.id))
             else:
                 # 신규 생성
                 cursor = conn.execute('''
                     INSERT INTO customers
                     (company_name, contact_person, email, phone, address,
                      postal_code, tel, fax, president, mobile, contact, homepage,
-                     business_card_image, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     business_card_image, notes, statement_receive_method)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (safe_value(self.company_name), safe_value(self.contact_person),
                       safe_value(self.email), safe_value(self.phone), safe_value(self.address),
                       safe_value(self.postal_code), safe_value(self.tel), safe_value(self.fax),
                       safe_value(self.president), safe_value(self.mobile), safe_value(self.contact),
                       safe_value(self.homepage), safe_value(self.business_card_image),
-                      safe_value(self.notes)))
+                      safe_value(self.notes), safe_value(self.statement_receive_method)))
                 self.id = cursor.lastrowid
 
             conn.commit()
@@ -209,14 +211,14 @@ class Customer:
                 company_name=?, contact_person=?, email=?, phone=?,
                 address=?, postal_code=?, tel=?, fax=?, president=?,
                 mobile=?, contact=?, homepage=?, business_card_image=?,
-                notes=?, updated_at=CURRENT_TIMESTAMP
+                notes=?, statement_receive_method=?, updated_at=CURRENT_TIMESTAMP
                 WHERE id=?
             ''', (safe_value(self.company_name), safe_value(self.contact_person),
                   safe_value(self.email), safe_value(self.phone), safe_value(self.address),
                   safe_value(self.postal_code), safe_value(self.tel), safe_value(self.fax),
                   safe_value(self.president), safe_value(self.mobile), safe_value(self.contact),
                   safe_value(self.homepage), safe_value(self.business_card_image),
-                  safe_value(self.notes), self.id))
+                  safe_value(self.notes), safe_value(self.statement_receive_method), self.id))
 
             conn.commit()
             return True
@@ -289,6 +291,7 @@ class Customer:
                 contact=safe_get(row, 'contact'),
                 homepage=safe_get(row, 'homepage'),
                 business_card_image=safe_get(row, 'business_card_image'),
+                statement_receive_method=safe_get(row, 'statement_receive_method'),
                 notes=safe_get(row, 'notes'),
                 created_at=safe_get(row, 'created_at'),
                 updated_at=safe_get(row, 'updated_at')
@@ -315,6 +318,7 @@ class Customer:
             'contact': self.contact,
             'homepage': self.homepage,
             'business_card_image': self.business_card_image,
+            'statement_receive_method': self.statement_receive_method,
             'notes': self.notes,
             'created_at': self.created_at,
             'updated_at': self.updated_at,

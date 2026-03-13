@@ -57,12 +57,19 @@ def get_invoices():
         for invoice in invoices:
             invoice_dict = invoice.to_dict()
 
-            # 고객 팩스번호 조회
+            # 명세서 수신 방법에 따라 팩스번호 또는 이메일 조회
             customer = user_conn.execute(
-                "SELECT fax FROM customers WHERE company_name = ?",
+                "SELECT fax, email, statement_receive_method FROM customers WHERE company_name = ?",
                 (invoice.customer_name,)
             ).fetchone()
-            invoice_dict['fax_number'] = customer['fax'] if customer and customer['fax'] else None
+            if customer:
+                method = customer['statement_receive_method'] or '팩스'
+                if method == '이메일':
+                    invoice_dict['fax_number'] = customer['email'] if customer['email'] else None
+                else:
+                    invoice_dict['fax_number'] = customer['fax'] if customer['fax'] else None
+            else:
+                invoice_dict['fax_number'] = None
 
             # 파일 존재 여부 확인
             customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)

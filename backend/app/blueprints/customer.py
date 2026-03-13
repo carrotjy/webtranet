@@ -147,7 +147,8 @@ def create_customer():
             contact=data.get('contact', ''),
             homepage=data.get('homepage', ''),
             business_card_image=data.get('business_card_image', ''),
-            notes=data.get('notes', '')
+            notes=data.get('notes', ''),
+            statement_receive_method=data.get('statement_receive_method', '팩스')
         )
 
         customer_id = customer.save()
@@ -188,6 +189,7 @@ def update_customer(customer_id):
         customer.homepage = data.get('homepage', customer.homepage)
         customer.business_card_image = data.get('business_card_image', customer.business_card_image)
         customer.notes = data.get('notes', customer.notes)
+        customer.statement_receive_method = data.get('statement_receive_method', customer.statement_receive_method)
         
         if customer.save():
             return jsonify({

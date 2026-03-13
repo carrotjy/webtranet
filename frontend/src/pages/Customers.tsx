@@ -18,6 +18,7 @@ interface Customer {
   contact?: string;
   homepage?: string;
   business_card_image?: string;
+  statement_receive_method?: string;
   updated_at?: string;
   resources?: Resource[];
 }
@@ -45,6 +46,7 @@ interface CustomerForm {
   contact: string;
   homepage: string;
   business_card_image: string;
+  statement_receive_method: string;
 }
 
 const CATEGORIES = ['Pressbrake', 'Laser', 'Software'];
@@ -83,7 +85,8 @@ const Customers: React.FC = () => {
     mobile: '',
     contact: '',
     homepage: '',
-    business_card_image: ''
+    business_card_image: '',
+    statement_receive_method: '팩스'
   });
 
   const [resourceFormData, setResourceFormData] = useState<Resource>({
@@ -294,7 +297,8 @@ const Customers: React.FC = () => {
       mobile: customer.mobile || '',
       contact: customer.contact || '',
       homepage: customer.homepage || '',
-      business_card_image: customer.business_card_image || ''
+      business_card_image: customer.business_card_image || '',
+      statement_receive_method: customer.statement_receive_method || '팩스'
     });
     setShowForm(true);
   };
@@ -313,7 +317,8 @@ const Customers: React.FC = () => {
       mobile: '',
       contact: '',
       homepage: '',
-      business_card_image: ''
+      business_card_image: '',
+      statement_receive_method: '팩스'
     });
     setShowForm(true);
   };
@@ -644,6 +649,37 @@ const Customers: React.FC = () => {
                           onChange={(e) => setFormData({...formData, homepage: e.target.value})}
                           placeholder="http://example.com"
                         />
+                      </div>
+                    </div>
+
+                    {/* 명세서 수신 방법 */}
+                    <div className="col-md-12">
+                      <div className="mb-3">
+                        <label className="form-label">명세서 수신 방법</label>
+                        <div className="d-flex gap-4 mt-1">
+                          <label className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="radio"
+                              name="statement_receive_method"
+                              value="팩스"
+                              checked={formData.statement_receive_method === '팩스'}
+                              onChange={(e) => setFormData({...formData, statement_receive_method: e.target.value})}
+                            />
+                            <span className="form-check-label">팩스</span>
+                          </label>
+                          <label className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="radio"
+                              name="statement_receive_method"
+                              value="이메일"
+                              checked={formData.statement_receive_method === '이메일'}
+                              onChange={(e) => setFormData({...formData, statement_receive_method: e.target.value})}
+                            />
+                            <span className="form-check-label">이메일</span>
+                          </label>
+                        </div>
                       </div>
                     </div>
                   </div>

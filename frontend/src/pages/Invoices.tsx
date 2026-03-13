@@ -654,7 +654,7 @@ const Invoices: React.FC = () => {
                           <tr>
                             <th style={{ textAlign: 'center' }}>거래명세표 번호</th>
                             <th style={{ textAlign: 'center' }}>고객명</th>
-                            <th style={{ textAlign: 'center' }}>팩스번호</th>
+                            <th style={{ textAlign: 'center' }}>명세서발송</th>
                             <th style={{ textAlign: 'center' }}>발행일</th>
                             <th style={{ textAlign: 'center', width: '40px' }}>SR</th>
                             <th style={{ textAlign: 'center' }}>Invoice Code</th>
@@ -766,7 +766,7 @@ const Invoices: React.FC = () => {
                                   </div>
                                 </div>
                               </td>
-                              <td data-label="팩스번호" style={{ textAlign: 'center' }}>
+                              <td data-label="명세서발송" style={{ textAlign: 'center' }}>
                                 {invoice.fax_number ? (
                                   <button
                                     type="button"
@@ -774,10 +774,10 @@ const Invoices: React.FC = () => {
                                     onClick={() => {
                                       if (invoice.fax_number) {
                                         navigator.clipboard.writeText(invoice.fax_number);
-                                        alert(`팩스번호가 복사되었습니다: ${invoice.fax_number}`);
+                                        alert(`복사되었습니다: ${invoice.fax_number}`);
                                       }
                                     }}
-                                    title="클릭하여 팩스번호 복사"
+                                    title="클릭하여 복사"
                                   >
                                     {invoice.fax_number}
                                   </button>
