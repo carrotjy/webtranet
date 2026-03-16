@@ -896,6 +896,31 @@ def get_price_history(part_id):
             'error': str(e)
         }), 500
 
+@spare_parts_bp.route('/spare-parts/<int:part_id>/price-history/<int:price_id>', methods=['DELETE'])
+@jwt_required()
+def delete_price_history(part_id, price_id):
+    """가격 이력 삭제"""
+    try:
+        conn = get_db_connection()
+
+        row = conn.execute(
+            'SELECT id FROM price_history WHERE id = ? AND spare_part_id = ?',
+            (price_id, part_id)
+        ).fetchone()
+
+        if not row:
+            conn.close()
+            return jsonify({'success': False, 'error': '가격 이력을 찾을 수 없습니다.'}), 404
+
+        conn.execute('DELETE FROM price_history WHERE id = ?', (price_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'message': '가격 이력이 삭제되었습니다.'}), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @spare_parts_bp.route('/spare-parts/<int:part_id>/price-history', methods=['POST'])
 @jwt_required()
 def add_price_history(part_id):

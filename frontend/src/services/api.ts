@@ -291,6 +291,10 @@ export const sparePartsAPI = {
   // 입출고 내역 삭제
   deleteStockHistory: (historyId: number) =>
     api.delete(`/api/spare-parts/history/${historyId}`),
+
+  // 가격 이력 삭제
+  deletePriceHistory: (partId: number, priceId: number) =>
+    api.delete(`/api/spare-parts/${partId}/price-history/${priceId}`),
 };
 
 // Invoice API

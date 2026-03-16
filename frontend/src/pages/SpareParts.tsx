@@ -2213,6 +2213,7 @@ const SpareParts: React.FC = () => {
                             <th style={{ fontSize: '14px' }}>부품타입</th>
                             <th style={{ fontSize: '14px' }}>등록자</th>
                             <th style={{ fontSize: '14px' }}>비고</th>
+                            <th style={{ fontSize: '14px', width: '60px' }}></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2258,11 +2259,37 @@ const SpareParts: React.FC = () => {
                                   <span style={{ fontSize: '14px', color: '#6c757d' }}>{price.created_by}</span>
                                 </td>
                                 <td style={{ fontSize: '14px' }}>{price.notes || '-'}</td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-ghost-danger"
+                                    title="이 가격 이력 삭제"
+                                    onClick={async () => {
+                                      if (!selectedPart) return;
+                                      if (!window.confirm('이 가격 이력을 삭제하시겠습니까?')) return;
+                                      try {
+                                        await api.delete(`/api/spare-parts/${selectedPart.id}/price-history/${price.id}`);
+                                        setPriceHistory(prev => prev.filter(p => p.id !== price.id));
+                                      } catch (e) {
+                                        alert('가격 이력 삭제에 실패했습니다.');
+                                      }
+                                    }}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                      <line x1="4" y1="7" x2="20" y2="7"/>
+                                      <line x1="10" y1="11" x2="10" y2="17"/>
+                                      <line x1="14" y1="11" x2="14" y2="17"/>
+                                      <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>
+                                      <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
+                                    </svg>
+                                  </button>
+                                </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan={7} className="text-center text-muted" style={{ fontSize: '14px' }}>
+                              <td colSpan={8} className="text-center text-muted" style={{ fontSize: '14px' }}>
                                 가격 정보가 없습니다. "가격정보" 버튼을 클릭하여 추가하세요.
                               </td>
                             </tr>
