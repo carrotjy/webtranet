@@ -51,7 +51,7 @@ interface CustomerForm {
   past_company_names: string; // 쉼표 구분 문자열로 편집
 }
 
-const CATEGORIES = ['Pressbrake', 'Laser', 'Software'];
+const CATEGORIES = ['Pressbrake', 'Laser', 'Punch', 'Shear', 'Software'];
 
 const Customers: React.FC = () => {
   const { user, hasPermission } = useAuth();

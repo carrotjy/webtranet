@@ -35,7 +35,7 @@ interface Customer {
   contact: string;
 }
 
-const CATEGORIES = ['Pressbrake', 'Laser', 'Software'];
+const CATEGORIES = ['Pressbrake', 'Laser', 'Punch', 'Shear', 'Software'];
 
 const ResourceManagement: React.FC = () => {
   const { user, hasPermission } = useAuth();
