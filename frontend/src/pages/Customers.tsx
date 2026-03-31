@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { customerAPI, resourceAPI } from '../services/api';
 import Pagination from '../components/Pagination';
 import { useAuth } from '../contexts/AuthContext';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 interface Customer {
   id: number;
@@ -371,6 +373,123 @@ const Customers: React.FC = () => {
         alert('리소스 삭제 중 오류가 발생했습니다.');
       }
     }
+  };
+
+  // 고객정보 엑셀 내보내기
+  const handleExportExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('고객정보');
+
+    // 열 정의
+    const columns = [
+      { header: '회사명', key: 'company_name', width: 22 },
+      { header: '과거사업자명', key: 'past_company_names', width: 22 },
+      { header: '담당자', key: 'contact_person', width: 12 },
+      { header: '담당자연락처', key: 'contact', width: 16 },
+      { header: '전화번호', key: 'phone', width: 16 },
+      { header: '팩스번호', key: 'fax', width: 16 },
+      { header: '대표자', key: 'president', width: 12 },
+      { header: '대표자휴대폰', key: 'mobile', width: 16 },
+      { header: '이메일', key: 'email', width: 24 },
+      { header: '주소', key: 'address', width: 36 },
+      { header: '우편번호', key: 'postal_code', width: 10 },
+      { header: '홈페이지', key: 'homepage', width: 28 },
+      { header: '명세서수신', key: 'statement_receive_method', width: 12 },
+      { header: '장비카테고리', key: 'category', width: 14 },
+      { header: '제품명', key: 'product_name', width: 22 },
+      { header: '시리얼번호', key: 'serial_number', width: 18 },
+      { header: '장비비고', key: 'resource_note', width: 20 },
+    ];
+    sheet.columns = columns;
+
+    // 헤더 스타일
+    const headerRow = sheet.getRow(1);
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      cell.border = {
+        top: { style: 'thin' }, bottom: { style: 'thin' },
+        left: { style: 'thin' }, right: { style: 'thin' }
+      };
+    });
+    headerRow.height = 20;
+
+    // 고객별 교대 배경색 (흰색 / 연한 파란색)
+    const ROW_COLORS = ['FFFFFFFF', 'FFD9E8F5'];
+
+    let colorIdx = 0;
+    // 내보낼 데이터는 현재 필터된 전체 목록 기준
+    const exportList = filteredCustomers;
+
+    exportList.forEach(customer => {
+      const resources = customer.resources && customer.resources.length > 0
+        ? customer.resources
+        : [null]; // 장비 없으면 빈 행 1개
+
+      const startRow = sheet.rowCount + 1;
+
+      resources.forEach((resource, rIdx) => {
+        const row = sheet.addRow({
+          company_name: rIdx === 0 ? customer.company_name : '',
+          past_company_names: rIdx === 0 ? (customer.past_company_names || []).join(', ') : '',
+          contact_person: rIdx === 0 ? customer.contact_person : '',
+          contact: rIdx === 0 ? customer.contact : '',
+          phone: rIdx === 0 ? customer.phone : '',
+          fax: rIdx === 0 ? customer.fax : '',
+          president: rIdx === 0 ? customer.president : '',
+          mobile: rIdx === 0 ? customer.mobile : '',
+          email: rIdx === 0 ? customer.email : '',
+          address: rIdx === 0 ? customer.address : '',
+          postal_code: rIdx === 0 ? customer.postal_code : '',
+          homepage: rIdx === 0 ? customer.homepage : '',
+          statement_receive_method: rIdx === 0 ? customer.statement_receive_method : '',
+          category: resource?.category ?? '',
+          product_name: resource?.product_name ?? '',
+          serial_number: resource?.serial_number ?? '',
+          resource_note: resource?.note ?? '',
+        });
+        row.height = 18;
+
+        const bgColor = ROW_COLORS[colorIdx % 2];
+        row.eachCell({ includeEmpty: true }, cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false };
+          cell.font = { size: 10 };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+            bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+            left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+            right: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+          };
+        });
+      });
+
+      const endRow = sheet.rowCount;
+
+      // 장비가 2개 이상이면 고객 공통 셀 병합 (회사명~명세서수신 13열)
+      if (resources.length > 1) {
+        const mergeColumns = [
+          'company_name', 'past_company_names', 'contact_person', 'contact',
+          'phone', 'fax', 'president', 'mobile', 'email', 'address',
+          'postal_code', 'homepage', 'statement_receive_method'
+        ];
+        mergeColumns.forEach(key => {
+          const col = columns.findIndex(c => c.key === key) + 1;
+          sheet.mergeCells(startRow, col, endRow, col);
+          const cell = sheet.getCell(startRow, col);
+          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        });
+      }
+
+      colorIdx++;
+    });
+
+    // 파일 저장
+    const buffer = await workbook.xlsx.writeBuffer();
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+    saveAs(new Blob([buffer], { type: 'application/octet-stream' }), `고객정보_${dateStr}.xlsx`);
   };
 
   // 검색어 변경 시 첫 페이지로 리셋
@@ -1270,7 +1389,7 @@ const Customers: React.FC = () => {
           <div className="col-auto ms-auto d-print-none">
             <div className="btn-list">
               {hasPermission('customer_create') && (
-                <button 
+                <button
                   className="btn btn-primary"
                   onClick={handleAddNew}
                 >
@@ -1281,6 +1400,20 @@ const Customers: React.FC = () => {
                   새 고객 추가
                 </button>
               )}
+              <button
+                className="btn btn-outline-success"
+                onClick={handleExportExcel}
+                title="고객정보를 엑셀 파일로 저장"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+                  <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+                  <line x1="12" y1="11" x2="12" y2="17"/>
+                  <line x1="9" y1="14" x2="15" y2="14"/>
+                </svg>
+                엑셀 저장
+              </button>
             </div>
           </div>
         </div>
