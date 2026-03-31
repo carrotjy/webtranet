@@ -19,6 +19,7 @@ interface Customer {
   homepage?: string;
   business_card_image?: string;
   statement_receive_method?: string;
+  past_company_names?: string[];
   updated_at?: string;
   resources?: Resource[];
 }
@@ -47,6 +48,7 @@ interface CustomerForm {
   homepage: string;
   business_card_image: string;
   statement_receive_method: string;
+  past_company_names: string; // 쉼표 구분 문자열로 편집
 }
 
 const CATEGORIES = ['Pressbrake', 'Laser', 'Software'];
@@ -86,7 +88,8 @@ const Customers: React.FC = () => {
     contact: '',
     homepage: '',
     business_card_image: '',
-    statement_receive_method: '팩스'
+    statement_receive_method: '팩스',
+    past_company_names: ''
   });
 
   const [resourceFormData, setResourceFormData] = useState<Resource>({
@@ -192,11 +195,17 @@ const Customers: React.FC = () => {
     }
 
     try {
+      const submitData = {
+        ...formData,
+        past_company_names: formData.past_company_names
+          ? formData.past_company_names.split(',').map(n => n.trim()).filter(n => n)
+          : []
+      };
       if (editingCustomer) {
-        await customerAPI.updateCustomer(editingCustomer.id, formData);
+        await customerAPI.updateCustomer(editingCustomer.id, submitData);
         alert('고객 정보가 성공적으로 수정되었습니다.');
       } else {
-        await customerAPI.createCustomer(formData);
+        await customerAPI.createCustomer(submitData);
         alert('고객 정보가 성공적으로 등록되었습니다.');
       }
       
@@ -215,7 +224,8 @@ const Customers: React.FC = () => {
         contact: '',
         homepage: '',
         business_card_image: '',
-        statement_receive_method: '팩스'
+        statement_receive_method: '팩스',
+        past_company_names: ''
       });
       loadCustomers();
     } catch (error) {
@@ -299,7 +309,8 @@ const Customers: React.FC = () => {
       contact: customer.contact || '',
       homepage: customer.homepage || '',
       business_card_image: customer.business_card_image || '',
-      statement_receive_method: customer.statement_receive_method || '팩스'
+      statement_receive_method: customer.statement_receive_method || '팩스',
+      past_company_names: (customer.past_company_names || []).join(', ')
     });
     setShowForm(true);
   };
@@ -319,7 +330,8 @@ const Customers: React.FC = () => {
       contact: '',
       homepage: '',
       business_card_image: '',
-      statement_receive_method: '팩스'
+      statement_receive_method: '팩스',
+      past_company_names: ''
     });
     setShowForm(true);
   };
@@ -653,6 +665,24 @@ const Customers: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* 과거 사업자명 */}
+                    <div className="col-md-12">
+                      <div className="mb-3">
+                        <label className="form-label">과거 사업자명
+                          <span className="text-muted ms-1" style={{ fontSize: '0.8rem' }}>
+                            (쉼표로 구분, 회사명 변경 시 자동 기록됨)
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={formData.past_company_names}
+                          onChange={(e) => setFormData({...formData, past_company_names: e.target.value})}
+                          placeholder="예: 구 상호1, 구 상호2"
+                        />
+                      </div>
+                    </div>
+
                     {/* 명세서 수신 방법 */}
                     <div className="col-md-12">
                       <div className="mb-3">
@@ -956,6 +986,14 @@ const Customers: React.FC = () => {
                       value={viewingCustomer.company_name}
                       readOnly
                     />
+                    {viewingCustomer.past_company_names && viewingCustomer.past_company_names.length > 0 && (
+                      <div className="mt-1">
+                        <small className="text-muted me-1">구 상호:</small>
+                        {viewingCustomer.past_company_names.map((name, i) => (
+                          <span key={i} className="badge bg-secondary-lt me-1">{name}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1135,11 +1173,15 @@ const Customers: React.FC = () => {
 
   // 클라이언트 사이드 검색 필터링
   const filteredCustomers = searchTerm
-    ? customers.filter(customer =>
-        customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.address?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+    ? customers.filter(customer => {
+        const term = searchTerm.toLowerCase();
+        return (
+          customer.company_name?.toLowerCase().includes(term) ||
+          customer.contact_person?.toLowerCase().includes(term) ||
+          customer.address?.toLowerCase().includes(term) ||
+          customer.past_company_names?.some(n => n.toLowerCase().includes(term))
+        );
+      })
     : customers;
 
   // 클라이언트 사이드 페이지네이션
@@ -1178,7 +1220,7 @@ const Customers: React.FC = () => {
               <input
                 type="text"
                 className="form-control"
-                placeholder="검색어를 입력하세요 (고객사명, 담당자, 주소)"
+                placeholder="검색어를 입력하세요 (고객사명, 구 상호, 담당자, 주소)"
                 value={searchTerm}
                 onChange={handleSearchChange}
               />
@@ -1299,6 +1341,15 @@ const Customers: React.FC = () => {
                             <tr key={customer.id}>
                               <td style={{ textAlign: 'center' }}>
                                 <div className="text-reset font-weight-medium">{customer.company_name}</div>
+                                {customer.past_company_names && customer.past_company_names.length > 0 && (
+                                  <div className="mt-1">
+                                    {customer.past_company_names.map((name, i) => (
+                                      <span key={i} className="badge bg-secondary-lt me-1" style={{ fontSize: '0.7rem' }} title="구 상호">
+                                        {name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                               </td>
                               <td style={{ textAlign: 'left' }}>
                                 <div className="d-flex align-items-center gap-2">

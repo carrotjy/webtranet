@@ -133,6 +133,10 @@ def create_customer():
         if not data.get('company_name'):
             return jsonify({'error': '회사명은 필수 항목입니다.'}), 400
 
+        raw_past = data.get('past_company_names', [])
+        if isinstance(raw_past, str):
+            raw_past = [n.strip() for n in raw_past.split(',') if n.strip()]
+
         customer = Customer(
             company_name=data['company_name'],
             contact_person=data.get('contact_person', ''),
@@ -148,7 +152,8 @@ def create_customer():
             homepage=data.get('homepage', ''),
             business_card_image=data.get('business_card_image', ''),
             notes=data.get('notes', ''),
-            statement_receive_method=data.get('statement_receive_method', '팩스')
+            statement_receive_method=data.get('statement_receive_method', '팩스'),
+            past_company_names=raw_past
         )
 
         customer_id = customer.save()
@@ -173,9 +178,15 @@ def update_customer(customer_id):
             return jsonify({'error': '고객정보를 찾을 수 없습니다.'}), 404
         
         data = request.get_json()
-        
+
+        # 회사명이 변경되면 이전 회사명을 이력에 자동 추가
+        new_company_name = data.get('company_name', customer.company_name)
+        if new_company_name and new_company_name != customer.company_name and customer.company_name:
+            if customer.company_name not in customer.past_company_names:
+                customer.past_company_names.append(customer.company_name)
+
         # 필드 업데이트
-        customer.company_name = data.get('company_name', customer.company_name)
+        customer.company_name = new_company_name
         customer.contact_person = data.get('contact_person', customer.contact_person)
         customer.email = data.get('email', customer.email)
         customer.phone = data.get('phone', customer.phone)
@@ -190,6 +201,12 @@ def update_customer(customer_id):
         customer.business_card_image = data.get('business_card_image', customer.business_card_image)
         customer.notes = data.get('notes', customer.notes)
         customer.statement_receive_method = data.get('statement_receive_method', customer.statement_receive_method)
+        if 'past_company_names' in data:
+            raw = data['past_company_names']
+            if isinstance(raw, list):
+                customer.past_company_names = [n.strip() for n in raw if n and n.strip()]
+            elif isinstance(raw, str):
+                customer.past_company_names = [n.strip() for n in raw.split(',') if n.strip()]
         
         if customer.save():
             return jsonify({
@@ -216,6 +233,8 @@ def delete_customer(customer_id):
         else:
             return jsonify({'error': '고객정보 삭제에 실패했습니다.'}), 500
             
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         return jsonify({'error': f'고객정보 삭제 중 오류가 발생했습니다: {str(e)}'}), 500
 

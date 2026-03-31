@@ -1,12 +1,13 @@
 from app.database.init_db import get_db_connection
 from datetime import datetime
+import json
 
 class Customer:
     def __init__(self, id=None, company_name=None, contact_person=None,
                  email=None, phone=None, address=None, notes=None,
                  postal_code=None, tel=None, fax=None, president=None,
                  mobile=None, contact=None, homepage=None, business_card_image=None,
-                 statement_receive_method=None,
+                 statement_receive_method=None, past_company_names=None,
                  created_at=None, updated_at=None):
 
         # None 값을 빈 문자열로 안전하게 변환하는 헬퍼 함수
@@ -31,6 +32,17 @@ class Customer:
         self.homepage = safe_str(homepage)
         self.business_card_image = safe_str(business_card_image)
         self.statement_receive_method = safe_str(statement_receive_method) if statement_receive_method else '팩스'
+        # past_company_names: list of strings
+        if isinstance(past_company_names, list):
+            self.past_company_names = [n for n in past_company_names if n]
+        elif isinstance(past_company_names, str) and past_company_names:
+            try:
+                parsed = json.loads(past_company_names)
+                self.past_company_names = parsed if isinstance(parsed, list) else []
+            except (json.JSONDecodeError, ValueError):
+                self.past_company_names = []
+        else:
+            self.past_company_names = []
         self.created_at = created_at
         self.updated_at = updated_at
     
@@ -92,37 +104,24 @@ class Customer:
         conn = get_db_connection()
         
         if keyword:
+            keyword_param = f'%{keyword}%'
+            where_clause = '''
+                company_name LIKE ? OR contact_person LIKE ?
+                OR email LIKE ? OR phone LIKE ? OR address LIKE ?
+                OR past_company_names LIKE ?
+            '''
             if per_page is None:
-                # 제한 없이 모든 검색 결과 반환
-                query = '''
-                    SELECT * FROM customers 
-                    WHERE company_name LIKE ? OR contact_person LIKE ? 
-                       OR email LIKE ? OR phone LIKE ? OR address LIKE ?
-                    ORDER BY company_name ASC
-                '''
-                keyword_param = f'%{keyword}%'
-                params = [keyword_param] * 5
+                query = f'SELECT * FROM customers WHERE {where_clause} ORDER BY company_name ASC'
+                params = [keyword_param] * 6
                 customers_data = conn.execute(query, params).fetchall()
             else:
-                # 페이징 적용
                 offset = (page - 1) * per_page
-                query = '''
-                    SELECT * FROM customers 
-                    WHERE company_name LIKE ? OR contact_person LIKE ? 
-                       OR email LIKE ? OR phone LIKE ? OR address LIKE ?
-                    ORDER BY company_name ASC
-                    LIMIT ? OFFSET ?
-                '''
-                keyword_param = f'%{keyword}%'
-                params = [keyword_param] * 5 + [per_page, offset]
+                query = f'SELECT * FROM customers WHERE {where_clause} ORDER BY company_name ASC LIMIT ? OFFSET ?'
+                params = [keyword_param] * 6 + [per_page, offset]
                 customers_data = conn.execute(query, params).fetchall()
-            
-            count_query = '''
-                SELECT COUNT(*) FROM customers 
-                WHERE company_name LIKE ? OR contact_person LIKE ? 
-                   OR email LIKE ? OR phone LIKE ? OR address LIKE ?
-            '''
-            total = conn.execute(count_query, [keyword_param] * 5).fetchone()[0]
+
+            count_query = f'SELECT COUNT(*) FROM customers WHERE {where_clause}'
+            total = conn.execute(count_query, [keyword_param] * 6).fetchone()[0]
         else:
             if per_page is None:
                 # 제한 없이 모든 데이터 반환
@@ -154,6 +153,8 @@ class Customer:
         def safe_value(value):
             return value if value is not None else ''
 
+        past_names_json = json.dumps(self.past_company_names, ensure_ascii=False) if self.past_company_names else None
+
         try:
             if self.id:
                 # 수정
@@ -162,28 +163,31 @@ class Customer:
                     company_name=?, contact_person=?, email=?, phone=?,
                     address=?, postal_code=?, tel=?, fax=?, president=?,
                     mobile=?, contact=?, homepage=?, business_card_image=?,
-                    notes=?, statement_receive_method=?, updated_at=CURRENT_TIMESTAMP
+                    notes=?, statement_receive_method=?, past_company_names=?,
+                    updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
                 ''', (safe_value(self.company_name), safe_value(self.contact_person),
                       safe_value(self.email), safe_value(self.phone), safe_value(self.address),
                       safe_value(self.postal_code), safe_value(self.tel), safe_value(self.fax),
                       safe_value(self.president), safe_value(self.mobile), safe_value(self.contact),
                       safe_value(self.homepage), safe_value(self.business_card_image),
-                      safe_value(self.notes), safe_value(self.statement_receive_method), self.id))
+                      safe_value(self.notes), safe_value(self.statement_receive_method),
+                      past_names_json, self.id))
             else:
                 # 신규 생성
                 cursor = conn.execute('''
                     INSERT INTO customers
                     (company_name, contact_person, email, phone, address,
                      postal_code, tel, fax, president, mobile, contact, homepage,
-                     business_card_image, notes, statement_receive_method)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     business_card_image, notes, statement_receive_method, past_company_names)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (safe_value(self.company_name), safe_value(self.contact_person),
                       safe_value(self.email), safe_value(self.phone), safe_value(self.address),
                       safe_value(self.postal_code), safe_value(self.tel), safe_value(self.fax),
                       safe_value(self.president), safe_value(self.mobile), safe_value(self.contact),
                       safe_value(self.homepage), safe_value(self.business_card_image),
-                      safe_value(self.notes), safe_value(self.statement_receive_method)))
+                      safe_value(self.notes), safe_value(self.statement_receive_method),
+                      past_names_json))
                 self.id = cursor.lastrowid
 
             conn.commit()
@@ -205,20 +209,24 @@ class Customer:
         def safe_value(value):
             return value if value is not None else ''
 
+        past_names_json = json.dumps(self.past_company_names, ensure_ascii=False) if self.past_company_names else None
+
         try:
             conn.execute('''
                 UPDATE customers SET
                 company_name=?, contact_person=?, email=?, phone=?,
                 address=?, postal_code=?, tel=?, fax=?, president=?,
                 mobile=?, contact=?, homepage=?, business_card_image=?,
-                notes=?, statement_receive_method=?, updated_at=CURRENT_TIMESTAMP
+                notes=?, statement_receive_method=?, past_company_names=?,
+                updated_at=CURRENT_TIMESTAMP
                 WHERE id=?
             ''', (safe_value(self.company_name), safe_value(self.contact_person),
                   safe_value(self.email), safe_value(self.phone), safe_value(self.address),
                   safe_value(self.postal_code), safe_value(self.tel), safe_value(self.fax),
                   safe_value(self.president), safe_value(self.mobile), safe_value(self.contact),
                   safe_value(self.homepage), safe_value(self.business_card_image),
-                  safe_value(self.notes), safe_value(self.statement_receive_method), self.id))
+                  safe_value(self.notes), safe_value(self.statement_receive_method),
+                  past_names_json, self.id))
 
             conn.commit()
             return True
@@ -240,8 +248,16 @@ class Customer:
                 ).fetchone()[0]
                 
                 if service_reports > 0:
-                    raise Exception('이 고객과 연관된 서비스 리포트가 있어 삭제할 수 없습니다.')
-                
+                    raise ValueError('이 고객과 연관된 서비스 리포트가 있어 삭제할 수 없습니다.')
+
+                invoices = conn.execute(
+                    'SELECT COUNT(*) FROM invoices WHERE customer_id = ?',
+                    (self.id,)
+                ).fetchone()[0]
+
+                if invoices > 0:
+                    raise ValueError('이 고객과 연관된 거래명세표가 있어 삭제할 수 없습니다.')
+
                 conn.execute('DELETE FROM customers WHERE id = ?', (self.id,))
                 conn.commit()
                 return True
@@ -292,6 +308,7 @@ class Customer:
                 homepage=safe_get(row, 'homepage'),
                 business_card_image=safe_get(row, 'business_card_image'),
                 statement_receive_method=safe_get(row, 'statement_receive_method'),
+                past_company_names=safe_get(row, 'past_company_names'),
                 notes=safe_get(row, 'notes'),
                 created_at=safe_get(row, 'created_at'),
                 updated_at=safe_get(row, 'updated_at')
@@ -319,6 +336,7 @@ class Customer:
             'homepage': self.homepage,
             'business_card_image': self.business_card_image,
             'statement_receive_method': self.statement_receive_method,
+            'past_company_names': self.past_company_names,
             'notes': self.notes,
             'created_at': self.created_at,
             'updated_at': self.updated_at,

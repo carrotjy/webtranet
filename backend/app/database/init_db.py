@@ -163,6 +163,7 @@ def init_database():
             mobile TEXT,
             contact TEXT,
             notes TEXT,
+            past_company_names TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -211,6 +212,11 @@ def init_database():
 
     try:
         conn.execute("ALTER TABLE customers ADD COLUMN statement_receive_method TEXT DEFAULT '팩스'")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute('ALTER TABLE customers ADD COLUMN past_company_names TEXT')
     except sqlite3.OperationalError:
         pass
 
