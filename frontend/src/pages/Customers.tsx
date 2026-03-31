@@ -348,9 +348,10 @@ const Customers: React.FC = () => {
         await customerAPI.deleteCustomer(customerId);
         loadCustomers();
         alert('고객 정보가 삭제되었습니다.');
-      } catch (error) {
+      } catch (error: any) {
         console.error('고객 삭제 실패:', error);
-        alert('고객 삭제 중 오류가 발생했습니다.');
+        const msg = error?.response?.data?.error || '고객 삭제 중 오류가 발생했습니다.';
+        alert(msg);
       }
     }
   };
