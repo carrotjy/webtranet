@@ -1,5 +1,6 @@
 from app.database.init_db import get_db_connection
 from datetime import datetime
+import json
 
 class Invoice:
     """거래명세표 모델"""
@@ -43,15 +44,43 @@ class Invoice:
         params = []
 
         if search:
-            where_clause = """
-                WHERE (
-                    i.invoice_number LIKE ? OR
-                    i.customer_name LIKE ? OR
-                    i.issue_date LIKE ?
-                )
-            """
             search_pattern = f'%{search}%'
-            params = [search_pattern, search_pattern, search_pattern]
+            # 과거 상호 포함: 검색어에 매칭되는 고객의 현재/과거 모든 상호를 수집
+            customer_rows = conn.execute(
+                'SELECT company_name, past_company_names FROM customers WHERE company_name LIKE ? OR past_company_names LIKE ?',
+                [search_pattern, search_pattern]
+            ).fetchall()
+            expanded_names = set()
+            for row in customer_rows:
+                expanded_names.add(row['company_name'])
+                if row['past_company_names']:
+                    try:
+                        past = json.loads(row['past_company_names'])
+                        if isinstance(past, list):
+                            expanded_names.update(past)
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+
+            if expanded_names:
+                name_placeholders = ','.join(['?' for _ in expanded_names])
+                where_clause = f"""
+                    WHERE (
+                        i.invoice_number LIKE ? OR
+                        i.customer_name LIKE ? OR
+                        i.issue_date LIKE ? OR
+                        i.customer_name IN ({name_placeholders})
+                    )
+                """
+                params = [search_pattern, search_pattern, search_pattern] + list(expanded_names)
+            else:
+                where_clause = """
+                    WHERE (
+                        i.invoice_number LIKE ? OR
+                        i.customer_name LIKE ? OR
+                        i.issue_date LIKE ?
+                    )
+                """
+                params = [search_pattern, search_pattern, search_pattern]
 
         # 데이터 조회
         query = f'''
@@ -68,7 +97,7 @@ class Invoice:
         # 총 개수 조회
         count_query = f'SELECT COUNT(*) FROM invoices i {where_clause}'
         if search:
-            total = conn.execute(count_query, [search_pattern, search_pattern, search_pattern]).fetchone()[0]
+            total = conn.execute(count_query, params[:-2]).fetchone()[0]
         else:
             total = conn.execute(count_query).fetchone()[0]
 

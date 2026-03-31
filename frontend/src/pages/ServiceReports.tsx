@@ -10,6 +10,7 @@ interface Customer {
   contact_person: string;
   president: string;
   address: string;
+  past_company_names?: string[];
 }
 
 interface Resource {
@@ -647,9 +648,11 @@ const ServiceReports: React.FC = () => {
     }
 
     // 로컬 customers 배열에서 즉시 필터링 (API 호출 없음)
+    const term = searchTerm.toLowerCase();
     const filteredCustomers = customers.filter(customer =>
-      customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
+      customer.company_name?.toLowerCase().includes(term) ||
+      customer.contact_person?.toLowerCase().includes(term) ||
+      customer.past_company_names?.some(n => n.toLowerCase().includes(term))
     );
 
     setCustomerSearchResults(filteredCustomers);
@@ -1719,19 +1722,44 @@ const ServiceReports: React.FC = () => {
     return sortDirection === 'desc' ? '▼' : '▲';
   };
 
-  const filteredCustomers = Array.isArray(customers) ? customers.filter(customer =>
-    customer.company_name?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-    customer.contact_person?.toLowerCase().includes(customerSearchTerm.toLowerCase())
-  ) : [];
+  const filteredCustomers = Array.isArray(customers) ? customers.filter(customer => {
+    const term = customerSearchTerm.toLowerCase();
+    return (
+      customer.company_name?.toLowerCase().includes(term) ||
+      customer.contact_person?.toLowerCase().includes(term) ||
+      customer.past_company_names?.some(n => n.toLowerCase().includes(term))
+    );
+  }) : [];
+
+  // 과거 상호로 검색해도 현재 상호 기준으로 매칭되도록 이름 별칭 맵 생성
+  // any known name (lower) → Set of all known names (lower) for that customer
+  const customerNameAliasMap = (() => {
+    const map = new Map<string, Set<string>>();
+    (Array.isArray(customers) ? customers : []).forEach(c => {
+      const allNames = new Set([c.company_name, ...(c.past_company_names || [])].map(n => n.toLowerCase()));
+      allNames.forEach(name => map.set(name, allNames));
+    });
+    return map;
+  })();
+
+  const matchesCustomerName = (recordName: string | undefined, search: string): boolean => {
+    if (!recordName) return false;
+    const lower = recordName.toLowerCase();
+    if (lower.includes(search)) return true;
+    // 레코드의 회사명과 연결된 모든 별칭(과거 상호 포함)이 검색어를 포함하는지 확인
+    const aliases = customerNameAliasMap.get(lower);
+    if (aliases) return Array.from(aliases).some(n => n.includes(search));
+    return false;
+  };
 
   // 서비스 리포트 검색 필터링 및 정렬
   const filteredAndSortedReports = (() => {
     // 먼저 검색 필터링 적용
     const filtered = reports.filter(report => {
       if (!searchTerm) return true;
-      
+
       const search = searchTerm.toLowerCase();
-      
+
       // 날짜 검색 (yymmdd 형태)
       const formatDateForSearch = (dateStr: string) => {
         if (!dateStr) return '';
@@ -1741,14 +1769,14 @@ const ServiceReports: React.FC = () => {
         const day = date.getDate().toString().padStart(2, '0');
         return year + month + day;
       };
-      
+
       const createdDate = formatDateForSearch(report.created_at || '');
       const serviceDate = formatDateForSearch(report.service_date || '');
-      
+
       return (
         createdDate.includes(search) ||
         serviceDate.includes(search) ||
-        report.customer_name?.toLowerCase().includes(search) ||
+        matchesCustomerName(report.customer_name, search) ||
         report.technician_name?.toLowerCase().includes(search) ||
         report.machine_model?.toLowerCase().includes(search) ||
         report.machine_serial?.toLowerCase().includes(search) ||

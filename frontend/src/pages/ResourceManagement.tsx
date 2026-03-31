@@ -33,6 +33,7 @@ interface Customer {
   president: string;
   mobile: string;
   contact: string;
+  past_company_names?: string[];
 }
 
 const CATEGORIES = ['Pressbrake', 'Laser', 'Punch', 'Shear', 'Software'];
@@ -230,9 +231,11 @@ const ResourceManagement: React.FC = () => {
       return;
     }
 
+    const term = searchTerm.toLowerCase();
     const filtered = customers.filter(customer =>
-      customer.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.contact_person.toLowerCase().includes(searchTerm.toLowerCase())
+      customer.company_name.toLowerCase().includes(term) ||
+      customer.contact_person.toLowerCase().includes(term) ||
+      customer.past_company_names?.some(n => n.toLowerCase().includes(term))
     );
     
     setCustomerSearchResults(filtered);
@@ -467,15 +470,35 @@ const ResourceManagement: React.FC = () => {
     setCurrentPage(1);
   };
 
+  // 과거 상호 → 현재 상호 별칭 맵 (리소스 검색용)
+  const resourceNameAliasMap = (() => {
+    const map = new Map<string, Set<string>>();
+    (Array.isArray(customers) ? customers : []).forEach(c => {
+      const allNames = new Set([c.company_name, ...(c.past_company_names || [])].map(n => n.toLowerCase()));
+      allNames.forEach(name => map.set(name, allNames));
+    });
+    return map;
+  })();
+
+  const matchesCustomerNameResource = (recordName: string | undefined, search: string): boolean => {
+    if (!recordName) return false;
+    const lower = recordName.toLowerCase();
+    if (lower.includes(search)) return true;
+    const aliases = resourceNameAliasMap.get(lower);
+    if (aliases) return Array.from(aliases).some(n => n.includes(search));
+    return false;
+  };
+
   // 필터링된 리소스
   const filteredResources = resources.filter(resource => {
-    const matchesSearch = !searchTerm || 
-      resource.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      resource.serial_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      resource.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      resource.note.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (resource.management_history && resource.management_history.some(history => 
-        history.content.toLowerCase().includes(searchTerm.toLowerCase())
+    const search = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm ||
+      resource.product_name.toLowerCase().includes(search) ||
+      resource.serial_number.toLowerCase().includes(search) ||
+      matchesCustomerNameResource(resource.customer_name, search) ||
+      resource.note.toLowerCase().includes(search) ||
+      (resource.management_history && resource.management_history.some(history =>
+        history.content.toLowerCase().includes(search)
       ));
     
     const matchesCategory = !selectedCategory || resource.category === selectedCategory;
