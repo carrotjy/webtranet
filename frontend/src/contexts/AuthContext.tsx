@@ -118,50 +118,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, [token, user]);
 
-  // 비활동 자동 로그아웃 (1시간)
-  useEffect(() => {
-    if (!token || !user) return;
-
-    const IDLE_TIMEOUT = 60 * 60 * 1000; // 1시간
-    const IDLE_CHECK_INTERVAL = 60 * 1000; // 1분마다 체크
-    let lastUpdate = 0;
-
-    const updateActivity = () => {
-      const now = Date.now();
-      // 5초마다 한 번씩만 localStorage 업데이트 (mousemove 과부하 방지)
-      if (now - lastUpdate > 5000) {
-        lastUpdate = now;
-        localStorage.setItem('lastActivity', now.toString());
-      }
-    };
-
-    // 초기 활동 시간 설정
-    localStorage.setItem('lastActivity', Date.now().toString());
-    lastUpdate = Date.now();
-
-    const events = ['mousemove', 'keypress', 'click', 'scroll', 'touchstart'];
-    events.forEach(event => window.addEventListener(event, updateActivity));
-
-    const idleTimer = setInterval(() => {
-      const lastActivity = parseInt(localStorage.getItem('lastActivity') || '0');
-      if (Date.now() - lastActivity > IDLE_TIMEOUT) {
-        console.log('비활동으로 인한 자동 로그아웃');
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        localStorage.removeItem('lastActivity');
-        setToken(null);
-        setUser(null);
-        window.location.href = '/login';
-      }
-    }, IDLE_CHECK_INTERVAL);
-
-    return () => {
-      events.forEach(event => window.removeEventListener(event, updateActivity));
-      clearInterval(idleTimer);
-      localStorage.removeItem('lastActivity');
-    };
-  }, [token, user]);
+  // 비활동 자동 로그아웃 비활성화
+  // JWT refresh token(30일)이 세션 유지를 담당하므로 별도 idle 타임아웃 불필요
 
   const login = async (email: string, password: string) => {
     try {
