@@ -250,6 +250,18 @@ export const serviceReportAPI = {
     console.log(`API: 서비스 리포트 잠금 해제, ID: ${id}`);
     return api.post(`/api/service-reports/${id}/unlock`);
   },
+  deleteSignature: (id: number) =>
+    api.delete(`/api/service-reports/${id}/signature`),
+};
+
+// 공개 서비스 리포트 API (인증 불필요 - 일반 axios 사용)
+export const publicServiceReportAPI = {
+  getReport: (token: string) =>
+    axios.get(`${API_BASE_URL}/api/public/service-reports/${token}`),
+  submitSignature: (token: string, signatureDataUrl: string) =>
+    axios.post(`${API_BASE_URL}/api/public/service-reports/${token}/signature`, {
+      signature: signatureDataUrl
+    }),
 };
 
 // Spare Parts API

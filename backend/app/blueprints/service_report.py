@@ -318,3 +318,31 @@ def unlock_service_report(report_id):
 
     except Exception as e:
         return jsonify({'error': f'리포트 잠금 해제 중 오류가 발생했습니다: {str(e)}'}), 500
+
+@service_report_bp.route('/<int:report_id>/signature', methods=['DELETE'])
+@admin_required
+def delete_signature(report_id):
+    """고객 서명 삭제 (관리자만 가능)"""
+    try:
+        report = ServiceReport.get_by_id(report_id)
+        if not report:
+            return jsonify({'error': '서비스 리포트를 찾을 수 없습니다.'}), 404
+
+        if not report.customer_signature:
+            return jsonify({'error': '삭제할 서명이 없습니다.'}), 400
+
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                'UPDATE service_reports SET customer_signature=NULL, customer_signed_at=NULL WHERE id=?',
+                (report_id,)
+            )
+            conn.commit()
+            return jsonify({'message': '서명이 삭제되었습니다.'}), 200
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'error': str(e)}), 500
+        finally:
+            conn.close()
+    except Exception as e:
+        return jsonify({'error': f'서명 삭제 중 오류가 발생했습니다: {str(e)}'}), 500

@@ -12,6 +12,8 @@ export { default as MonthlyInventoryPage } from './MonthlyInventoryPage';
 export { default as YTDSummaryPage } from './YTDSummaryPage';
 export { default as JSharp } from './JSharp';
 
+export { default as PublicServiceReport } from './PublicServiceReport';
+
 // Admin pages
 export { default as ServiceReportSettings } from './admin/ServiceReportSettings';
 export { default as InvoiceSettings } from './admin/InvoiceSettings';

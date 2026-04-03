@@ -3,6 +3,7 @@ import api, { customerAPI, serviceReportAPI, resourceAPI, authAPI, userAPI, spar
 import Pagination from '../components/Pagination';
 import { useAuth } from '../contexts/AuthContext';
 import html2pdf from 'html2pdf.js';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface Customer {
   id: number;
@@ -84,6 +85,10 @@ interface ServiceReport {
   updated_at?: string;
   used_parts?: UsedPart[];
   time_record?: TimeRecord;
+  public_token?: string;
+  has_signature?: boolean;
+  customer_signature?: string;
+  customer_signed_at?: string;
 }
 
 interface FormData {
@@ -2321,6 +2326,18 @@ const ServiceReports: React.FC = () => {
     }
   };
 
+  const handleDeleteSignature = async (reportId: number) => {
+    if (!window.confirm('고객 서명을 삭제하시겠습니까?')) return;
+    try {
+      await serviceReportAPI.deleteSignature(reportId);
+      alert('서명이 삭제되었습니다.');
+      loadReports();
+      setViewingReport(prev => prev ? { ...prev, has_signature: false, customer_signature: undefined, customer_signed_at: undefined } : prev);
+    } catch (error: any) {
+      alert(error.response?.data?.error || '서명 삭제에 실패했습니다.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{height: '200px'}}>
@@ -3740,6 +3757,61 @@ const ServiceReports: React.FC = () => {
                     </div>
                   );
                 })()}
+
+                {/* QR 코드 및 고객 서명 */}
+                {viewingReport.public_token && (
+                  <div className="mb-4">
+                    <h5 className="mb-3">고객 서명</h5>
+                    <div className="d-flex flex-wrap gap-4 align-items-start">
+                      {/* QR 코드 */}
+                      <div className="text-center">
+                        <QRCodeSVG
+                          value={`${window.location.origin}/public/service-reports/${viewingReport.public_token}`}
+                          size={120}
+                          level="M"
+                        />
+                        <div className="text-muted small mt-1">고객 서명 QR</div>
+                      </div>
+                      {/* 서명 상태 */}
+                      <div className="flex-grow-1">
+                        {viewingReport.has_signature ? (
+                          <div>
+                            {viewingReport.customer_signature && (
+                              <div className="mb-2">
+                                <img
+                                  src={viewingReport.customer_signature}
+                                  alt="고객 서명"
+                                  style={{ maxWidth: 300, border: '1px solid #dee2e6', borderRadius: 4, background: '#fff', padding: 4 }}
+                                />
+                              </div>
+                            )}
+                            <div className="text-success small mb-2">
+                              ✓ 서명 완료
+                              {viewingReport.customer_signed_at && (
+                                <span className="text-muted ms-2">
+                                  ({new Date(viewingReport.customer_signed_at).toLocaleString('ko-KR')})
+                                </span>
+                              )}
+                            </div>
+                            {isAdmin && (
+                              <button
+                                className="btn btn-outline-danger btn-sm"
+                                onClick={() => handleDeleteSignature(viewingReport.id)}
+                              >
+                                서명 삭제
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-muted small">
+                            아직 서명되지 않았습니다.<br />
+                            QR코드를 고객에게 보여주면 고객이 직접 서명할 수 있습니다.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Invoice 코드 정보 (관리자만 보임) - 시간 기록부 하단에 배치 */}
                 {isAdmin && (

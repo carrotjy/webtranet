@@ -2,6 +2,7 @@ from app.database.init_db import get_db_connection
 from datetime import datetime
 from app.models.service_report_part import ServiceReportPart
 from app.models.service_report_time_record import ServiceReportTimeRecord
+import uuid as _uuid_module
 
 class ServiceReport:
     def __init__(self, id=None, report_number=None, customer_id=None,
@@ -10,6 +11,7 @@ class ServiceReport:
                  solution_description=None, parts_used=None, work_hours=None,
                  status='completed', invoice_code_id=None, support_technician_ids=None,
                  is_locked=False, locked_by=None, locked_at=None,
+                 public_token=None, customer_signature=None, customer_signed_at=None,
                  created_at=None, updated_at=None):
         self.id = id
         self.report_number = report_number
@@ -28,6 +30,9 @@ class ServiceReport:
         self.is_locked = is_locked
         self.locked_by = locked_by
         self.locked_at = locked_at
+        self.public_token = public_token
+        self.customer_signature = customer_signature
+        self.customer_signed_at = customer_signed_at
         self.created_at = created_at
         self.updated_at = updated_at
     
@@ -94,7 +99,31 @@ class ServiceReport:
             report.invoice_id = data['invoice_id'] if 'invoice_id' in data.keys() else None
             return report
         return None
-    
+
+    @classmethod
+    def get_by_public_token(cls, token):
+        """공개 토큰으로 서비스 리포트 조회 (인증 없이 접근 가능)"""
+        conn = get_db_connection()
+        data = conn.execute('''
+            SELECT sr.*, c.company_name, c.address as customer_address, u.name as technician_name,
+                   ic.code as invoice_code, ic.description as invoice_description,
+                   i.id as invoice_id
+            FROM service_reports sr
+            LEFT JOIN customers c ON sr.customer_id = c.id
+            LEFT JOIN users u ON sr.technician_id = u.id
+            LEFT JOIN invoice_codes ic ON sr.invoice_code_id = ic.id
+            LEFT JOIN invoices i ON sr.id = i.service_report_id
+            WHERE sr.public_token = ?
+        ''', (token,)).fetchone()
+        conn.close()
+        if data:
+            report = cls._from_db_row(data)
+            report.customer_name = data['company_name']
+            report.customer_address = data['customer_address']
+            report.technician_name = data['technician_name']
+            return report
+        return None
+
     @classmethod
     def search(cls, keyword=None, customer_id=None, technician_id=None, 
                start_date=None, end_date=None, page=1, per_page=10):
@@ -184,21 +213,24 @@ class ServiceReport:
                     print("[DEBUG] Generating report number")
                     self.report_number = self._generate_report_number()
                     print(f"[DEBUG] Generated report number: {self.report_number}")
-                
+
+                if not self.public_token:
+                    self.public_token = str(_uuid_module.uuid4())
+
                 print(f"[DEBUG] Inserting new report with values: {(self.report_number, self.customer_id, self.technician_id, self.machine_model, self.machine_serial, self.service_date, self.problem_description, self.solution_description, self.parts_used, self.work_hours, self.status)}")
-                
+
                 cursor = conn.execute('''
-                    INSERT INTO service_reports 
+                    INSERT INTO service_reports
                     (report_number, customer_id, technician_id, machine_model,
                      machine_serial, service_date, problem_description,
-                     solution_description, parts_used, work_hours, status, 
-                     invoice_code_id, support_technician_ids)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     solution_description, parts_used, work_hours, status,
+                     invoice_code_id, support_technician_ids, public_token)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (self.report_number, self.customer_id, self.technician_id,
                       self.machine_model, self.machine_serial, self.service_date,
                       self.problem_description, self.solution_description,
-                      self.parts_used, self.work_hours, self.status, 
-                      self.invoice_code_id, self.support_technician_ids))
+                      self.parts_used, self.work_hours, self.status,
+                      self.invoice_code_id, self.support_technician_ids, self.public_token))
                 self.id = cursor.lastrowid
                 print(f"[DEBUG] New report created with id: {self.id}")
             
@@ -284,6 +316,9 @@ class ServiceReport:
             is_locked=row['is_locked'] if 'is_locked' in row.keys() else False,
             locked_by=row['locked_by'] if 'locked_by' in row.keys() else None,
             locked_at=row['locked_at'] if 'locked_at' in row.keys() else None,
+            public_token=row['public_token'] if 'public_token' in row.keys() else None,
+            customer_signature=row['customer_signature'] if 'customer_signature' in row.keys() else None,
+            customer_signed_at=row['customer_signed_at'] if 'customer_signed_at' in row.keys() else None,
             created_at=row['created_at'],
             updated_at=row['updated_at']
         )
@@ -383,6 +418,10 @@ class ServiceReport:
             'locked_by': self.locked_by,
             'locked_at': self.locked_at,
             'invoice_id': getattr(self, 'invoice_id', None),  # 거래명세서 ID (조인으로 가져옴)
+            'public_token': self.public_token,
+            'has_signature': bool(self.customer_signature),
+            'customer_signature': self.customer_signature,
+            'customer_signed_at': self.customer_signed_at,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

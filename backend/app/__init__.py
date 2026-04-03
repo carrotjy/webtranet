@@ -58,6 +58,7 @@ def create_app():
     from app.blueprints.system_settings import system_settings_bp
     from app.blueprints.fax import fax_bp
     from app.blueprints.jsharp import jsharp_bp
+    from app.blueprints.public_service_report import public_service_report_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(user_mgmt_bp, url_prefix='/api/users')
@@ -76,6 +77,7 @@ def create_app():
     app.register_blueprint(system_settings_bp, url_prefix='/api')
     app.register_blueprint(fax_bp, url_prefix='/api')
     app.register_blueprint(jsharp_bp, url_prefix='/api')
+    app.register_blueprint(public_service_report_bp, url_prefix='/api/public/service-reports')
 
     # JWT 에러 핸들러 추가
     from flask_jwt_extended.exceptions import JWTExtendedException

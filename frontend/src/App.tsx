@@ -19,7 +19,8 @@ import {
   InvoiceView,
   MonthlyInventoryPage,
   YTDSummaryPage,
-  JSharp
+  JSharp,
+  PublicServiceReport
 } from './pages';
 import ResourceSettings from './pages/ResourceSettings';
 import SystemSettings from './pages/SystemSettings';
@@ -32,6 +33,7 @@ function App() {
         <div className="App">
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/public/service-reports/:token" element={<PublicServiceReport />} />
             <Route path="/jsharp" element={
               <ProtectedRoute>
                 <JSharp />

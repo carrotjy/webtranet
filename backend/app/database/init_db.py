@@ -253,6 +253,40 @@ def init_database():
     except sqlite3.OperationalError:
         pass  # 컬럼이 이미 존재함
 
+    # service_reports: 고객 공개 접근용 토큰 (QR코드 연결)
+    try:
+        conn.execute('ALTER TABLE service_reports ADD COLUMN public_token TEXT')
+        print("Added public_token column to service_reports table")
+    except sqlite3.OperationalError:
+        pass
+
+    # service_reports: 고객 서명 (base64 이미지)
+    try:
+        conn.execute('ALTER TABLE service_reports ADD COLUMN customer_signature TEXT')
+        print("Added customer_signature column to service_reports table")
+    except sqlite3.OperationalError:
+        pass
+
+    # service_reports: 고객 서명 일시
+    try:
+        conn.execute('ALTER TABLE service_reports ADD COLUMN customer_signed_at TIMESTAMP')
+        print("Added customer_signed_at column to service_reports table")
+    except sqlite3.OperationalError:
+        pass
+
+    # 기존 레포트에 public_token 일괄 부여 (NULL인 경우)
+    try:
+        import uuid as _uuid
+        rows = conn.execute('SELECT id FROM service_reports WHERE public_token IS NULL').fetchall()
+        for row in rows:
+            conn.execute('UPDATE service_reports SET public_token=? WHERE id=?',
+                         (str(_uuid.uuid4()), row['id']))
+        if rows:
+            conn.commit()
+            print(f"Backfilled public_token for {len(rows)} existing service reports")
+    except Exception as e:
+        print(f"[WARNING] public_token backfill failed: {e}")
+
     # invoice_codes 테이블에 category 컬럼 추가 (마이그레이션)
     try:
         conn.execute('ALTER TABLE invoice_codes ADD COLUMN category TEXT DEFAULT NULL')
