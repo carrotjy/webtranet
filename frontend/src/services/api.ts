@@ -258,9 +258,10 @@ export const serviceReportAPI = {
 export const publicServiceReportAPI = {
   getReport: (token: string) =>
     axios.get(`${API_BASE_URL}/api/public/service-reports/${token}`),
-  submitSignature: (token: string, signatureDataUrl: string) =>
+  submitSignature: (token: string, signatureDataUrl: string, signerName?: string) =>
     axios.post(`${API_BASE_URL}/api/public/service-reports/${token}/signature`, {
-      signature: signatureDataUrl
+      signature: signatureDataUrl,
+      signer_name: signerName,
     }),
 };
 

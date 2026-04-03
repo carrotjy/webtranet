@@ -12,7 +12,7 @@ class ServiceReport:
                  status='completed', invoice_code_id=None, support_technician_ids=None,
                  is_locked=False, locked_by=None, locked_at=None,
                  public_token=None, customer_signature=None, customer_signed_at=None,
-                 created_at=None, updated_at=None):
+                 signer_name=None, created_at=None, updated_at=None):
         self.id = id
         self.report_number = report_number
         self.customer_id = customer_id
@@ -33,6 +33,7 @@ class ServiceReport:
         self.public_token = public_token
         self.customer_signature = customer_signature
         self.customer_signed_at = customer_signed_at
+        self.signer_name = signer_name
         self.created_at = created_at
         self.updated_at = updated_at
     
@@ -319,6 +320,7 @@ class ServiceReport:
             public_token=row['public_token'] if 'public_token' in row.keys() else None,
             customer_signature=row['customer_signature'] if 'customer_signature' in row.keys() else None,
             customer_signed_at=row['customer_signed_at'] if 'customer_signed_at' in row.keys() else None,
+            signer_name=row['signer_name'] if 'signer_name' in row.keys() else None,
             created_at=row['created_at'],
             updated_at=row['updated_at']
         )
@@ -422,6 +424,7 @@ class ServiceReport:
             'has_signature': bool(self.customer_signature),
             'customer_signature': self.customer_signature,
             'customer_signed_at': self.customer_signed_at,
+            'signer_name': self.signer_name,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

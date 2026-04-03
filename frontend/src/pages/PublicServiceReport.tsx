@@ -28,6 +28,7 @@ interface PublicReport {
   }>;
   has_signature: boolean;
   customer_signed_at: string | null;
+  signer_name: string | null;
 }
 
 const PublicServiceReport: React.FC = () => {
@@ -37,7 +38,9 @@ const PublicServiceReport: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [signerName, setSignerName] = useState('');
   const sigCanvasRef = useRef<SignatureCanvas>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -52,6 +55,22 @@ const PublicServiceReport: React.FC = () => {
       .finally(() => setLoading(false));
   }, [token]);
 
+  // 캔버스 크기를 컨테이너 실제 픽셀 크기에 맞게 동기화 (모바일 터치 오프셋 방지)
+  useEffect(() => {
+    const resizeCanvas = () => {
+      if (!containerRef.current || !sigCanvasRef.current) return;
+      const canvas = sigCanvasRef.current.getCanvas();
+      const w = containerRef.current.clientWidth;
+      canvas.width = w;
+      canvas.height = 180;
+      sigCanvasRef.current.clear();
+    };
+    resizeCanvas();
+    const ro = new ResizeObserver(resizeCanvas);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
   const handleClear = () => {
     sigCanvasRef.current?.clear();
   };
@@ -65,9 +84,14 @@ const PublicServiceReport: React.FC = () => {
     const dataUrl = sigCanvasRef.current.toDataURL('image/png');
     setSubmitting(true);
     try {
-      await publicServiceReportAPI.submitSignature(token, dataUrl);
+      await publicServiceReportAPI.submitSignature(token, dataUrl, signerName.trim() || undefined);
       setSubmitted(true);
-      setReport(prev => prev ? { ...prev, has_signature: true, customer_signed_at: new Date().toISOString() } : prev);
+      setReport(prev => prev ? {
+        ...prev,
+        has_signature: true,
+        customer_signed_at: new Date().toISOString(),
+        signer_name: signerName.trim() || null,
+      } : prev);
     } catch (err: any) {
       const msg = err?.response?.data?.error || '서명 저장 중 오류가 발생했습니다.';
       alert(msg);
@@ -222,7 +246,19 @@ const PublicServiceReport: React.FC = () => {
 
         {/* Signature Section */}
         <div className="card shadow-sm mb-4">
-          <div className="card-header fw-semibold">고객 서명</div>
+          <div className="card-header d-flex align-items-center gap-3">
+            <span className="fw-semibold">고객 서명</span>
+            {!report.has_signature && !submitted && (
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                placeholder="서명자 성함 (선택)"
+                value={signerName}
+                onChange={e => setSignerName(e.target.value)}
+                style={{ maxWidth: 180 }}
+              />
+            )}
+          </div>
           <div className="card-body">
             {report.has_signature || submitted ? (
               <div className="text-center py-3">
@@ -232,6 +268,9 @@ const PublicServiceReport: React.FC = () => {
                   </svg>
                 </div>
                 <h5 className="text-success">서명 완료</h5>
+                {(report.signer_name || (submitted && signerName.trim())) && (
+                  <p className="mb-1 fw-semibold">{report.signer_name || signerName.trim()}</p>
+                )}
                 {report.customer_signed_at && (
                   <p className="text-muted small mb-0">
                     서명일시: {new Date(report.customer_signed_at).toLocaleString('ko-KR')}
@@ -241,14 +280,15 @@ const PublicServiceReport: React.FC = () => {
             ) : (
               <div>
                 <p className="text-muted small mb-2">아래 서명란에 서명 후 완료 버튼을 눌러주세요.</p>
-                <div style={{ border: '1px solid #dee2e6', borderRadius: 4, background: '#fff', marginBottom: 8 }}>
+                <div
+                  ref={containerRef}
+                  style={{ border: '1px solid #dee2e6', borderRadius: 4, background: '#fff', marginBottom: 8 }}
+                >
                   <SignatureCanvas
                     ref={sigCanvasRef}
                     penColor="black"
                     canvasProps={{
-                      width: 700,
-                      height: 180,
-                      style: { width: '100%', height: 180 }
+                      style: { width: '100%', height: 180, display: 'block' }
                     }}
                   />
                 </div>

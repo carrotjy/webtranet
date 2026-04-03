@@ -274,6 +274,13 @@ def init_database():
     except sqlite3.OperationalError:
         pass
 
+    # service_reports: 서명자 성명
+    try:
+        conn.execute('ALTER TABLE service_reports ADD COLUMN signer_name TEXT')
+        print("Added signer_name column to service_reports table")
+    except sqlite3.OperationalError:
+        pass
+
     # 기존 레포트에 public_token 일괄 부여 (NULL인 경우)
     try:
         import uuid as _uuid

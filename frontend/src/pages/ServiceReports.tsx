@@ -89,6 +89,7 @@ interface ServiceReport {
   has_signature?: boolean;
   customer_signature?: string;
   customer_signed_at?: string;
+  signer_name?: string;
 }
 
 interface FormData {
@@ -2077,6 +2078,27 @@ const ServiceReports: React.FC = () => {
         </table>
         ` : ''}
 
+        ${report.has_signature && report.customer_signature ? `
+        <!-- 고객 서명 -->
+        <div style="margin-top: 6mm;">
+          <div style="font-weight:bold; font-size:10pt; margin-bottom:2mm;">고객 서명</div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <tr>
+              <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:20%; vertical-align:middle;">서명자</td>
+              <td style="border:1px solid #aaa; padding:3px 6px; vertical-align:middle;">${report.signer_name || '-'}</td>
+              <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:20%; vertical-align:middle;">서명일시</td>
+              <td style="border:1px solid #aaa; padding:3px 6px; vertical-align:middle;">${report.customer_signed_at ? new Date(report.customer_signed_at).toLocaleString('ko-KR') : '-'}</td>
+            </tr>
+            <tr>
+              <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; vertical-align:top;">서명</td>
+              <td colspan="3" style="border:1px solid #aaa; padding:4px 6px;">
+                <img src="${report.customer_signature}" style="max-height:60px; max-width:300px;" />
+              </td>
+            </tr>
+          </table>
+        </div>
+        ` : ''}
+
         <div style="margin-top: 8mm; border-top: 1px solid #ccc; padding-top: 4mm; font-size: 8pt; color: #777; text-align: right;">
           출력일: ${new Date().toLocaleDateString('ko-KR')}
         </div>
@@ -3787,6 +3809,9 @@ const ServiceReports: React.FC = () => {
                             )}
                             <div className="text-success small mb-2">
                               ✓ 서명 완료
+                              {viewingReport.signer_name && (
+                                <span className="ms-2 fw-semibold text-dark">{viewingReport.signer_name}</span>
+                              )}
                               {viewingReport.customer_signed_at && (
                                 <span className="text-muted ms-2">
                                   ({new Date(viewingReport.customer_signed_at).toLocaleString('ko-KR')})

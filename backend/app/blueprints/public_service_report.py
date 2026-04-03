@@ -32,6 +32,7 @@ def get_public_service_report(token):
                 'time_records': [t.to_dict() for t in time_records],
                 'has_signature': bool(report.customer_signature),
                 'customer_signed_at': report.customer_signed_at,
+                'signer_name': getattr(report, 'signer_name', None),
             }
         }), 200
     except Exception as e:
@@ -51,14 +52,15 @@ def submit_signature(token):
 
         data = request.get_json()
         signature_data = data.get('signature', '')
+        signer_name = data.get('signer_name', '').strip() if data.get('signer_name') else None
         if not signature_data or not signature_data.startswith('data:image/'):
             return jsonify({'error': '유효하지 않은 서명 데이터입니다.'}), 400
 
         conn = get_db_connection()
         try:
             conn.execute(
-                'UPDATE service_reports SET customer_signature=?, customer_signed_at=CURRENT_TIMESTAMP WHERE public_token=?',
-                (signature_data, token)
+                'UPDATE service_reports SET customer_signature=?, customer_signed_at=CURRENT_TIMESTAMP, signer_name=? WHERE public_token=?',
+                (signature_data, signer_name, token)
             )
             conn.commit()
             return jsonify({'message': '서명이 저장되었습니다.'}), 200
