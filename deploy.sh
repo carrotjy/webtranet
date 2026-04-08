@@ -65,7 +65,7 @@ if [ "$SKIP_GIT" = false ]; then
 
     echo "  - Git pull 실행 중..."
     git fetch origin
-    git pull origin "$CURRENT_BRANCH"
+    git reset --hard "origin/$CURRENT_BRANCH"
 
     echo ""
     echo "  ✅ Git 동기화 완료!"
