@@ -131,7 +131,9 @@ if [ "$DEPLOY_BACKEND" = true ]; then
     echo ""
 
     # systemd 서비스 재시작
-    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null || systemctl status "$SERVICE_NAME" &>/dev/null; then
+    if systemctl list-unit-files --quiet "${SERVICE_NAME}.service" &>/dev/null; then
+        echo "  - systemd daemon-reload 중..."
+        sudo systemctl daemon-reload
         echo "  - systemd 서비스 재시작 중: $SERVICE_NAME"
         sudo systemctl restart "$SERVICE_NAME"
         sleep 2
@@ -139,7 +141,7 @@ if [ "$DEPLOY_BACKEND" = true ]; then
         if systemctl is-active --quiet "$SERVICE_NAME"; then
             echo "  ✅ 서비스 재시작 완료 (실행 중)"
         else
-            echo "  ⚠  서비스 상태 확인 필요: sudo systemctl status $SERVICE_NAME"
+            echo "  ⚠  서비스 시작 실패: sudo systemctl status $SERVICE_NAME"
         fi
     else
         echo "  ⚠  systemd 서비스 '$SERVICE_NAME' 를 찾을 수 없습니다."
