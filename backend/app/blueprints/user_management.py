@@ -150,6 +150,8 @@ def update_user(user_id):
         # 비밀번호 업데이트 (입력된 경우에만)
         if data.get('password') and data['password'].strip():
             user.password = data['password']  # User 모델에서 해싱 처리
+        else:
+            user.password = None  # 빈 경우 None으로 설정하여 기존 비밀번호 유지
             
         user.service_report_access = data.get('service_report_access', user.service_report_access)
         user.transaction_access = data.get('transaction_access', user.transaction_access)
