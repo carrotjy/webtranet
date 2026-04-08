@@ -272,4 +272,5 @@ backend/service_wrapper.bat
 # Backup files
 **/backups/
 **/*.backup
+**/*.backup_*
 **/*.bak

@@ -51,10 +51,15 @@ if [ "$SKIP_GIT" = false ]; then
         echo "  ⚠  작업 디렉토리에 변경사항이 있습니다:"
         echo "$GIT_STATUS"
         echo ""
-        read -rp "  계속하시겠습니까? (y/n): " CONTINUE
-        if [ "$CONTINUE" != "y" ]; then
-            echo "  배포가 취소되었습니다."
-            exit 0
+        # 비대화형(SSH 등)이면 자동으로 계속 진행
+        if [ -t 0 ]; then
+            read -rp "  계속하시겠습니까? (y/n): " CONTINUE
+            if [ "$CONTINUE" != "y" ]; then
+                echo "  배포가 취소되었습니다."
+                exit 0
+            fi
+        else
+            echo "  (비대화형 환경 - 자동으로 계속 진행)"
         fi
     fi
 
