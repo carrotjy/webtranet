@@ -13,6 +13,7 @@ param(
 $UBUNTU_USER = "jhi"
 $UBUNTU_HOST = "192.168.0.62"
 $UBUNTU_PATH = "/home/jhi/webtranet"
+$GIT_REPO = "https://github.com/carrotjy/webtranet.git"
 $REMOTE = "${UBUNTU_USER}@${UBUNTU_HOST}"
 $PROJECT_ROOT = $PSScriptRoot
 
@@ -37,6 +38,28 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 Write-Host "  [OK] SSH connected" -ForegroundColor Green
+Write-Host ""
+
+# git 저장소 초기화 확인 (최초 1회)
+Write-Host "  - Checking git repository on server..." -ForegroundColor Yellow
+$isGitRepo = ssh $REMOTE "[ -d $UBUNTU_PATH/.git ] && echo yes || echo no"
+if ($isGitRepo.Trim() -eq "no") {
+    Write-Host "  [!] .git not found. Initializing git repository..." -ForegroundColor Yellow
+    ssh $REMOTE @"
+cd $UBUNTU_PATH && \
+git init && \
+git remote add origin $GIT_REPO && \
+git fetch origin && \
+git checkout -f -B main origin/main
+"@
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [FAIL] Git init failed" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  [OK] Git repository initialized" -ForegroundColor Green
+} else {
+    Write-Host "  [OK] Git repository exists" -ForegroundColor Green
+}
 Write-Host ""
 
 # deploy.sh를 서버에 먼저 업로드 (항상 최신 버전 유지)
