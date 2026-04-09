@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api, { customerAPI, serviceReportAPI, resourceAPI, authAPI, userAPI, sparePartsAPI, invoiceAPI } from '../services/api';
+import api, { customerAPI, serviceReportAPI, resourceAPI, authAPI, userAPI, sparePartsAPI, invoiceAPI, systemAPI } from '../services/api';
 import Pagination from '../components/Pagination';
 import { useAuth } from '../contexts/AuthContext';
 import html2pdf from 'html2pdf.js';
@@ -280,6 +280,7 @@ const convertTimeToDecimalHours = (timeStr: string): number => {
 
 const ServiceReports: React.FC = () => {
   const { user, hasPermission } = useAuth();
+  const [logoBase64, setLogoBase64] = useState<string>('');
   const [reports, setReports] = useState<ServiceReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -399,6 +400,12 @@ const ServiceReports: React.FC = () => {
   // 부품 자동완성 관련 상태
   const [partSearchResults, setPartSearchResults] = useState<any[]>([]);
   const [activePartSearchIndex, setActivePartSearchIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    systemAPI.getLogo().then(res => {
+      if (res.data?.success) setLogoBase64(res.data.data);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadReports();
@@ -1965,9 +1972,13 @@ const ServiceReports: React.FC = () => {
     return `
 
       <div style="font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 10pt; color: #000; padding: 10mm 15mm; box-sizing: border-box; width: 210mm;">
-        <div style="text-align: center; margin-bottom: 8mm;">
-          <h2 style="margin: 0; font-size: 16pt; letter-spacing: 4px;">서비스 리포트</h2>
-          <div style="font-size: 9pt; color: #555; margin-top: 2mm;">No. ${report.report_number || report.id}</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8mm;">
+          ${logoBase64 ? `<img src="${logoBase64}" style="height:40px; object-fit:contain;" />` : '<div></div>'}
+          <div style="text-align:center; flex:1;">
+            <h2 style="margin: 0; font-size: 16pt; letter-spacing: 4px;">서비스 리포트</h2>
+            <div style="font-size: 9pt; color: #555; margin-top: 2mm;">No. ${report.report_number || report.id}</div>
+          </div>
+          <div style="width:40px;"></div>
         </div>
 
         <!-- 기본 정보 -->

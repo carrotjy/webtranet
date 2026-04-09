@@ -394,3 +394,18 @@ def add_system_info():
             'success': False,
             'message': f'시스템 정보 추가 실패: {str(e)}'
         }), 500
+
+
+@system_settings_bp.route('/system/logo', methods=['GET'])
+@jwt_required()
+def get_logo():
+    """회사 로고 이미지를 base64로 반환"""
+    import base64
+    logo_path = os.path.join(os.path.dirname(__file__), '..', '..', 'instance', 'LVD Logo_default.jpg')
+    logo_path = os.path.abspath(logo_path)
+    if not os.path.exists(logo_path):
+        return jsonify({'success': False, 'message': '로고 파일이 없습니다.'}), 404
+    with open(logo_path, 'rb') as f:
+        encoded = base64.b64encode(f.read()).decode('utf-8')
+    return jsonify({'success': True, 'data': f'data:image/jpeg;base64,{encoded}'})
+

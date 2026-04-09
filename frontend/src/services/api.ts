@@ -352,4 +352,9 @@ export const inventoryAPI = {
   }
 };
 
+// System API
+export const systemAPI = {
+  getLogo: () => api.get('/api/system/logo'),
+};
+
 export default api;
