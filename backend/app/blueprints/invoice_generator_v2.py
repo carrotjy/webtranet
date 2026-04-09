@@ -125,7 +125,9 @@ def convert_excel_to_pdf(excel_path, pdf_path):
         ]
 
         print(f"PDF 변환 시작: {excel_path} -> {pdf_path}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        env = os.environ.copy()
+        env['PATH'] = '/usr/bin:/usr/local/bin:/bin:/usr/sbin:/sbin:' + env.get('PATH', '')
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env)
 
         if result.returncode == 0:
             # LibreOffice는 원본 파일명을 기반으로 PDF를 생성하므로
