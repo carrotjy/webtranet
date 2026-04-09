@@ -56,21 +56,11 @@ git checkout -f -B main origin/main
         Write-Host "  [FAIL] Git init failed" -ForegroundColor Red
         exit 1
     }
+    ssh $REMOTE "chmod +x $UBUNTU_PATH/deploy.sh"
     Write-Host "  [OK] Git repository initialized" -ForegroundColor Green
 } else {
     Write-Host "  [OK] Git repository exists" -ForegroundColor Green
 }
-Write-Host ""
-
-# deploy.sh를 서버에 먼저 업로드 (항상 최신 버전 유지)
-Write-Host "  - Uploading deploy.sh..." -ForegroundColor Yellow
-scp "$PROJECT_ROOT\deploy.sh" "${REMOTE}:${UBUNTU_PATH}/deploy.sh"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [FAIL] deploy.sh upload failed" -ForegroundColor Red
-    exit 1
-}
-ssh $REMOTE "chmod +x $UBUNTU_PATH/deploy.sh"
-Write-Host "  [OK] deploy.sh uploaded" -ForegroundColor Green
 Write-Host ""
 
 # deploy.sh 인수 조합

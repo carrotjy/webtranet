@@ -66,6 +66,7 @@ if [ "$SKIP_GIT" = false ]; then
     echo "  - Git pull 실행 중..."
     git fetch origin
     git reset --hard "origin/$CURRENT_BRANCH"
+    chmod +x "$PROJECT_ROOT/deploy.sh"
 
     echo ""
     echo "  ✅ Git 동기화 완료!"
