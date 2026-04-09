@@ -4,9 +4,14 @@ Fax Blueprint
 """
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-import win32print
-import win32api
+import sys
 import sqlite3
+
+# Windows 전용 모듈 - Linux에서는 사용 불가
+if sys.platform == 'win32':
+    import win32print
+    import win32api
+WIN32_AVAILABLE = sys.platform == 'win32'
 import os
 import tempfile
 import glob
@@ -101,6 +106,12 @@ def send_fax():
 
         # PDF를 지정된 팩스 프린터로 출력
         try:
+            if not WIN32_AVAILABLE:
+                return jsonify({
+                    'success': False,
+                    'message': '팩스 전송은 Windows 환경에서만 지원됩니다.'
+                }), 501
+
             # 팩스 프린터로 PDF 인쇄 (팩스 앱이 열림)
             win32api.ShellExecute(
                 0,

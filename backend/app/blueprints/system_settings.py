@@ -6,9 +6,14 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.user import User
 from app.utils.timezone import get_kst_now
-import win32print
-import win32api
+import sys
 import sqlite3
+
+# Windows 전용 모듈 - Linux에서는 사용 불가
+if sys.platform == 'win32':
+    import win32print
+    import win32api
+WIN32_AVAILABLE = sys.platform == 'win32'
 import os
 
 system_settings_bp = Blueprint('system_settings', __name__)
@@ -46,6 +51,12 @@ def get_printers():
             }), 403
 
         # Windows 프린터 목록 가져오기
+        if not WIN32_AVAILABLE:
+            return jsonify({
+                'success': False,
+                'message': '프린터 목록 조회는 Windows 환경에서만 지원됩니다.'
+            }), 501
+
         printers = []
         printer_enum = win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS)
 
