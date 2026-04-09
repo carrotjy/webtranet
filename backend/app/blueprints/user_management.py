@@ -149,17 +149,10 @@ def update_user(user_id):
         
         # 비밀번호 업데이트 (입력된 경우에만)
         raw_password = data.get('password', '')
-        import sys
-        with open('/tmp/webtranet_debug.log', 'a') as f:
-            f.write(f"password repr={repr(raw_password)}, bool={bool(raw_password)}\n")
         if raw_password and raw_password.strip():
             user.password = raw_password
-            with open('/tmp/webtranet_debug.log', 'a') as f:
-                f.write("password will be UPDATED\n")
         else:
-            user.password = None
-            with open('/tmp/webtranet_debug.log', 'a') as f:
-                f.write(f"password unchanged, user.password set to None, save() will check: {bool(user.password)}\n")
+            user.password = None  # 빈 경우 None으로 설정하여 기존 비밀번호 유지
             
         user.service_report_access = data.get('service_report_access', user.service_report_access)
         user.transaction_access = data.get('transaction_access', user.transaction_access)
