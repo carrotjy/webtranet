@@ -217,7 +217,7 @@ const Dashboard: React.FC = () => {
               대시보드
             </h2>
             <div className="text-muted mt-1">
-              안녕하세요, {user?.name}님! LVDK Webtranet 시스템에 오신 것을 환영합니다.
+              안녕하세요, {user?.name}님!
             </div>
           </div>
         </div>
