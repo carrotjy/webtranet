@@ -3,6 +3,7 @@ import api, { customerAPI, serviceReportAPI, resourceAPI, authAPI, userAPI, spar
 import Pagination from '../components/Pagination';
 import { useAuth } from '../contexts/AuthContext';
 import html2pdf from 'html2pdf.js';
+import html2canvas from 'html2canvas';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface Customer {
@@ -1947,32 +1948,22 @@ const ServiceReports: React.FC = () => {
   };
 
   // PDF 저장 핸들러
-  const handleGeneratePDF = (report: ServiceReport, parts: any[]) => {
-    // 파일명 생성: 고객명-yymmdd-리포트번호
-    const customerName = report.customer_name || '고객명없음';
-    const serviceDate = report.service_date
-      ? new Date(report.service_date).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\. /g, '').replace('.', '')
-      : '날짜없음';
-    const reportIndex = report.report_number || String(report.id);
-    const fileName = `${customerName}-${serviceDate}-${reportIndex}`;
-
-    // 시간 기록 데이터 파싱
+  // 리포트 HTML content 생성 (PDF/JPEG 공용)
+  const buildReportContent = (report: ServiceReport, parts: any[]): string => {
     const timeRecords: any[] = (() => {
       const tr = (report as any).time_records;
       if (Array.isArray(tr) && tr.length > 0) return tr;
       if (report.time_record) return [report.time_record];
       return [];
     })();
-
-    // 지원 기술자 목록
     const supportTechNames = (report.support_technician_ids && report.support_technician_ids.length > 0)
       ? report.support_technician_ids.map(id => {
           const t = technicians.find(t => t.id === id);
           return t ? t.name : null;
         }).filter(Boolean).join(', ')
       : '없음';
+    return `
 
-    const content = `
       <div style="font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 10pt; color: #000; padding: 10mm 15mm; box-sizing: border-box; width: 210mm;">
         <div style="text-align: center; margin-bottom: 8mm;">
           <h2 style="margin: 0; font-size: 16pt; letter-spacing: 4px;">서비스 리포트</h2>
@@ -2105,10 +2096,22 @@ const ServiceReports: React.FC = () => {
       </div>
     `;
 
-    const element = document.createElement('div');
-    element.innerHTML = content;
-    document.body.appendChild(element);
+  };
 
+  const getReportFileName = (report: ServiceReport) => {
+    const customerName = report.customer_name || '고객명없음';
+    const serviceDate = report.service_date
+      ? new Date(report.service_date).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\. /g, '').replace('.', '')
+      : '날짜없음';
+    const reportIndex = report.report_number || String(report.id);
+    return `${customerName}-${serviceDate}-${reportIndex}`;
+  };
+
+  const handleGeneratePDF = (report: ServiceReport, parts: any[]) => {
+    const fileName = getReportFileName(report);
+    const element = document.createElement('div');
+    element.innerHTML = buildReportContent(report, parts);
+    document.body.appendChild(element);
     const opt = {
       margin: 0,
       filename: `${fileName}.pdf`,
@@ -2116,10 +2119,48 @@ const ServiceReports: React.FC = () => {
       html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
     };
-
     html2pdf().set(opt).from(element).save().then(() => {
       document.body.removeChild(element);
     });
+  };
+
+  const handleSaveAsImage = async (report: ServiceReport, parts: any[]) => {
+    const fileName = `${getReportFileName(report)}.jpg`;
+    const element = document.createElement('div');
+    element.style.cssText = 'position:absolute;left:-9999px;width:794px;background:#fff;';
+    element.innerHTML = buildReportContent(report, parts);
+    document.body.appendChild(element);
+    try {
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      document.body.removeChild(element);
+      if (navigator.share && navigator.canShare) {
+        canvas.toBlob(async (blob) => {
+          if (!blob) return;
+          const file = new File([blob], fileName, { type: 'image/jpeg' });
+          if (navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({ files: [file], title: fileName });
+              return;
+            } catch {
+              // 공유 취소 시 다운로드로 폴백
+            }
+          }
+          downloadJpeg(canvas, fileName);
+        }, 'image/jpeg', 0.92);
+      } else {
+        downloadJpeg(canvas, fileName);
+      }
+    } catch {
+      if (document.body.contains(element)) document.body.removeChild(element);
+      alert('이미지 저장에 실패했습니다.');
+    }
+  };
+
+  const downloadJpeg = (canvas: HTMLCanvasElement, fileName: string) => {
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = canvas.toDataURL('image/jpeg', 0.92);
+    link.click();
   };
 
   // 수정 버튼 클릭 핸들러
@@ -3592,6 +3633,28 @@ const ServiceReports: React.FC = () => {
                       <polyline points="9 14 12 17 15 14"/>
                     </svg>
                     PDF 저장
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-success btn-sm"
+                    style={{
+                      height: '32px',
+                      padding: '0 10px',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '13px',
+                    }}
+                    onClick={() => handleSaveAsImage(viewingReport, partsWithBillingPrice)}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    이미지 저장
                   </button>
                   <button
                     type="button"
