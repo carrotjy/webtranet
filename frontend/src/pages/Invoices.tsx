@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { invoiceAPI, serviceReportAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import Pagination from '../components/Pagination';
-import html2pdf from 'html2pdf.js';
+import api from '../services/api';
 
 interface Invoice {
   id: number;
@@ -243,130 +243,27 @@ const Invoices: React.FC = () => {
     }
   };
 
-  const handleServiceReportPDF = (report: any) => {
-    const customerName = report.customer_name || '고객명없음';
-    const serviceDate = report.service_date
-      ? new Date(report.service_date).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\. /g, '').replace('.', '')
-      : '날짜없음';
-    const fileName = `${customerName}-${serviceDate}-${report.report_number || report.id}`;
-
-    const timeRecords: any[] = Array.isArray(report.time_records) ? report.time_records : [];
-    const parts: any[] = Array.isArray(report.used_parts) ? report.used_parts : [];
-
-    const content = `
-      <div style="font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 10pt; color: #000; padding: 10mm 15mm; box-sizing: border-box; width: 210mm;">
-        <div style="text-align: center; margin-bottom: 8mm;">
-          <h2 style="margin: 0; font-size: 16pt; letter-spacing: 4px;">서비스 리포트</h2>
-          <div style="font-size: 9pt; color: #555; margin-top: 2mm;">No. ${report.report_number || report.id}</div>
-        </div>
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 5mm; font-size: 9pt;">
-          <tr>
-            <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:18%">서비스 날짜</td>
-            <td style="border:1px solid #aaa; padding:3px 6px; width:22%">${report.service_date ? new Date(report.service_date).toLocaleDateString('ko-KR') : '-'}</td>
-            <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:15%">서비스담당</td>
-            <td style="border:1px solid #aaa; padding:3px 6px;">${report.technician_name || '-'}</td>
-          </tr>
-          <tr>
-            <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px;">고객명</td>
-            <td style="border:1px solid #aaa; padding:3px 6px;" colspan="3">${report.customer_name || '-'}</td>
-          </tr>
-          <tr>
-            <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px;">고객사 주소</td>
-            <td style="border:1px solid #aaa; padding:3px 6px;" colspan="3">${report.customer_address || '-'}</td>
-          </tr>
-          <tr>
-            <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px;">Model</td>
-            <td style="border:1px solid #aaa; padding:3px 6px;">${report.machine_model || report.equipment_model || '-'}</td>
-            <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px;">SN</td>
-            <td style="border:1px solid #aaa; padding:3px 6px;">${report.machine_serial || report.equipment_serial || '-'}</td>
-          </tr>
-        </table>
-        <div style="font-weight:bold; font-size:10pt; margin-bottom:2mm;">작업 내용</div>
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 5mm; font-size: 9pt;">
-          <tr>
-            <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:20%; vertical-align:top;">Job Description</td>
-            <td style="border:1px solid #aaa; padding:4px 6px; white-space:pre-wrap; min-height:20mm;">${report.problem_description || report.symptom || '-'}</td>
-          </tr>
-          <tr>
-            <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; vertical-align:top;">처리 내용</td>
-            <td style="border:1px solid #aaa; padding:4px 6px; white-space:pre-wrap; min-height:25mm;">${report.solution_description || report.details || report.work_description || '-'}</td>
-          </tr>
-        </table>
-        ${parts.length > 0 ? `
-        <div style="font-weight:bold; font-size:10pt; margin-bottom:2mm;">사용부품 내역</div>
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 5mm; font-size: 9pt;">
-          <thead>
-            <tr style="background:#f0f0f0;">
-              <th style="border:1px solid #aaa; padding:3px 6px; text-align:left;">부품명</th>
-              <th style="border:1px solid #aaa; padding:3px 6px; text-align:left;">부품번호</th>
-              <th style="border:1px solid #aaa; padding:3px 6px; text-align:center; width:60px;">수량</th>
-              <th style="border:1px solid #aaa; padding:3px 6px; text-align:right; width:90px;">단가</th>
-              <th style="border:1px solid #aaa; padding:3px 6px; text-align:right; width:90px;">총액</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${parts.map((p: any) => `
-            <tr>
-              <td style="border:1px solid #aaa; padding:3px 6px;">${p.part_name || '-'}</td>
-              <td style="border:1px solid #aaa; padding:3px 6px;">${p.part_number || '-'}</td>
-              <td style="border:1px solid #aaa; padding:3px 6px; text-align:center;">${p.quantity || '-'}</td>
-              <td style="border:1px solid #aaa; padding:3px 6px; text-align:right;">${typeof p.unit_price === 'number' ? p.unit_price.toLocaleString() : '0'}</td>
-              <td style="border:1px solid #aaa; padding:3px 6px; text-align:right; font-weight:bold;">${typeof p.total_price === 'number' ? p.total_price.toLocaleString() : '0'}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>` : ''}
-        ${timeRecords.length > 0 ? `
-        <div style="font-weight:bold; font-size:10pt; margin-bottom:2mm;">작업/이동 시간 기록부</div>
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 5mm; font-size: 8.5pt;">
-          <thead>
-            <tr style="background:#f0f0f0;">
-              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">날짜</th>
-              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">출발시간</th>
-              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">작업시작</th>
-              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">작업종료</th>
-              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">이동종료</th>
-              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">식사(작업)</th>
-              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">식사(이동)</th>
-              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center; color:#1a56db;">작업시간</th>
-              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center; color:#1a56db;">이동시간</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${timeRecords.map((r: any) => `
-            <tr>
-              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">${r.date || r.work_date ? new Date(r.date || r.work_date).toLocaleDateString('ko-KR') : '-'}</td>
-              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">${r.departure_time || '-'}</td>
-              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">${r.work_start_time || '-'}</td>
-              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">${r.work_end_time || '-'}</td>
-              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">${r.travel_end_time || '-'}</td>
-              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">${r.work_meal_time || '-'}</td>
-              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">${r.travel_meal_time || '-'}</td>
-              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center; font-weight:bold; color:#1a56db;">${r.calculated_work_time || '-'}</td>
-              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center; font-weight:bold; color:#1a56db;">${r.calculated_travel_time || '-'}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>` : ''}
-        <div style="margin-top: 8mm; border-top: 1px solid #ccc; padding-top: 4mm; font-size: 8pt; color: #777; text-align: right;">
-          출력일: ${new Date().toLocaleDateString('ko-KR')}
-        </div>
-      </div>
-    `;
-
-    const element = document.createElement('div');
-    element.innerHTML = content;
-    document.body.appendChild(element);
-
-    const opt = {
-      margin: 0,
-      filename: `${fileName}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
-    };
-
-    html2pdf().set(opt).from(element).save().then(() => {
-      document.body.removeChild(element);
-    });
+  const handleServiceReportPDF = async (report: any) => {
+    try {
+      const response = await api.get(`/api/service-reports/${report.id}/pdf`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const customerName = report.customer_name || '고객명없음';
+      const serviceDate = report.service_date
+        ? new Date(report.service_date).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\. /g, '').replace('.', '')
+        : '날짜없음';
+      a.href = url;
+      a.download = `${customerName}-${serviceDate}-${report.report_number || report.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert('PDF 생성 중 오류가 발생했습니다: ' + (err?.response?.data?.error || err?.message || '알 수 없는 오류'));
+    }
   };
 
   const toggleSelectExcel = (id: number) => {
