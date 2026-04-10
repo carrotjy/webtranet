@@ -2118,21 +2118,24 @@ const ServiceReports: React.FC = () => {
     return `${customerName}-${serviceDate}-${reportIndex}`;
   };
 
-  const handleGeneratePDF = (report: ServiceReport, parts: any[]) => {
-    const fileName = getReportFileName(report);
-    const element = document.createElement('div');
-    element.innerHTML = buildReportContent(report, parts);
-    document.body.appendChild(element);
-    const opt = {
-      margin: 0,
-      filename: `${fileName}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
-    };
-    html2pdf().set(opt).from(element).save().then(() => {
-      document.body.removeChild(element);
-    });
+  const handleGeneratePDF = async (report: ServiceReport, _parts: any[]) => {
+    try {
+      const response = await api.get(`/api/service-reports/${report.id}/pdf`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const fileName = getReportFileName(report);
+      a.href = url;
+      a.download = `${fileName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert('PDF 생성 중 오류가 발생했습니다: ' + (err?.response?.data?.error || err?.message || '알 수 없는 오류'));
+    }
   };
 
   const handleSaveAsImage = async (report: ServiceReport, parts: any[]) => {

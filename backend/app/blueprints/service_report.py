@@ -1,7 +1,11 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from app.utils.auth import permission_required, get_current_user, service_report_update_required, admin_required
 from app.models.service_report import ServiceReport
 from app.database.init_db import get_db_connection
+import os
+import base64
+import io
+from datetime import datetime
 
 service_report_bp = Blueprint('service_report', __name__)
 
@@ -346,3 +350,288 @@ def delete_signature(report_id):
             conn.close()
     except Exception as e:
         return jsonify({'error': f'서명 삭제 중 오류가 발생했습니다: {str(e)}'}), 500
+
+
+def _build_pdf_html(report_dict: dict) -> str:
+    """서비스 리포트 데이터로 WeasyPrint용 HTML 생성"""
+    r = report_dict
+
+    # 로고 이미지 base64 로드
+    logo_tag = ''
+    logo_path = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), '..', '..', 'instance', 'LVD Logo_default.jpg'
+    ))
+    if os.path.exists(logo_path):
+        with open(logo_path, 'rb') as f:
+            logo_b64 = base64.b64encode(f.read()).decode('utf-8')
+        logo_tag = f'<img src="data:image/jpeg;base64,{logo_b64}" style="height:40px; object-fit:contain;" />'
+    else:
+        logo_tag = '<div></div>'
+
+    # 서비스 날짜 포맷
+    service_date_str = '-'
+    if r.get('service_date'):
+        try:
+            d = datetime.fromisoformat(r['service_date'].replace('Z', ''))
+            service_date_str = f"{d.year}년 {d.month}월 {d.day}일"
+        except Exception:
+            service_date_str = r['service_date']
+
+    # 출력일
+    today_str = datetime.now().strftime('%Y년 %m월 %d일')
+
+    # 동행/지원 기술자
+    support_tech_names = r.get('support_technician_names') or '없음'
+
+    # 사용부품
+    parts = r.get('used_parts') or []
+    parts_html = ''
+    if parts:
+        rows = ''.join(
+            f'''<tr>
+              <td style="border:1px solid #aaa; padding:3px 6px;">{p.get("part_name") or "-"}</td>
+              <td style="border:1px solid #aaa; padding:3px 6px;">{p.get("part_number") or "-"}</td>
+              <td style="border:1px solid #aaa; padding:3px 6px; text-align:center;">{p.get("quantity") or "-"}</td>
+              <td style="border:1px solid #aaa; padding:3px 6px; text-align:right;">{f"{int(p.get('unit_price') or 0):,}" if isinstance(p.get("unit_price"), (int, float)) else "0"}</td>
+              <td style="border:1px solid #aaa; padding:3px 6px; text-align:right; font-weight:bold;">{f"{int(p.get('total_price') or 0):,}" if isinstance(p.get("total_price"), (int, float)) else "0"}</td>
+            </tr>'''
+            for p in parts
+        )
+        parts_html = f'''
+        <div style="font-weight:bold; font-size:10pt; margin-bottom:2mm;">사용부품 내역</div>
+        <table style="width:100%; border-collapse:collapse; margin-bottom:5mm; font-size:9pt;">
+          <thead>
+            <tr style="background:#f0f0f0;">
+              <th style="border:1px solid #aaa; padding:3px 6px; text-align:left;">부품명</th>
+              <th style="border:1px solid #aaa; padding:3px 6px; text-align:left;">부품번호</th>
+              <th style="border:1px solid #aaa; padding:3px 6px; text-align:center; width:60px;">수량</th>
+              <th style="border:1px solid #aaa; padding:3px 6px; text-align:right; width:90px;">단가</th>
+              <th style="border:1px solid #aaa; padding:3px 6px; text-align:right; width:90px;">총액</th>
+            </tr>
+          </thead>
+          <tbody>{rows}</tbody>
+        </table>'''
+
+    # 시간 기록부
+    time_records = r.get('time_records') or []
+    if not time_records and r.get('time_record'):
+        time_records = [r['time_record']]
+    time_html = ''
+    if time_records:
+        def fmt_date(d):
+            if not d: return '-'
+            try:
+                dt = datetime.fromisoformat(str(d).replace('Z', ''))
+                return f"{dt.year}년 {dt.month}월 {dt.day}일"
+            except Exception:
+                return str(d)
+
+        def fmt_time(t):
+            if not t: return '-'
+            s = str(t).strip()
+            # HH:MM:SS → HH:MM
+            if len(s) >= 5 and ':' in s:
+                return s[:5]
+            return s
+
+        rows = ''.join(
+            f'''<tr>
+              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">{fmt_date(tr.get("date") or tr.get("work_date"))}</td>
+              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">{fmt_time(tr.get("departure_time"))}</td>
+              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">{fmt_time(tr.get("work_start_time"))}</td>
+              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">{fmt_time(tr.get("work_end_time"))}</td>
+              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">{fmt_time(tr.get("travel_end_time"))}</td>
+              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">{fmt_time(tr.get("work_meal_time"))}</td>
+              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center;">{fmt_time(tr.get("travel_meal_time"))}</td>
+              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center; font-weight:bold; color:#1a56db;">{tr.get("calculated_work_time") or "-"}</td>
+              <td style="border:1px solid #aaa; padding:2px 4px; text-align:center; font-weight:bold; color:#1a56db;">{tr.get("calculated_travel_time") or "-"}</td>
+            </tr>'''
+            for tr in time_records
+        )
+        time_html = f'''
+        <div style="font-weight:bold; font-size:10pt; margin-bottom:2mm;">작업/이동 시간 기록부</div>
+        <table style="width:100%; border-collapse:collapse; margin-bottom:5mm; font-size:8.5pt;">
+          <thead>
+            <tr style="background:#f0f0f0;">
+              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">날짜</th>
+              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">출발시간</th>
+              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">작업시작</th>
+              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">작업종료</th>
+              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">이동종료</th>
+              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">식사(작업)</th>
+              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center;">식사(이동)</th>
+              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center; color:#1a56db;">작업시간</th>
+              <th style="border:1px solid #aaa; padding:2px 4px; text-align:center; color:#1a56db;">이동시간</th>
+            </tr>
+          </thead>
+          <tbody>{rows}</tbody>
+        </table>'''
+
+    # 고객 서명
+    sig_html = ''
+    if r.get('has_signature') and r.get('customer_signature'):
+        signed_at = '-'
+        if r.get('customer_signed_at'):
+            try:
+                dt = datetime.fromisoformat(str(r['customer_signed_at']).replace('Z', ''))
+                signed_at = dt.strftime('%Y년 %m월 %d일 %H:%M')
+            except Exception:
+                signed_at = str(r['customer_signed_at'])
+        sig_html = f'''
+        <div style="margin-top:6mm;">
+          <div style="font-weight:bold; font-size:10pt; margin-bottom:2mm;">고객 서명</div>
+          <table style="width:100%; border-collapse:collapse; font-size:9pt;">
+            <tr>
+              <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:20%; vertical-align:middle;">서명자</td>
+              <td style="border:1px solid #aaa; padding:3px 6px; vertical-align:middle;">{r.get("signer_name") or "-"}</td>
+              <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:20%; vertical-align:middle;">서명일시</td>
+              <td style="border:1px solid #aaa; padding:3px 6px; vertical-align:middle;">{signed_at}</td>
+            </tr>
+            <tr>
+              <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; vertical-align:top;">서명</td>
+              <td colspan="3" style="border:1px solid #aaa; padding:4px 6px;">
+                <img src="{r["customer_signature"]}" style="max-height:60px; max-width:300px;" />
+              </td>
+            </tr>
+          </table>
+        </div>'''
+
+    problem_desc = (r.get('problem_description') or r.get('symptom') or '-').replace('\n', '<br>')
+    solution_desc = (r.get('solution_description') or r.get('details') or '-').replace('\n', '<br>')
+
+    html = f'''<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face {{
+    font-family: 'NanumGothic';
+    src: local('NanumGothic'), local('나눔고딕'),
+         url('/usr/share/fonts/truetype/nanum/NanumGothic.ttf') format('truetype');
+  }}
+  body {{
+    font-family: 'NanumGothic', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    font-size: 10pt;
+    color: #000;
+    margin: 0;
+    padding: 0;
+  }}
+  @page {{
+    size: A4;
+    margin: 10mm 15mm;
+  }}
+</style>
+</head>
+<body>
+  <div>
+    <!-- 헤더 -->
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8mm;">
+      {logo_tag}
+      <div style="text-align:center; flex:1;">
+        <h2 style="margin:0; font-size:16pt; letter-spacing:4px;">서비스 리포트</h2>
+        <div style="font-size:9pt; color:#555; margin-top:2mm;">No. {r.get("report_number") or r.get("id")}</div>
+      </div>
+      <div style="width:40px;"></div>
+    </div>
+
+    <!-- 기본 정보 -->
+    <table style="width:100%; border-collapse:collapse; margin-bottom:5mm; font-size:9pt;">
+      <tr>
+        <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:18%">서비스 날짜</td>
+        <td style="border:1px solid #aaa; padding:3px 6px; width:22%">{service_date_str}</td>
+        <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:15%">서비스담당</td>
+        <td style="border:1px solid #aaa; padding:3px 6px; width:18%">{r.get("technician_name") or "-"}</td>
+        <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:12%">동행/지원</td>
+        <td style="border:1px solid #aaa; padding:3px 6px;">{support_tech_names}</td>
+      </tr>
+      <tr>
+        <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px;">고객명</td>
+        <td style="border:1px solid #aaa; padding:3px 6px;" colspan="5">{r.get("customer_name") or "-"}</td>
+      </tr>
+      <tr>
+        <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px;">고객사 주소</td>
+        <td style="border:1px solid #aaa; padding:3px 6px;" colspan="5">{r.get("customer_address") or "-"}</td>
+      </tr>
+      <tr>
+        <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px;">Model</td>
+        <td style="border:1px solid #aaa; padding:3px 6px;">{r.get("machine_model") or "-"}</td>
+        <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px;">SN</td>
+        <td style="border:1px solid #aaa; padding:3px 6px;" colspan="3">{r.get("machine_serial") or "-"}</td>
+      </tr>
+    </table>
+
+    <!-- 작업 내용 -->
+    <div style="font-weight:bold; font-size:10pt; margin-bottom:2mm;">작업 내용</div>
+    <table style="width:100%; border-collapse:collapse; margin-bottom:5mm; font-size:9pt;">
+      <tr>
+        <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; width:20%; vertical-align:top;">Job Description</td>
+        <td style="border:1px solid #aaa; padding:4px 6px; min-height:20mm;">{problem_desc}</td>
+      </tr>
+      <tr>
+        <td style="background:#f0f0f0; font-weight:bold; border:1px solid #aaa; padding:3px 6px; vertical-align:top;">처리 내용</td>
+        <td style="border:1px solid #aaa; padding:4px 6px; min-height:25mm;">{solution_desc}</td>
+      </tr>
+    </table>
+
+    {parts_html}
+    {time_html}
+    {sig_html}
+
+    <div style="margin-top:8mm; border-top:1px solid #ccc; padding-top:4mm; font-size:8pt; color:#777; text-align:right;">
+      출력일: {today_str}
+    </div>
+  </div>
+</body>
+</html>'''
+    return html
+
+
+@service_report_bp.route('/<int:report_id>/pdf', methods=['GET'])
+@permission_required('service_report')
+def generate_pdf(report_id):
+    """서비스 리포트 PDF 생성 (WeasyPrint 사용)"""
+    try:
+        from weasyprint import HTML as WeasyHTML
+
+        report = ServiceReport.get_by_id(report_id)
+        if not report:
+            return jsonify({'error': '서비스 리포트를 찾을 수 없습니다.'}), 404
+
+        report_dict = report.to_dict()
+
+        # support_technician_names가 없으면 DB에서 조회
+        if not report_dict.get('support_technician_names'):
+            support_ids = report_dict.get('support_technician_ids') or []
+            if support_ids:
+                conn = get_db_connection()
+                names = []
+                for uid in support_ids:
+                    row = conn.execute('SELECT name FROM users WHERE id=?', (uid,)).fetchone()
+                    if row:
+                        names.append(row['name'])
+                conn.close()
+                report_dict['support_technician_names'] = ', '.join(names) if names else '없음'
+            else:
+                report_dict['support_technician_names'] = '없음'
+
+        html_content = _build_pdf_html(report_dict)
+        pdf_bytes = WeasyHTML(string=html_content).write_pdf()
+
+        # 파일명 생성
+        customer_name = report_dict.get('customer_name') or '고객'
+        report_number = report_dict.get('report_number') or str(report_id)
+        filename = f"{customer_name}-{report_number}.pdf"
+        # 파일명에서 위험 문자 제거
+        filename = ''.join(c for c in filename if c not in r'\/:*?"<>|')
+
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except ImportError:
+        return jsonify({'error': 'WeasyPrint가 설치되어 있지 않습니다.'}), 500
+    except Exception as e:
+        return jsonify({'error': f'PDF 생성 중 오류가 발생했습니다: {str(e)}'}), 500

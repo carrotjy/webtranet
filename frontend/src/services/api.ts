@@ -252,6 +252,8 @@ export const serviceReportAPI = {
   },
   deleteSignature: (id: number) =>
     api.delete(`/api/service-reports/${id}/signature`),
+  generatePDF: (id: number) =>
+    api.get(`/api/service-reports/${id}/pdf`, { responseType: 'blob' }),
 };
 
 // 공개 서비스 리포트 API (인증 불필요 - 일반 axios 사용)
