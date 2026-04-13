@@ -478,22 +478,34 @@ def get_monthly_inventory_summary():
     try:
         year = request.args.get('year', date.today().year, type=int)
 
-        # 해당 연도의 모든 파트 조회
         parts = SparePart.query.order_by(SparePart.part_number).all()
 
         result = []
         for part in parts:
-            monthly_data = {
-                'part_number': part.part_number,
-                'part_name': part.part_name,
-                'erp_name': part.erp_name,
-                'category': part.category,
-                'months': {}
-            }
+            # 당해 연도 전체 입고/출고 합계
+            year_in = db.session.query(func.sum(StockHistory.quantity)).filter(
+                StockHistory.part_number == part.part_number,
+                StockHistory.transaction_type == 'IN',
+                extract('year', StockHistory.transaction_date) == year
+            ).scalar() or 0
 
-            # 각 월별 입출고 데이터 조회
+            year_out = db.session.query(func.sum(StockHistory.quantity)).filter(
+                StockHistory.part_number == part.part_number,
+                StockHistory.transaction_type == 'OUT',
+                extract('year', StockHistory.transaction_date) == year
+            ).scalar() or 0
+
+            # 이월재고 = 현재재고 - (당해 순증감)
+            current_stock = part.current_stock or 0
+            previous_year_stock = current_stock - (int(year_in) - int(year_out))
+
+            # 필터: 이월재고 1 이상 또는 당해 입출고 활동 있는 항목만 포함
+            if previous_year_stock < 1 and year_in == 0 and year_out == 0:
+                continue
+
+            # 월별 입출고 데이터 조회
+            monthly_data = {}
             for month in range(1, 13):
-                # 입고 수량
                 inbound = db.session.query(func.sum(StockHistory.quantity)).filter(
                     StockHistory.part_number == part.part_number,
                     StockHistory.transaction_type == 'IN',
@@ -501,7 +513,6 @@ def get_monthly_inventory_summary():
                     extract('month', StockHistory.transaction_date) == month
                 ).scalar() or 0
 
-                # 출고 수량
                 outbound = db.session.query(func.sum(StockHistory.quantity)).filter(
                     StockHistory.part_number == part.part_number,
                     StockHistory.transaction_type == 'OUT',
@@ -509,12 +520,20 @@ def get_monthly_inventory_summary():
                     extract('month', StockHistory.transaction_date) == month
                 ).scalar() or 0
 
-                monthly_data['months'][str(month)] = {
+                monthly_data[str(month)] = {
                     'inbound': int(inbound),
                     'outbound': int(outbound)
                 }
 
-            result.append(monthly_data)
+            result.append({
+                'part_number': part.part_number,
+                'part_name': part.part_name,
+                'erp_name': part.erp_name,
+                'category': part.category,
+                'previous_year_stock': previous_year_stock,
+                'current_stock': current_stock,
+                'monthly_data': monthly_data,
+            })
 
         return jsonify({
             'success': True,
@@ -559,8 +578,8 @@ def export_monthly_inventory_summary():
         )
         center_align = Alignment(horizontal='center', vertical='center')
 
-        # 헤더 작성
-        headers = ['파트번호', '파트명', 'ERP명', '카테고리']
+        # 헤더 작성 (이월재고, 현재재고 추가)
+        headers = ['파트번호', '파트명', 'ERP명', '카테고리', '이월재고', '현재재고']
         for month in range(1, 13):
             headers.extend([f'{month}월 입고', f'{month}월 출고'])
 
@@ -571,20 +590,47 @@ def export_monthly_inventory_summary():
             cell.alignment = center_align
             cell.border = border
 
-        # 데이터 조회 및 작성
+        # 데이터 조회 및 작성 (필터 적용)
         parts = SparePart.query.order_by(SparePart.part_number).all()
 
-        for row_num, part in enumerate(parts, 2):
+        row_num = 2
+        for part in parts:
+            year_in = db.session.query(func.sum(StockHistory.quantity)).filter(
+                StockHistory.part_number == part.part_number,
+                StockHistory.transaction_type == 'IN',
+                extract('year', StockHistory.transaction_date) == year
+            ).scalar() or 0
+
+            year_out = db.session.query(func.sum(StockHistory.quantity)).filter(
+                StockHistory.part_number == part.part_number,
+                StockHistory.transaction_type == 'OUT',
+                extract('year', StockHistory.transaction_date) == year
+            ).scalar() or 0
+
+            current_stock = part.current_stock or 0
+            previous_year_stock = current_stock - (int(year_in) - int(year_out))
+
+            # 이월재고 0 이하이고 당해 활동 없으면 제외
+            if previous_year_stock < 1 and year_in == 0 and year_out == 0:
+                continue
+
             # 기본 정보
             ws.cell(row=row_num, column=1, value=part.part_number).border = border
             ws.cell(row=row_num, column=2, value=part.part_name).border = border
             ws.cell(row=row_num, column=3, value=part.erp_name or '').border = border
             ws.cell(row=row_num, column=4, value=part.category or '').border = border
 
+            prev_cell = ws.cell(row=row_num, column=5, value=previous_year_stock)
+            prev_cell.border = border
+            prev_cell.alignment = center_align
+
+            curr_cell = ws.cell(row=row_num, column=6, value=current_stock)
+            curr_cell.border = border
+            curr_cell.alignment = center_align
+
             # 월별 입출고 데이터
-            col_num = 5
+            col_num = 7
             for month in range(1, 13):
-                # 입고 수량
                 inbound = db.session.query(func.sum(StockHistory.quantity)).filter(
                     StockHistory.part_number == part.part_number,
                     StockHistory.transaction_type == 'IN',
@@ -592,7 +638,6 @@ def export_monthly_inventory_summary():
                     extract('month', StockHistory.transaction_date) == month
                 ).scalar() or 0
 
-                # 출고 수량
                 outbound = db.session.query(func.sum(StockHistory.quantity)).filter(
                     StockHistory.part_number == part.part_number,
                     StockHistory.transaction_type == 'OUT',
@@ -610,12 +655,16 @@ def export_monthly_inventory_summary():
 
                 col_num += 2
 
+            row_num += 1
+
         # 열 너비 조정
         ws.column_dimensions['A'].width = 15
         ws.column_dimensions['B'].width = 30
         ws.column_dimensions['C'].width = 30
         ws.column_dimensions['D'].width = 15
-        for col in range(5, 5 + 24):
+        ws.column_dimensions['E'].width = 12
+        ws.column_dimensions['F'].width = 12
+        for col in range(7, 7 + 24):
             ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
 
         # 파일 저장
