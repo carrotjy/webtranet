@@ -54,6 +54,9 @@ const SpareParts: React.FC = () => {
   // 메인 목록 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // 수정일 정렬 상태
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   
   // Modal states
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -702,10 +705,16 @@ const SpareParts: React.FC = () => {
     }
   };
 
-  const filteredParts = spareParts.filter(part =>
-    (part.part_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (part.part_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredParts = spareParts
+    .filter(part =>
+      (part.part_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (part.part_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      const da = new Date(a.updated_at).getTime();
+      const db = new Date(b.updated_at).getTime();
+      return sortDir === 'desc' ? db - da : da - db;
+    });
 
   // 페이지네이션 계산
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -891,7 +900,13 @@ const SpareParts: React.FC = () => {
                   <th className="text-center">ERP명</th>
                   <th className="text-center">재고수량</th>
                   <th className="text-center">청구가(KRW)</th>
-                  <th className="text-center">등록일</th>
+                  <th
+                    className="text-center"
+                    style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                    onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+                  >
+                    수정일 {sortDir === 'desc' ? '▼' : '▲'}
+                  </th>
                   <th className="text-center w-1">작업</th>
                   </tr>
                 </thead>
@@ -904,7 +919,7 @@ const SpareParts: React.FC = () => {
                         <td className="text-center">{part.erp_name || '-'}</td>
                         <td className="text-center">{part.stock_quantity}</td>
                         <td className="text-center">₩{partBillingPrices[part.id]?.toLocaleString('ko-KR') || '0'}</td>
-                        <td className="text-center">{new Date(part.created_at).toLocaleDateString('ko-KR')}</td>
+                        <td className="text-center">{new Date(part.updated_at).toLocaleDateString('ko-KR')}</td>
                         <td className="text-center">
                           <div className="d-flex gap-1 justify-content-center">
                             {hasPermission('spare_parts_read') && (
