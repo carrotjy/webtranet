@@ -123,6 +123,7 @@ def get_spare_parts():
                 'part_name': part['part_name'],  # part_name 필드명 유지
                 'erp_name': part['erp_name'] if part['erp_name'] else '',  # erp_name 추가
                 'stock_quantity': part['stock_quantity'],  # stock_quantity 필드명 유지
+                'min_stock': part['minimum_stock'] if part['minimum_stock'] is not None else 0,
                 'price': part['price'] if part['price'] else 0,  # price 필드명 유지
                 'billing_price': billing_price,  # 최신 청구가 추가
                 'created_at': part['created_at'] if part['created_at'] else datetime.now().isoformat(),

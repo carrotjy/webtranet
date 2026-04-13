@@ -396,6 +396,66 @@ def add_system_info():
         }), 500
 
 
+@system_settings_bp.route('/system/safety-stock-range', methods=['GET'])
+@jwt_required()
+def get_safety_stock_range():
+    """안전재고 범위(%) 조회"""
+    try:
+        conn = get_db_connection()
+        setting = conn.execute(
+            "SELECT value FROM system_settings WHERE key = 'safety_stock_range'"
+        ).fetchone()
+        conn.close()
+        return jsonify({
+            'success': True,
+            'safety_stock_range': float(setting['value']) if setting else 20.0
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@system_settings_bp.route('/system/safety-stock-range', methods=['POST'])
+@jwt_required()
+def set_safety_stock_range():
+    """안전재고 범위(%) 저장"""
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.get_by_id(current_user_id)
+        if not user or not user.is_admin:
+            return jsonify({'success': False, 'message': '관리자만 접근할 수 있습니다.'}), 403
+
+        data = request.get_json()
+        value = data.get('safety_stock_range')
+        if value is None:
+            return jsonify({'success': False, 'message': '값이 필요합니다.'}), 400
+        try:
+            value = float(value)
+            if value < 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': '0 이상의 숫자를 입력하세요.'}), 400
+
+        conn = get_db_connection()
+        existing = conn.execute(
+            "SELECT * FROM system_settings WHERE key = 'safety_stock_range'"
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE system_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'safety_stock_range'",
+                (str(value),)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO system_settings (key, value) VALUES ('safety_stock_range', ?)",
+                (str(value),)
+            )
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': '안전재고 범위가 저장되었습니다.'}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @system_settings_bp.route('/system/logo', methods=['GET'])
 @jwt_required()
 def get_logo():

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import api, { systemAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import Pagination from '../components/Pagination';
 
@@ -9,6 +9,7 @@ interface SparePart {
   part_name: string;
   erp_name?: string;  // ERP명 추가
   stock_quantity: number;
+  min_stock: number;
   price: number;
   billing_price?: number;  // 백엔드에서 계산된 청구가
   created_at: string;
@@ -57,6 +58,10 @@ const SpareParts: React.FC = () => {
 
   // 수정일 정렬 상태
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  // 안전재고 범위(%) 및 재고 필터
+  const [safetyStockRange, setSafetyStockRange] = useState<number>(20);
+  const [stockFilter, setStockFilter] = useState<'all' | 'critical' | 'warning'>('all');
   
   // Modal states
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -100,7 +105,8 @@ const SpareParts: React.FC = () => {
     part_number: '',
     part_name: '',
     erp_name: '',
-    stock_quantity: 0
+    stock_quantity: 0,
+    min_stock: 0,
   });
   const [stockTransaction, setStockTransaction] = useState({
     part_number: '',
@@ -252,6 +258,9 @@ const SpareParts: React.FC = () => {
 
   useEffect(() => {
     fetchSpareParts();
+    systemAPI.getSafetyStockRange().then(res => {
+      if (res.data.success) setSafetyStockRange(res.data.safety_stock_range ?? 20);
+    }).catch(() => {});
   }, []);
 
   const fetchSpareParts = async () => {
@@ -575,7 +584,7 @@ const SpareParts: React.FC = () => {
       }
 
       setShowRegisterModal(false);
-      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0 });
+      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0, min_stock: 0 });
       setPriceHistory([]);
       setSelectedPart(null);
       fetchSpareParts();
@@ -685,7 +694,7 @@ const SpareParts: React.FC = () => {
       const response = await api.put(`/api/spare-parts/${selectedPart.part_number}`, newPart);
       setShowEditModal(false);
       setSelectedPart(null);
-      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0 });
+      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0, min_stock: 0 });
       fetchSpareParts();
     } catch (err: any) {
       setError('부품 수정에 실패했습니다.');
@@ -705,11 +714,26 @@ const SpareParts: React.FC = () => {
     }
   };
 
+  // 재고 상태 판별 헬퍼
+  // critical: 현재재고 < 최소유지수량 → 적색
+  // warning:  현재재고 < 최소유지수량 * (1 + 안전재고범위%) → 청색 (critical 아닌 경우)
+  const isCritical = (part: SparePart) =>
+    part.min_stock > 0 && part.stock_quantity < part.min_stock;
+  const isWarning = (part: SparePart) =>
+    !isCritical(part) &&
+    part.min_stock > 0 &&
+    part.stock_quantity < part.min_stock * (1 + safetyStockRange / 100);
+
   const filteredParts = spareParts
     .filter(part =>
       (part.part_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (part.part_name || '').toLowerCase().includes(searchTerm.toLowerCase())
     )
+    .filter(part => {
+      if (stockFilter === 'critical') return isCritical(part);
+      if (stockFilter === 'warning') return isWarning(part);
+      return true;
+    })
     .sort((a, b) => {
       const da = new Date(a.updated_at).getTime();
       const db = new Date(b.updated_at).getTime();
@@ -801,6 +825,25 @@ const SpareParts: React.FC = () => {
               </div>
             </div>
             <div className="col-auto d-print-none">
+              <div className="btn-group">
+                <button
+                  className={`btn btn-sm ${stockFilter === 'all' ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                  onClick={() => { setStockFilter('all'); setCurrentPage(1); }}
+                  title="전체 보기"
+                >전체</button>
+                <button
+                  className={`btn btn-sm ${stockFilter === 'critical' ? 'btn-danger' : 'btn-outline-danger'}`}
+                  onClick={() => { setStockFilter(stockFilter === 'critical' ? 'all' : 'critical'); setCurrentPage(1); }}
+                  title="재고 부족 (최소유지수량 미달)"
+                >부족</button>
+                <button
+                  className={`btn btn-sm ${stockFilter === 'warning' ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => { setStockFilter(stockFilter === 'warning' ? 'all' : 'warning'); setCurrentPage(1); }}
+                  title="안전재고 범위 이내"
+                >주의</button>
+              </div>
+            </div>
+            <div className="col-auto d-print-none">
               <select
                 className="form-select"
                 value={itemsPerPage}
@@ -864,7 +907,7 @@ const SpareParts: React.FC = () => {
                     className="btn btn-primary"
                     onClick={() => {
                       // 입력 필드 초기화
-                      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0 });
+                      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0, min_stock: 0 });
                       setSelectedPart(null);
                       setPriceHistory([]);
                       setShowRegisterModal(true);
@@ -917,7 +960,14 @@ const SpareParts: React.FC = () => {
                         <td className="text-center">{part.part_number}</td>
                         <td className="text-center">{part.part_name}</td>
                         <td className="text-center">{part.erp_name || '-'}</td>
-                        <td className="text-center">{part.stock_quantity}</td>
+                        <td className="text-center">
+                          <span style={{
+                            color: isCritical(part) ? '#dc3545' : isWarning(part) ? '#0d6efd' : undefined,
+                            fontWeight: (isCritical(part) || isWarning(part)) ? 'bold' : undefined,
+                          }}>
+                            {part.stock_quantity}
+                          </span>
+                        </td>
                         <td className="text-center">₩{partBillingPrices[part.id]?.toLocaleString('ko-KR') || '0'}</td>
                         <td className="text-center">{new Date(part.updated_at).toLocaleDateString('ko-KR')}</td>
                         <td className="text-center">
@@ -965,7 +1015,8 @@ const SpareParts: React.FC = () => {
                                     part_number: part.part_number,
                                     part_name: part.part_name,
                                     erp_name: part.erp_name || '',
-                                    stock_quantity: part.stock_quantity
+                                    stock_quantity: part.stock_quantity,
+                                    min_stock: part.min_stock ?? 0,
                                   });
                                   fetchPriceHistory(part.id);
                                   setShowEditModal(true);
@@ -1457,6 +1508,7 @@ const SpareParts: React.FC = () => {
                           part_name: newPart.part_name,
                           erp_name: newPart.erp_name,
                           stock_quantity: newPart.stock_quantity,
+                          min_stock: newPart.min_stock ?? 0,
                           price: 0,
                           created_at: new Date().toISOString(),
                           updated_at: new Date().toISOString()

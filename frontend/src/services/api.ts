@@ -357,6 +357,8 @@ export const inventoryAPI = {
 // System API
 export const systemAPI = {
   getLogo: () => api.get('/api/system/logo'),
+  getSafetyStockRange: () => api.get('/api/system/safety-stock-range'),
+  setSafetyStockRange: (value: number) => api.post('/api/system/safety-stock-range', { safety_stock_range: value }),
 };
 
 export default api;
