@@ -1472,13 +1472,23 @@ const SpareParts: React.FC = () => {
                       placeholder="ERP명을 입력하세요 (선택사항)"
                     />
                   </div>
-                  <div className="col-md-6">
+                  <div className="col-md-3">
                     <label className="form-label">초기 재고수량</label>
                     <input
                       type="number"
                       className="form-control"
                       value={newPart.stock_quantity}
                       onChange={(e) => setNewPart({...newPart, stock_quantity: parseInt(e.target.value) || 0})}
+                      min="0"
+                    />
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label">최소유지수량</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={newPart.min_stock}
+                      onChange={(e) => setNewPart({...newPart, min_stock: parseInt(e.target.value) || 0})}
                       min="0"
                     />
                   </div>
@@ -2227,13 +2237,23 @@ const SpareParts: React.FC = () => {
                       placeholder="ERP명을 입력하세요 (선택사항)"
                     />
                   </div>
-                  <div className="col-md-6">
+                  <div className="col-md-3">
                     <label className="form-label">재고수량</label>
                     <input
                       type="number"
                       className="form-control"
                       value={newPart.stock_quantity}
                       onChange={(e) => setNewPart({...newPart, stock_quantity: parseInt(e.target.value) || 0})}
+                      min="0"
+                    />
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label">최소유지수량</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={newPart.min_stock}
+                      onChange={(e) => setNewPart({...newPart, min_stock: parseInt(e.target.value) || 0})}
                       min="0"
                     />
                   </div>

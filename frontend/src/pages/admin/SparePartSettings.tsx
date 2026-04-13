@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { systemAPI } from '../../services/api';
 
 // 2차함수 팩터 계수 인터페이스
 interface QuadraticFactorConfig {
@@ -73,6 +74,11 @@ const SparePartSettings: React.FC = () => {
   };
 
   const [config, setConfig] = useState<SparePartConfig>(loadConfigFromStorage());
+
+  // 안전재고 범위
+  const [safetyStockRange, setSafetyStockRange] = useState<string>('20');
+  const [safetyStockLoading, setSafetyStockLoading] = useState(false);
+  const [safetyStockMessage, setSafetyStockMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [testPrice, setTestPrice] = useState<number>(500);
   const [testPartType, setTestPartType] = useState<'repair' | 'consumable'>('repair');
   const [calculationResult, setCalculationResult] = useState<any>(null);
@@ -111,6 +117,9 @@ const SparePartSettings: React.FC = () => {
     };
 
     loadSettingsFromAPI();
+    systemAPI.getSafetyStockRange().then(res => {
+      if (res.data.success) setSafetyStockRange(String(res.data.safety_stock_range ?? 20));
+    }).catch(() => {});
   }, []);
 
   // Excel 수식 기반 2차함수 팩터 계산 (2차함수 특성 반영)
@@ -540,6 +549,71 @@ const SparePartSettings: React.FC = () => {
               )}
             </div>
           </div>
+        {/* 안전재고 범위 설정 */}
+        <div className="card mt-4">
+          <div className="card-header">
+            <h3 className="card-title">안전재고 범위 설정</h3>
+          </div>
+          <div className="card-body">
+            <p className="text-muted mb-3">
+              최소유지수량 대비 안전재고 범위를 % 단위로 설정합니다.<br />
+              현재재고 &lt; 최소유지수량 → <span style={{ color: '#dc3545', fontWeight: 'bold' }}>적색</span> (재고 부족)<br />
+              현재재고 &lt; 최소유지수량 × (1 + 범위%) → <span style={{ color: '#0d6efd', fontWeight: 'bold' }}>청색</span> (주의)
+            </p>
+            <div className="row align-items-end g-3">
+              <div className="col-auto">
+                <label className="form-label fw-bold">안전재고 범위</label>
+                <div className="input-group" style={{ width: '160px' }}>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="0"
+                    step="5"
+                    value={safetyStockRange}
+                    onChange={(e) => setSafetyStockRange(e.target.value)}
+                    placeholder="20"
+                  />
+                  <span className="input-group-text">%</span>
+                </div>
+                <small className="text-muted">예: 20 → 최소유지수량의 120% 미만 시 청색</small>
+              </div>
+              <div className="col-auto">
+                <button
+                  className="btn btn-primary"
+                  disabled={safetyStockLoading}
+                  onClick={async () => {
+                    const value = parseFloat(safetyStockRange);
+                    if (isNaN(value) || value < 0) {
+                      setSafetyStockMessage({ type: 'error', text: '0 이상의 숫자를 입력하세요.' });
+                      return;
+                    }
+                    setSafetyStockLoading(true);
+                    try {
+                      const res = await systemAPI.setSafetyStockRange(value);
+                      if (res.data.success) {
+                        setSafetyStockMessage({ type: 'success', text: '저장되었습니다.' });
+                        setTimeout(() => setSafetyStockMessage(null), 3000);
+                      }
+                    } catch (e: any) {
+                      setSafetyStockMessage({ type: 'error', text: e.response?.data?.message || '저장 실패' });
+                    } finally {
+                      setSafetyStockLoading(false);
+                    }
+                  }}
+                >
+                  {safetyStockLoading ? <><span className="spinner-border spinner-border-sm me-1"></span>저장 중...</> : '저장'}
+                </button>
+              </div>
+              {safetyStockMessage && (
+                <div className="col-auto">
+                  <span className={`text-${safetyStockMessage.type === 'success' ? 'success' : 'danger'}`}>
+                    {safetyStockMessage.text}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
         </div>
       </div>
     </div>

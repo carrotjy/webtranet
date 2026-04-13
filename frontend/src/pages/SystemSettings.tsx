@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { systemAPI } from '../services/api';
 
 interface Printer {
   name: string;
@@ -20,10 +19,6 @@ const SystemSettings: React.FC = () => {
   const [libreOfficeLoading, setLibreOfficeLoading] = useState(false);
   const [libreOfficeSaveMessage, setLibreOfficeSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // 안전재고 범위 설정
-  const [safetyStockRange, setSafetyStockRange] = useState<string>('20');
-  const [safetyStockLoading, setSafetyStockLoading] = useState(false);
-  const [safetyStockMessage, setSafetyStockMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Check if user is admin
   useEffect(() => {
@@ -37,9 +32,6 @@ const SystemSettings: React.FC = () => {
     fetchPrinters();
     fetchCurrentFaxPrinter();
     fetchLibreOfficePath();
-    systemAPI.getSafetyStockRange().then(res => {
-      if (res.data.success) setSafetyStockRange(String(res.data.safety_stock_range ?? 20));
-    }).catch(() => {});
   }, [navigate]);
 
   const fetchPrinters = async () => {
@@ -156,26 +148,6 @@ const SystemSettings: React.FC = () => {
       });
     } finally {
       setLibreOfficeLoading(false);
-    }
-  };
-
-  const handleSaveSafetyStockRange = async () => {
-    const value = parseFloat(safetyStockRange);
-    if (isNaN(value) || value < 0) {
-      setSafetyStockMessage({ type: 'error', text: '0 이상의 숫자를 입력하세요.' });
-      return;
-    }
-    setSafetyStockLoading(true);
-    try {
-      const res = await systemAPI.setSafetyStockRange(value);
-      if (res.data.success) {
-        setSafetyStockMessage({ type: 'success', text: '안전재고 범위가 저장되었습니다.' });
-        setTimeout(() => setSafetyStockMessage(null), 3000);
-      }
-    } catch (e: any) {
-      setSafetyStockMessage({ type: 'error', text: e.response?.data?.message || '저장에 실패했습니다.' });
-    } finally {
-      setSafetyStockLoading(false);
     }
   };
 
@@ -326,54 +298,6 @@ const SystemSettings: React.FC = () => {
                 <i className="bi bi-save me-2"></i>
                 경로 저장
               </>
-            )}
-          </button>
-        </div>
-      </div>
-      {/* 안전재고 범위 설정 섹션 */}
-      <div className="card mb-4">
-        <div className="card-header bg-warning text-dark">
-          <h5 className="mb-0">
-            <i className="bi bi-shield-exclamation me-2"></i>
-            스페어파트 안전재고 범위 설정
-          </h5>
-        </div>
-        <div className="card-body">
-          <p className="text-muted">
-            최소유지수량 대비 안전재고 범위를 % 단위로 입력하세요.<br />
-            현재재고 &lt; 최소유지수량이면 <span style={{ color: '#dc3545', fontWeight: 'bold' }}>적색</span>,
-            현재재고 &lt; 최소유지수량 × (1 + 범위%)이면 <span style={{ color: '#0d6efd', fontWeight: 'bold' }}>청색</span>으로 표시됩니다.
-          </p>
-          <div className="mb-3" style={{ maxWidth: '200px' }}>
-            <label className="form-label fw-bold">안전재고 범위 (%)</label>
-            <div className="input-group">
-              <input
-                type="number"
-                className="form-control"
-                min="0"
-                step="5"
-                value={safetyStockRange}
-                onChange={(e) => setSafetyStockRange(e.target.value)}
-                placeholder="예: 20"
-              />
-              <span className="input-group-text">%</span>
-            </div>
-            <small className="text-muted">예: 20 입력 시 최소유지수량의 120% 미만이면 청색 표시</small>
-          </div>
-          {safetyStockMessage && (
-            <div className={`alert alert-${safetyStockMessage.type === 'success' ? 'success' : 'danger'} py-2`}>
-              {safetyStockMessage.text}
-            </div>
-          )}
-          <button
-            className="btn btn-warning"
-            onClick={handleSaveSafetyStockRange}
-            disabled={safetyStockLoading}
-          >
-            {safetyStockLoading ? (
-              <><span className="spinner-border spinner-border-sm me-2" role="status"></span>저장 중...</>
-            ) : (
-              <><i className="bi bi-save me-2"></i>설정 저장</>
             )}
           </button>
         </div>
