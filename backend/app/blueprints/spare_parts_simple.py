@@ -883,7 +883,8 @@ def get_price_history(part_id):
                 'created_by': price['created_by'],
                 'currency': price['currency'] if price['currency'] else 'KRW',
                 'part_type': price['part_type'] if price['part_type'] else 'repair',
-                'billing_price': price['billing_price'] if price['billing_price'] else 0
+                'billing_price': price['billing_price'] if price['billing_price'] else 0,
+                'exchange_rate': price['exchange_rate'] if price['exchange_rate'] is not None else 1.0,
             })
             
         return jsonify({
@@ -1081,12 +1082,12 @@ def add_price_history(part_id):
         import math
         rounded_billing_price = math.ceil(final_price_krw / 100) * 100
         
-        # 가격 히스토리 추가 (원가와 계산된 청구가 함께 저장)
+        # 가격 히스토리 추가 (원가, 청구가, 환율 함께 저장)
         conn.execute(
-            '''INSERT INTO price_history 
-               (spare_part_id, price, effective_date, notes, created_at, created_by, currency, part_type, billing_price) 
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-            (part_id, price, effective_date, notes, datetime.now(), user_name, currency, part_type, rounded_billing_price)
+            '''INSERT INTO price_history
+               (spare_part_id, price, effective_date, notes, created_at, created_by, currency, part_type, billing_price, exchange_rate)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (part_id, price, effective_date, notes, datetime.now(), user_name, currency, part_type, rounded_billing_price, exchange_rate)
         )
         
         # 스페어 파트의 현재 가격 업데이트 (계산된 청구가격으로)

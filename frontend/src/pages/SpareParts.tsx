@@ -36,6 +36,7 @@ interface PriceHistory {
   part_number: string;
   price: number;
   billing_price?: number;  // 백엔드에서 계산된 청구가
+  exchange_rate?: number;  // 저장 당시 환율
   effective_date: string;
   created_at: string;
   created_by: string;
@@ -1543,8 +1544,8 @@ const SpareParts: React.FC = () => {
                           <thead>
                             <tr>
                               <th style={{ fontSize: '14px' }}>구매원가</th>
+                              <th style={{ fontSize: '14px' }}>환율</th>
                               <th style={{ fontSize: '14px' }}>청구가 (원)</th>
-                              <th style={{ fontSize: '14px' }}>통화</th>
                               <th style={{ fontSize: '14px' }}>부품타입</th>
                               <th style={{ fontSize: '14px' }}>비고</th>
                             </tr>
@@ -1559,12 +1560,18 @@ const SpareParts: React.FC = () => {
                                   </span>
                                 </td>
                                 <td>
-                                  <span style={{ fontSize: '14px', color: '#0d6efd', fontWeight: '600' }}>
-                                    ₩{(billingPrices[price.id] || 0).toLocaleString()}
-                                  </span>
+                                  {price.currency !== 'KRW' ? (
+                                    <span style={{ fontSize: '14px', color: '#6c757d' }}>
+                                      {price.currency}/{(price.exchange_rate ?? 1).toLocaleString('ko-KR')}원
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: '13px', color: '#adb5bd' }}>-</span>
+                                  )}
                                 </td>
                                 <td>
-                                  <span style={{ fontSize: '14px', color: '#6c757d' }}>{price.currency}</span>
+                                  <span style={{ fontSize: '14px', color: '#0d6efd', fontWeight: '600' }}>
+                                    ₩{(billingPrices[price.id] || price.billing_price || 0).toLocaleString()}
+                                  </span>
                                 </td>
                                 <td>
                                   <span style={{ fontSize: '14px', color: '#6c757d' }}>
@@ -2295,8 +2302,8 @@ const SpareParts: React.FC = () => {
                           <tr>
                             <th style={{ fontSize: '14px' }}>등록일시</th>
                             <th style={{ fontSize: '14px' }}>구매원가</th>
+                            <th style={{ fontSize: '14px' }}>환율</th>
                             <th style={{ fontSize: '14px' }}>청구가 (원)</th>
-                            <th style={{ fontSize: '14px' }}>통화</th>
                             <th style={{ fontSize: '14px' }}>부품타입</th>
                             <th style={{ fontSize: '14px' }}>등록자</th>
                             <th style={{ fontSize: '14px' }}>비고</th>
@@ -2306,7 +2313,7 @@ const SpareParts: React.FC = () => {
                         <tbody>
                           {priceHistoryLoading ? (
                             <tr>
-                              <td colSpan={7} className="text-center" style={{ fontSize: '14px' }}>
+                              <td colSpan={8} className="text-center" style={{ fontSize: '14px' }}>
                                 <div className="spinner-border spinner-border-sm me-2" role="status"></div>
                                 가격 이력을 불러오는 중...
                               </td>
@@ -2325,17 +2332,23 @@ const SpareParts: React.FC = () => {
                                 </td>
                                 <td>
                                   <span style={{ fontSize: '14px' }}>
-                                    {price.currency === 'KRW' ? '₩' : 
+                                    {price.currency === 'KRW' ? '₩' :
                                      price.currency === 'EUR' ? '€' : '$'}{price.price.toLocaleString()}
                                   </span>
+                                </td>
+                                <td>
+                                  {price.currency !== 'KRW' ? (
+                                    <span style={{ fontSize: '14px', color: '#6c757d' }}>
+                                      {price.currency}/{(price.exchange_rate ?? 1).toLocaleString('ko-KR')}원
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: '13px', color: '#adb5bd' }}>-</span>
+                                  )}
                                 </td>
                                 <td>
                                   <span style={{ fontSize: '14px', color: '#0d6efd', fontWeight: '600' }}>
                                     ₩{(billingPrices[price.id] || 0).toLocaleString()}
                                   </span>
-                                </td>
-                                <td>
-                                  <span style={{ fontSize: '14px', color: '#6c757d' }}>{price.currency}</span>
                                 </td>
                                 <td>
                                   <span style={{ fontSize: '14px', color: '#6c757d' }}>
