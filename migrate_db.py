@@ -82,6 +82,25 @@ def migrate_users_soft_delete(conn):
 
     return True
 
+def migrate_price_history_exchange_rate(conn):
+    """price_history 테이블에 exchange_rate 컬럼 추가"""
+    print("=== price_history 테이블 exchange_rate 마이그레이션 시작 ===")
+
+    if check_column_exists(conn, 'price_history', 'exchange_rate'):
+        print("✓ exchange_rate 컬럼이 이미 존재합니다.")
+        return True
+
+    try:
+        conn.execute('ALTER TABLE price_history ADD COLUMN exchange_rate REAL DEFAULT 1.0')
+        conn.commit()
+        print("✓ exchange_rate 컬럼이 성공적으로 추가되었습니다.")
+        return True
+    except Exception as e:
+        print(f"✗ exchange_rate 컬럼 추가 실패: {str(e)}")
+        conn.rollback()
+        return False
+
+
 def verify_migration(conn):
     """마이그레이션 검증"""
     print("\n=== 마이그레이션 검증 ===")
@@ -176,6 +195,13 @@ def main():
         success = migrate_users_soft_delete(conn)
         if not success:
             print("\nusers 테이블 마이그레이션이 실패했습니다.")
+            conn.close()
+            return
+
+        # 3) price_history exchange_rate 마이그레이션
+        success = migrate_price_history_exchange_rate(conn)
+        if not success:
+            print("\nprice_history 테이블 마이그레이션이 실패했습니다.")
             conn.close()
             return
 
