@@ -12,6 +12,7 @@ interface SparePart {
   min_stock: number;
   price: number;
   billing_price?: number;  // 백엔드에서 계산된 청구가
+  past_part_numbers?: string[];  // 과거 파트번호 목록
   created_at: string;
   updated_at: string;
 }
@@ -108,6 +109,7 @@ const SpareParts: React.FC = () => {
     erp_name: '',
     stock_quantity: 0,
     min_stock: 0,
+    past_part_numbers: '',  // 쉼표 구분 문자열로 편집
   });
   const [stockTransaction, setStockTransaction] = useState({
     part_number: '',
@@ -562,7 +564,13 @@ const SpareParts: React.FC = () => {
   const handleRegisterPart = async () => {
     try {
       // 부품 등록
-      const partResponse = await api.post('/api/spare-parts', newPart);
+      const registerData = {
+        ...newPart,
+        past_part_numbers: newPart.past_part_numbers
+          ? newPart.past_part_numbers.split(',').map(n => n.trim()).filter(n => n)
+          : []
+      };
+      const partResponse = await api.post('/api/spare-parts', registerData);
 
       // 가격 정보가 있으면 함께 등록
       if (priceHistory.length > 0 && partResponse.data) {
@@ -585,7 +593,7 @@ const SpareParts: React.FC = () => {
       }
 
       setShowRegisterModal(false);
-      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0, min_stock: 0 });
+      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0, min_stock: 0, past_part_numbers: '' });
       setPriceHistory([]);
       setSelectedPart(null);
       fetchSpareParts();
@@ -692,10 +700,16 @@ const SpareParts: React.FC = () => {
     if (!selectedPart) return;
 
     try {
-      const response = await api.put(`/api/spare-parts/${selectedPart.part_number}`, newPart);
+      const submitData = {
+        ...newPart,
+        past_part_numbers: newPart.past_part_numbers
+          ? newPart.past_part_numbers.split(',').map(n => n.trim()).filter(n => n)
+          : []
+      };
+      await api.put(`/api/spare-parts/${selectedPart.part_number}`, submitData);
       setShowEditModal(false);
       setSelectedPart(null);
-      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0, min_stock: 0 });
+      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0, min_stock: 0, past_part_numbers: '' });
       fetchSpareParts();
     } catch (err: any) {
       setError('부품 수정에 실패했습니다.');
@@ -726,10 +740,14 @@ const SpareParts: React.FC = () => {
     part.stock_quantity < part.min_stock * (1 + safetyStockRange / 100);
 
   const filteredParts = spareParts
-    .filter(part =>
-      (part.part_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (part.part_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    .filter(part => {
+      const term = searchTerm.toLowerCase();
+      return (
+        (part.part_number || '').toLowerCase().includes(term) ||
+        (part.part_name || '').toLowerCase().includes(term) ||
+        (part.past_part_numbers || []).some(n => n.toLowerCase().includes(term))
+      );
+    })
     .filter(part => {
       if (stockFilter === 'critical') return isCritical(part);
       if (stockFilter === 'warning') return isWarning(part);
@@ -908,7 +926,7 @@ const SpareParts: React.FC = () => {
                     className="btn btn-primary"
                     onClick={() => {
                       // 입력 필드 초기화
-                      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0, min_stock: 0 });
+                      setNewPart({ part_number: '', part_name: '', erp_name: '', stock_quantity: 0, min_stock: 0, past_part_numbers: '' });
                       setSelectedPart(null);
                       setPriceHistory([]);
                       setShowRegisterModal(true);
@@ -958,7 +976,16 @@ const SpareParts: React.FC = () => {
                   {filteredParts.length > 0 ? (
                     currentParts.map((part) => (
                       <tr key={part.id}>
-                        <td className="text-center">{part.part_number}</td>
+                        <td className="text-center">
+                          <div>{part.part_number}</div>
+                          {part.past_part_numbers && part.past_part_numbers.length > 0 && (
+                            <div className="mt-1">
+                              {part.past_part_numbers.map((n, i) => (
+                                <span key={i} className="badge bg-secondary-lt me-1" style={{ fontSize: '0.7rem' }} title="구 파트번호">{n}</span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
                         <td className="text-center">{part.part_name}</td>
                         <td className="text-center">{part.erp_name || '-'}</td>
                         <td className="text-center">
@@ -1018,6 +1045,7 @@ const SpareParts: React.FC = () => {
                                     erp_name: part.erp_name || '',
                                     stock_quantity: part.stock_quantity,
                                     min_stock: part.min_stock ?? 0,
+                                    past_part_numbers: (part.past_part_numbers || []).join(', '),
                                   });
                                   fetchPriceHistory(part.id);
                                   setShowEditModal(true);
@@ -1491,6 +1519,18 @@ const SpareParts: React.FC = () => {
                       value={newPart.min_stock}
                       onChange={(e) => setNewPart({...newPart, min_stock: parseInt(e.target.value) || 0})}
                       min="0"
+                    />
+                  </div>
+                </div>
+                <div className="row mt-3">
+                  <div className="col-12">
+                    <label className="form-label">구 파트번호 <small className="text-muted">(쉼표로 구분)</small></label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={newPart.past_part_numbers}
+                      onChange={(e) => setNewPart({...newPart, past_part_numbers: e.target.value})}
+                      placeholder="예: OLD-001, REV-A-001"
                     />
                   </div>
                 </div>
@@ -2262,6 +2302,18 @@ const SpareParts: React.FC = () => {
                       value={newPart.min_stock}
                       onChange={(e) => setNewPart({...newPart, min_stock: parseInt(e.target.value) || 0})}
                       min="0"
+                    />
+                  </div>
+                </div>
+                <div className="row mt-3">
+                  <div className="col-12">
+                    <label className="form-label">구 파트번호 <small className="text-muted">(쉼표로 구분 — 파트번호 변경 시 자동 추가됨)</small></label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={newPart.past_part_numbers}
+                      onChange={(e) => setNewPart({...newPart, past_part_numbers: e.target.value})}
+                      placeholder="예: OLD-001, REV-A-001"
                     />
                   </div>
                 </div>

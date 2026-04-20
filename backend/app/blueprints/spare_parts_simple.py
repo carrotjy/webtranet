@@ -91,14 +91,14 @@ def get_spare_parts():
         
         # 기본 쿼리
         if search_term:
-            # 파트번호 또는 파트명으로 검색 (부분 일치)
+            # 파트번호, 파트명, 과거 파트번호로 검색 (부분 일치)
             query = '''
-                SELECT * FROM spare_parts 
-                WHERE part_number LIKE ? OR part_name LIKE ? 
+                SELECT * FROM spare_parts
+                WHERE part_number LIKE ? OR part_name LIKE ? OR past_part_numbers LIKE ?
                 ORDER BY part_number
             '''
             search_pattern = f'%{search_term}%'
-            parts = conn.execute(query, (search_pattern, search_pattern)).fetchall()
+            parts = conn.execute(query, (search_pattern, search_pattern, search_pattern)).fetchall()
         else:
             # 검색어가 없으면 전체 조회
             parts = conn.execute('SELECT * FROM spare_parts ORDER BY part_number').fetchall()
@@ -117,6 +117,14 @@ def get_spare_parts():
             
             billing_price = latest_billing_price['billing_price'] if latest_billing_price and latest_billing_price['billing_price'] else 0
             
+            # past_part_numbers JSON 파싱
+            import json as _json
+            raw_past = part['past_part_numbers'] if part['past_part_numbers'] else None
+            try:
+                past_numbers = _json.loads(raw_past) if raw_past else []
+            except Exception:
+                past_numbers = []
+
             parts_list.append({
                 'id': part['id'],  # 실제 id 필드 사용
                 'part_number': part['part_number'],
@@ -126,6 +134,7 @@ def get_spare_parts():
                 'min_stock': part['minimum_stock'] if part['minimum_stock'] is not None else 0,
                 'price': part['price'] if part['price'] else 0,  # price 필드명 유지
                 'billing_price': billing_price,  # 최신 청구가 추가
+                'past_part_numbers': past_numbers,  # 과거 파트번호 목록
                 'created_at': part['created_at'] if part['created_at'] else datetime.now().isoformat(),
                 'updated_at': part['updated_at'] if part['updated_at'] else datetime.now().isoformat()
             })
@@ -144,8 +153,9 @@ def get_spare_parts():
 def create_spare_part():
     """새 스페어파트 생성"""
     try:
+        import json as _json
         data = request.get_json()
-        
+
         part_number = data.get('part_number')
         part_name = data.get('part_name')
         erp_name = data.get('erp_name', '')
@@ -154,36 +164,42 @@ def create_spare_part():
         current_stock = data.get('stock_quantity', 0)  # 프론트엔드 필드명에 맞춤
         min_stock = data.get('min_stock', 0)
         price_eur = data.get('price', 0)  # 프론트엔드 필드명에 맞춤
-        
+        raw_past = data.get('past_part_numbers', [])
+        if isinstance(raw_past, list):
+            past_numbers = [n.strip() for n in raw_past if n and n.strip()]
+        else:
+            past_numbers = [n.strip() for n in str(raw_past).split(',') if n.strip()]
+        past_numbers_json = _json.dumps(past_numbers, ensure_ascii=False) if past_numbers else None
+
         print(f"Creating new part with data: {data}")  # 디버깅용
-        
+
         if not part_number or not part_name:
             return jsonify({
                 'success': False,
                 'error': '파트번호와 파트명은 필수입니다.'
             }), 400
-        
+
         conn = get_db_connection()
-        
+
         # 중복 체크
         existing = conn.execute(
             'SELECT part_number FROM spare_parts WHERE part_number = ?',
             (part_number,)
         ).fetchone()
-        
+
         if existing:
             conn.close()
             return jsonify({
                 'success': False,
                 'error': '이미 존재하는 파트번호입니다.'
             }), 400
-        
-        # 삽입 - erp_name 필드 추가
+
+        # 삽입 - erp_name, past_part_numbers 필드 추가
         conn.execute('''
-            INSERT INTO spare_parts 
-            (part_number, part_name, erp_name, description, price, stock_quantity, minimum_stock, supplier)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (part_number, part_name, erp_name, description, price_eur, current_stock, min_stock, category))
+            INSERT INTO spare_parts
+            (part_number, part_name, erp_name, description, price, stock_quantity, minimum_stock, supplier, past_part_numbers)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (part_number, part_name, erp_name, description, price_eur, current_stock, min_stock, category, past_numbers_json))
         
         conn.commit()
         
@@ -216,8 +232,9 @@ def create_spare_part():
 def update_spare_part(part_number):
     """스페어파트 수정"""
     try:
+        import json as _json
         data = request.get_json()
-        
+
         part_name = data.get('part_name')
         erp_name = data.get('erp_name', '')
         description = data.get('description', '')
@@ -225,41 +242,100 @@ def update_spare_part(part_number):
         current_stock = data.get('stock_quantity', 0)  # 프론트엔드 필드명에 맞춤
         min_stock = data.get('min_stock', 0)
         price_eur = data.get('price', 0)  # 프론트엔드 필드명에 맞춤
-        
+        new_part_number = data.get('part_number', part_number).strip()
+
         print(f"Updating part {part_number} with data: {data}")  # 디버깅용
-        
+
         if not part_name:
             return jsonify({
                 'success': False,
                 'error': '파트명은 필수입니다.'
             }), 400
-        
+
         conn = get_db_connection()
-        
-        # 업데이트 - erp_name 필드 추가
-        conn.execute('''
-            UPDATE spare_parts 
-            SET part_name = ?, erp_name = ?, description = ?, price = ?, 
-                stock_quantity = ?, minimum_stock = ?, supplier = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE part_number = ?
-        ''', (part_name, erp_name, description, price_eur, current_stock, min_stock, category, part_number))
-        
-        if conn.total_changes == 0:
+
+        # 기존 부품 조회 (과거 파트번호 이력 유지)
+        existing = conn.execute(
+            'SELECT past_part_numbers FROM spare_parts WHERE part_number = ?',
+            (part_number,)
+        ).fetchone()
+
+        if not existing:
             conn.close()
             return jsonify({
                 'success': False,
                 'error': '해당 부품을 찾을 수 없습니다.'
             }), 404
-        
-        print(f"Successfully updated part {part_number} with erp_name: {erp_name}")  # 디버깅용
-        
+
+        # 과거 파트번호 목록 로드
+        try:
+            past_numbers = _json.loads(existing['past_part_numbers']) if existing['past_part_numbers'] else []
+        except Exception:
+            past_numbers = []
+
+        # 파트번호가 변경되면 이전 번호를 과거 목록에 자동 추가
+        if new_part_number and new_part_number != part_number:
+            if part_number not in past_numbers:
+                past_numbers.append(part_number)
+
+        # 프론트에서 수동으로 전달한 과거 번호 목록 반영
+        if 'past_part_numbers' in data:
+            raw_past = data['past_part_numbers']
+            if isinstance(raw_past, list):
+                manual_past = [n.strip() for n in raw_past if n and n.strip()]
+            else:
+                manual_past = [n.strip() for n in str(raw_past).split(',') if n.strip()]
+            # 자동 추가된 항목 유지하면서 수동 목록으로 덮어쓰기
+            for n in past_numbers:
+                if n not in manual_past:
+                    manual_past.append(n)
+            past_numbers = manual_past
+
+        past_numbers_json = _json.dumps(past_numbers, ensure_ascii=False) if past_numbers else None
+
+        # 파트번호 변경 시 stock_history / price_history 의 part_number도 업데이트
+        if new_part_number != part_number:
+            # 새 파트번호 중복 확인
+            dup = conn.execute(
+                'SELECT part_number FROM spare_parts WHERE part_number = ?',
+                (new_part_number,)
+            ).fetchone()
+            if dup:
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'error': f'파트번호 {new_part_number}는 이미 존재합니다.'
+                }), 400
+
+            conn.execute(
+                'UPDATE stock_history SET part_number = ? WHERE part_number = ?',
+                (new_part_number, part_number)
+            )
+            conn.execute(
+                'UPDATE price_history SET spare_part_id = spare_part_id WHERE spare_part_id IN (SELECT id FROM spare_parts WHERE part_number = ?)',
+                (part_number,)
+            )
+
+        # 업데이트
+        conn.execute('''
+            UPDATE spare_parts
+            SET part_number = ?, part_name = ?, erp_name = ?, description = ?, price = ?,
+                stock_quantity = ?, minimum_stock = ?, supplier = ?,
+                past_part_numbers = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE part_number = ?
+        ''', (new_part_number, part_name, erp_name, description, price_eur,
+              current_stock, min_stock, category, past_numbers_json, part_number))
+
+        print(f"Successfully updated part {part_number} -> {new_part_number} with erp_name: {erp_name}")  # 디버깅용
+
         conn.commit()
         conn.close()
-        
+
         return jsonify({
             'success': True,
-            'message': '스페어파트가 수정되었습니다.'
+            'message': '스페어파트가 수정되었습니다.',
+            'new_part_number': new_part_number
         })
         
     except Exception as e:
@@ -1148,12 +1224,12 @@ def search_part_for_service_report():
 
         conn = get_db_connection()
 
-        # 부품번호 또는 부품명으로 부분 일치 검색 (최대 10개)
+        # 부품번호, 부품명, 과거 파트번호로 부분 일치 검색 (최대 10개)
         parts = conn.execute('''
             SELECT * FROM spare_parts
-            WHERE part_number LIKE ? OR part_name LIKE ?
+            WHERE part_number LIKE ? OR part_name LIKE ? OR past_part_numbers LIKE ?
             LIMIT 10
-        ''', (f'%{search_term}%', f'%{search_term}%')).fetchall()
+        ''', (f'%{search_term}%', f'%{search_term}%', f'%{search_term}%')).fetchall()
 
         spare_parts = []
         for part in parts:

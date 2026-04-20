@@ -101,6 +101,25 @@ def migrate_price_history_exchange_rate(conn):
         return False
 
 
+def migrate_spare_parts_past_numbers(conn):
+    """spare_parts 테이블에 past_part_numbers 컬럼 추가"""
+    print("=== spare_parts 테이블 past_part_numbers 마이그레이션 시작 ===")
+
+    if check_column_exists(conn, 'spare_parts', 'past_part_numbers'):
+        print("✓ past_part_numbers 컬럼이 이미 존재합니다.")
+        return True
+
+    try:
+        conn.execute('ALTER TABLE spare_parts ADD COLUMN past_part_numbers TEXT')
+        conn.commit()
+        print("✓ past_part_numbers 컬럼이 성공적으로 추가되었습니다.")
+        return True
+    except Exception as e:
+        print(f"✗ past_part_numbers 컬럼 추가 실패: {str(e)}")
+        conn.rollback()
+        return False
+
+
 def verify_migration(conn):
     """마이그레이션 검증"""
     print("\n=== 마이그레이션 검증 ===")
@@ -202,6 +221,13 @@ def main():
         success = migrate_price_history_exchange_rate(conn)
         if not success:
             print("\nprice_history 테이블 마이그레이션이 실패했습니다.")
+            conn.close()
+            return
+
+        # 4) spare_parts past_part_numbers 마이그레이션
+        success = migrate_spare_parts_past_numbers(conn)
+        if not success:
+            print("\nspare_parts 테이블 마이그레이션이 실패했습니다.")
             conn.close()
             return
 

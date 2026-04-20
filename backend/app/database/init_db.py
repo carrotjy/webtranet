@@ -220,6 +220,11 @@ def init_database():
     except sqlite3.OperationalError:
         pass
 
+    try:
+        conn.execute('ALTER TABLE spare_parts ADD COLUMN past_part_numbers TEXT')
+    except sqlite3.OperationalError:
+        pass
+
     # service_reports 테이블에 invoice_code_id 컬럼 추가
     try:
         conn.execute('ALTER TABLE service_reports ADD COLUMN invoice_code_id INTEGER')
@@ -440,6 +445,7 @@ def init_database():
             stock_quantity INTEGER DEFAULT 0,
             minimum_stock INTEGER DEFAULT 0,
             supplier TEXT,
+            past_part_numbers TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
