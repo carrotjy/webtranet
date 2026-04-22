@@ -617,8 +617,8 @@ def generate_option_image():
                 resized_images.append(img)
             images = resized_images
         
-        # 텍스트 영역 높이 계산
-        text_area_height = 140  # 텍스트 영역 높이 (원 크기 고려)
+        # 텍스트 영역 높이 계산 (2개 이미지: 430x430 → 총 860x540 기준 110px)
+        text_area_height = 110
         
         # 이미지 배치 높이 계산
         if len(images) == 1:

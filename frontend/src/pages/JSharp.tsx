@@ -341,7 +341,10 @@ const JSharp: React.FC = () => {
     );
 
     if (files.length > 0) {
-      setOptionImages(files);
+      setOptionImages(prev => {
+        const combined = [...prev, ...files];
+        return combined.slice(0, 2); // 최대 2개
+      });
     }
   };
 
@@ -1055,8 +1058,12 @@ const JSharp: React.FC = () => {
   const handleOptionImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files) {
-      setOptionImages(Array.from(files));
+      setOptionImages(prev => {
+        const combined = [...prev, ...Array.from(files)];
+        return combined.slice(0, 2); // 최대 2개
+      });
     }
+    event.target.value = ''; // 동일 파일 재선택 허용
   };
 
   const handleProcessImages = async () => {
