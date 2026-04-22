@@ -5,7 +5,7 @@ J# 이미지 처리 및 주문 관리 API 엔드포인트
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required
 from werkzeug.utils import secure_filename
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import os
 import io
 import zipfile
@@ -369,6 +369,7 @@ def process_images():
                     else:
                         # 일반 이미지는 스트림에서 바로 열기
                         image = Image.open(file.stream)
+                        image = ImageOps.exif_transpose(image)  # EXIF 회전 정보 적용
 
                     # 4개 사이즈로 처리
                     for size in IMAGE_SIZES:
@@ -488,13 +489,25 @@ def get_font(size=40, bold=False):
     Returns:
         ImageFont 객체
     """
-    # Windows 기본 한글 폰트 경로
     font_paths = [
-        'C:/Windows/Fonts/malgunbd.ttf',  # 맑은 고딕 Bold
-        'C:/Windows/Fonts/malgun.ttf',     # 맑은 고딕
-        'C:/Windows/Fonts/gulim.ttc',      # 굴림
-        'C:/Windows/Fonts/NanumGothicBold.ttf',  # 나눔고딕 Bold
-        'C:/Windows/Fonts/NanumGothic.ttf',      # 나눔고딕
+        # Windows
+        'C:/Windows/Fonts/malgunbd.ttf',
+        'C:/Windows/Fonts/malgun.ttf',
+        'C:/Windows/Fonts/gulim.ttc',
+        'C:/Windows/Fonts/NanumGothicBold.ttf',
+        'C:/Windows/Fonts/NanumGothic.ttf',
+        # Ubuntu/Linux - 나눔고딕
+        '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+        '/usr/share/fonts/truetype/nanum/NanumGothic.ttf',
+        '/usr/share/fonts/truetype/nanum/NanumGothicExtraBold.ttf',
+        # Ubuntu/Linux - Noto Sans CJK
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+        '/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc',
+        '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+        # Ubuntu/Linux - UnFonts
+        '/usr/share/fonts/truetype/unfonts-core/UnDotumBold.ttf',
+        '/usr/share/fonts/truetype/unfonts-core/UnDotum.ttf',
     ]
     
     # Bold 폰트 우선 시도
@@ -563,11 +576,11 @@ def generate_option_image():
         for file in files:
             if file and allowed_file(file.filename):
                 img = Image.open(file.stream)
-                # RGB 모드로 변환
+                img = ImageOps.exif_transpose(img)  # EXIF 회전 정보 적용
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 images.append(img)
-        
+
         if len(images) == 0:
             return jsonify({
                 'success': False,
@@ -699,11 +712,11 @@ def merge_images():
         for file in files:
             if file and allowed_file(file.filename):
                 img = Image.open(file.stream)
-                # RGB 모드로 변환
+                img = ImageOps.exif_transpose(img)  # EXIF 회전 정보 적용
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 images.append(img)
-        
+
         if len(images) != 2:
             return jsonify({
                 'success': False,
