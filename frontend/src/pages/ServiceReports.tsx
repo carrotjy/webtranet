@@ -2029,8 +2029,6 @@ const ServiceReports: React.FC = () => {
               <th style="border:1px solid #aaa; padding:3px 6px; text-align:left;">부품명</th>
               <th style="border:1px solid #aaa; padding:3px 6px; text-align:left;">부품번호</th>
               <th style="border:1px solid #aaa; padding:3px 6px; text-align:center; width:60px;">수량</th>
-              <th style="border:1px solid #aaa; padding:3px 6px; text-align:right; width:90px;">단가</th>
-              <th style="border:1px solid #aaa; padding:3px 6px; text-align:right; width:90px;">총액</th>
             </tr>
           </thead>
           <tbody>
@@ -2039,8 +2037,6 @@ const ServiceReports: React.FC = () => {
               <td style="border:1px solid #aaa; padding:3px 6px;">${p.part_name || '-'}</td>
               <td style="border:1px solid #aaa; padding:3px 6px;">${p.part_number || '-'}</td>
               <td style="border:1px solid #aaa; padding:3px 6px; text-align:center;">${p.quantity || '-'}</td>
-              <td style="border:1px solid #aaa; padding:3px 6px; text-align:right;">${typeof p.billing_unit_price === 'number' ? p.billing_unit_price.toLocaleString() : '0'}</td>
-              <td style="border:1px solid #aaa; padding:3px 6px; text-align:right; font-weight:bold;">${typeof p.billing_total_price === 'number' ? p.billing_total_price.toLocaleString() : '0'}</td>
             </tr>`).join('')}
           </tbody>
         </table>
@@ -3780,8 +3776,6 @@ const ServiceReports: React.FC = () => {
                             <th>부품명</th>
                             <th>부품번호</th>
                             <th>수량</th>
-                            <th>단가 (청구가)</th>
-                            <th>총액</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3790,8 +3784,6 @@ const ServiceReports: React.FC = () => {
                               <td className="bg-white">{part.part_name || '-'}</td>
                               <td className="bg-white">{part.part_number || '-'}</td>
                               <td className="bg-white text-center">{part.quantity || '-'}</td>
-                              <td className="bg-white text-end">{typeof part.billing_unit_price === 'number' ? part.billing_unit_price.toLocaleString() : '0'}</td>
-                              <td className="bg-white text-end fw-bold">{typeof part.billing_total_price === 'number' ? part.billing_total_price.toLocaleString() : '0'}</td>
                             </tr>
                           ))}
                         </tbody>
