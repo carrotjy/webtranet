@@ -5,7 +5,7 @@ J# 이미지 처리 및 주문 관리 API 엔드포인트
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required
 from werkzeug.utils import secure_filename
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
 import os
 import io
 import zipfile
@@ -309,6 +309,9 @@ def resize_image_with_border(image, target_width):
     if resized_image.mode != 'RGB':
         resized_image = resized_image.convert('RGB')
 
+    # 포토샵 Bicubic Sharper에 준하는 언샵마스크 적용
+    resized_image = resized_image.filter(ImageFilter.UnsharpMask(radius=0.5, percent=120, threshold=3))
+
     # 1px 흰색 테두리 추가
     final_image = add_white_border(resized_image, border_width=1)
 
@@ -595,11 +598,11 @@ def generate_option_image():
         if len(images) == 1:
             # 1개 이미지: 640px
             target_width = 640
-            # 이미지 리사이즈
             img = images[0]
             aspect_ratio = img.height / img.width
             img_height = int(target_width * aspect_ratio)
             img = img.resize((target_width, img_height), Image.Resampling.LANCZOS)
+            img = img.filter(ImageFilter.UnsharpMask(radius=0.5, percent=120, threshold=3))
             images[0] = img
         else:
             # 2개 이미지: 각각 430px, 총 860px
@@ -610,6 +613,7 @@ def generate_option_image():
                 img_width = 430
                 img_height = int(img_width * aspect_ratio)
                 img = img.resize((img_width, img_height), Image.Resampling.LANCZOS)
+                img = img.filter(ImageFilter.UnsharpMask(radius=0.5, percent=120, threshold=3))
                 resized_images.append(img)
             images = resized_images
         
@@ -735,6 +739,7 @@ def merge_images():
             aspect_ratio = img.height / img.width
             img_height = int(target_width * aspect_ratio)
             resized_img = img.resize((target_width, img_height), Image.Resampling.LANCZOS)
+            resized_img = resized_img.filter(ImageFilter.UnsharpMask(radius=0.5, percent=120, threshold=3))
             resized_images.append(resized_img)
         
         # 두 이미지의 높이 중 최대값 사용
