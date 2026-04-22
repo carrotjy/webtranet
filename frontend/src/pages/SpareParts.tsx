@@ -2057,6 +2057,15 @@ const SpareParts: React.FC = () => {
                 
                 <div className="row mt-3">
                   <div className="col-md-6">
+                    <label className="form-label">출고일자</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={stockTransaction.transaction_date}
+                      onChange={(e) => setStockTransaction({...stockTransaction, transaction_date: e.target.value})}
+                    />
+                  </div>
+                  <div className="col-md-6">
                     <label className="form-label">참조번호 (선택사항)</label>
                     <input
                       type="text"
@@ -2067,7 +2076,7 @@ const SpareParts: React.FC = () => {
                     />
                   </div>
                 </div>
-                
+
                 {stockTransaction.is_existing_part && (
                   <div className="alert alert-info mt-3" role="alert">
                     기존 부품에서 출고 처리됩니다.
