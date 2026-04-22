@@ -82,8 +82,8 @@ def main():
             part_name_raw = str(row['부품명']).strip() if pd.notna(row['부품명']) else ''
             part_name = part_name_raw if part_name_raw and part_name_raw != 'nan' else erp_name
 
-            price_eur = float(row['구매원가']) if pd.notna(row['구매원가']) else 0.0
-            price_krw = float(row['Price']) if pd.notna(row['Price']) else 0.0
+            price_eur = float(str(row['구매원가']).replace(',', '.')) if pd.notna(row['구매원가']) else 0.0
+            price_krw = float(str(row['Price']).replace(',', '.')) if pd.notna(row['Price']) else 0.0
             stock_quantity = int(row['재고수량']) if pd.notna(row['재고수량']) else 0
             part_type = str(row['부품 타입']).strip() if pd.notna(row['부품 타입']) else ''
 
