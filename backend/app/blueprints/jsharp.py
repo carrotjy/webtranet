@@ -381,7 +381,7 @@ def process_images():
                         output_path = os.path.join(temp_dir, output_filename)
 
                         # JPEG로 저장 (최상 품질)
-                        processed_image.save(output_path, 'JPEG', quality=100)
+                        processed_image.save(output_path, 'JPEG', quality=100, subsampling=0)
 
             # ZIP 파일 생성
             zip_buffer = io.BytesIO()
@@ -662,7 +662,7 @@ def generate_option_image():
         
         # 이미지를 바이트 버퍼로 저장 (최상 품질)
         img_buffer = io.BytesIO()
-        canvas.save(img_buffer, 'JPEG', quality=100)
+        canvas.save(img_buffer, 'JPEG', quality=100, subsampling=0)
         img_buffer.seek(0)
 
         # 파일명 생성: 선택#-상품명.jpg
@@ -755,7 +755,7 @@ def merge_images():
         
         # 이미지를 바이트 버퍼로 저장 (최상 품질)
         img_buffer = io.BytesIO()
-        canvas.save(img_buffer, 'JPEG', quality=100)
+        canvas.save(img_buffer, 'JPEG', quality=100, subsampling=0)
         img_buffer.seek(0)
 
         # 파일 전송
