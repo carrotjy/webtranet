@@ -1842,8 +1842,12 @@ def export_monthly_inventory_summary():
         ws.title = f'{year}년 재고현황'
 
         # 스타일 정의
-        header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
-        header_font = Font(color='FFFFFF', bold=True, size=11)
+        header_fill = PatternFill(start_color='FFF9C4', end_color='FFF9C4', fill_type='solid')  # 연한 노랑
+        header_font = Font(color='5A4A00', bold=True, size=11)
+        row_fill_even = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')  # 짝수행 연회색
+        row_fill_odd = PatternFill(fill_type=None)  # 홀수행 흰색
+        inbound_fill = PatternFill(start_color='E8F4F8', end_color='E8F4F8', fill_type='solid')   # 입고 하늘색
+        outbound_fill = PatternFill(start_color='FFF4E6', end_color='FFF4E6', fill_type='solid')  # 출고 연주황
         border = Border(
             left=Side(style='thin'),
             right=Side(style='thin'),
@@ -1909,17 +1913,28 @@ def export_monthly_inventory_summary():
             year_outbound = int(cursor.fetchone()['total'])
 
             if previous_year_stock > 0 or current_stock > 0 or year_outbound > 0:
+                # 홀짝 행 배경색
+                base_fill = row_fill_even if (row_num % 2 == 0) else row_fill_odd
+
+                def apply_base(cell):
+                    cell.border = border
+                    if base_fill.fill_type:
+                        cell.fill = base_fill
+
                 # 기본 정보
-                ws.cell(row=row_num, column=1, value=part['part_number']).border = border
-                ws.cell(row=row_num, column=2, value=part['part_name']).border = border
-                ws.cell(row=row_num, column=3, value=part['erp_name'] or '').border = border
-                ws.cell(row=row_num, column=4, value=previous_year_stock).border = border
-                ws.cell(row=row_num, column=5, value=current_stock).border = border
+                for col_idx, val in enumerate([
+                    part['part_number'],
+                    part['part_name'],
+                    part['erp_name'] or '',
+                    previous_year_stock,
+                    current_stock,
+                ], start=1):
+                    cell = ws.cell(row=row_num, column=col_idx, value=val)
+                    apply_base(cell)
 
                 # 월별 입출고 데이터
                 col_num = 6
                 for month in range(1, 13):
-                    # 입고 수량
                     cursor.execute("""
                         SELECT COALESCE(SUM(quantity), 0) as total
                         FROM stock_history
@@ -1928,9 +1943,8 @@ def export_monthly_inventory_summary():
                           AND strftime('%Y', transaction_date) = ?
                           AND strftime('%m', transaction_date) = ?
                     """, (part['part_number'], str(year), f'{month:02d}'))
-                    inbound = cursor.fetchone()['total']
+                    inbound = int(cursor.fetchone()['total'])
 
-                    # 출고 수량
                     cursor.execute("""
                         SELECT COALESCE(SUM(quantity), 0) as total
                         FROM stock_history
@@ -1939,15 +1953,29 @@ def export_monthly_inventory_summary():
                           AND strftime('%Y', transaction_date) = ?
                           AND strftime('%m', transaction_date) = ?
                     """, (part['part_number'], str(year), f'{month:02d}'))
-                    outbound = cursor.fetchone()['total']
+                    outbound = int(cursor.fetchone()['total'])
 
-                    in_cell = ws.cell(row=row_num, column=col_num, value=int(inbound))
+                    # 입고 셀: 0이면 '-', 0 초과면 하늘색 배경
+                    in_cell = ws.cell(row=row_num, column=col_num,
+                                      value=inbound if inbound > 0 else '-')
                     in_cell.border = border
                     in_cell.alignment = center_align
+                    if inbound > 0:
+                        in_cell.fill = inbound_fill
+                        in_cell.font = Font(bold=True)
+                    elif base_fill.fill_type:
+                        in_cell.fill = base_fill
 
-                    out_cell = ws.cell(row=row_num, column=col_num + 1, value=int(outbound))
+                    # 출고 셀: 0이면 '-', 0 초과면 연주황 배경
+                    out_cell = ws.cell(row=row_num, column=col_num + 1,
+                                       value=outbound if outbound > 0 else '-')
                     out_cell.border = border
                     out_cell.alignment = center_align
+                    if outbound > 0:
+                        out_cell.fill = outbound_fill
+                        out_cell.font = Font(bold=True)
+                    elif base_fill.fill_type:
+                        out_cell.fill = base_fill
 
                     col_num += 2
 
