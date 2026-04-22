@@ -503,7 +503,7 @@ const SpareParts: React.FC = () => {
   // 고객 검색 함수
   const searchCustomers = async (searchTerm: string) => {
     try {
-      const response = await api.get(`/customers/search?q=${encodeURIComponent(searchTerm)}`);
+      const response = await api.get(`/api/customers/search?q=${encodeURIComponent(searchTerm)}`);
       if (response.data && response.data.success) {
         setCustomerSearchResults(response.data.data || []);
       } else {
