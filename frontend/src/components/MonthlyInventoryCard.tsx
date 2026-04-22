@@ -138,7 +138,7 @@ const MonthlyInventoryCard: React.FC = () => {
           ) : (
             <div className="table-responsive">
               <table className="table table-bordered table-sm mb-0">
-                <thead style={{ backgroundColor: '#858585ff', color: 'white' }}>
+                <thead style={{ backgroundColor: '#FFF9C4', color: '#5a4a00' }}>
                   <tr>
                     <th rowSpan={2} className="text-center align-middle" style={{ minWidth: '120px' }}>파트번호</th>
                     <th rowSpan={2} className="text-center align-middle" style={{ minWidth: '150px' }}>파트명</th>

@@ -1754,8 +1754,17 @@ def get_monthly_inventory_summary():
             """, (part['part_number'],))
             current_stock = int(cursor.fetchone()['stock'])
 
-            # 이월재고 또는 현재재고가 0보다 큰 경우만 포함
-            if previous_year_stock > 0 or current_stock > 0:
+            # 해당 연도 출고 여부 확인 (이월재고·현재재고가 0이어도 출고 이력이 있으면 포함)
+            cursor.execute("""
+                SELECT COALESCE(SUM(quantity), 0) as total
+                FROM stock_history
+                WHERE part_number = ?
+                  AND transaction_type = 'OUT'
+                  AND strftime('%Y', transaction_date) = ?
+            """, (part['part_number'], str(year)))
+            year_outbound = int(cursor.fetchone()['total'])
+
+            if previous_year_stock > 0 or current_stock > 0 or year_outbound > 0:
                 monthly_data = {}
 
                 # 각 월별 입출고 데이터 조회
@@ -1890,8 +1899,17 @@ def export_monthly_inventory_summary():
             """, (part['part_number'],))
             current_stock = int(cursor.fetchone()['stock'])
 
-            # 이월재고 또는 현재재고가 0보다 큰 경우만 포함
-            if previous_year_stock > 0 or current_stock > 0:
+            # 해당 연도 출고 여부 확인 (이월재고·현재재고가 0이어도 출고 이력이 있으면 포함)
+            cursor.execute("""
+                SELECT COALESCE(SUM(quantity), 0) as total
+                FROM stock_history
+                WHERE part_number = ?
+                  AND transaction_type = 'OUT'
+                  AND strftime('%Y', transaction_date) = ?
+            """, (part['part_number'], str(year)))
+            year_outbound = int(cursor.fetchone()['total'])
+
+            if previous_year_stock > 0 or current_stock > 0 or year_outbound > 0:
                 # 기본 정보
                 ws.cell(row=row_num, column=1, value=part['part_number']).border = border
                 ws.cell(row=row_num, column=2, value=part['part_name']).border = border
