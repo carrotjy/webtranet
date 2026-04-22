@@ -117,6 +117,19 @@ def main():
                 datetime.now().isoformat(), 'import_2025'
             ))
 
+            # stock_history 삽입 (2025-12-31 이월 입고)
+            if stock_quantity > 0:
+                conn.execute('''
+                    INSERT INTO stock_history
+                    (part_number, transaction_type, quantity, previous_stock, new_stock,
+                     transaction_date, notes, created_at, created_by)
+                    VALUES (?, 'IN', ?, 0, ?, ?, ?, ?, ?)
+                ''', (
+                    part_number, stock_quantity, stock_quantity,
+                    IMPORT_DATE, '2025년 결산 이월',
+                    datetime.now().isoformat(), 'import_2025'
+                ))
+
             inserted += 1
 
             if inserted % 50 == 0:
@@ -128,7 +141,8 @@ def main():
         # 최종 현황
         count_parts = conn.execute("SELECT COUNT(*) FROM spare_parts").fetchone()[0]
         count_price = conn.execute("SELECT COUNT(*) FROM price_history").fetchone()[0]
-        print(f"최종: spare_parts={count_parts}개, price_history={count_price}개")
+        count_stock = conn.execute("SELECT COUNT(*) FROM stock_history").fetchone()[0]
+        print(f"최종: spare_parts={count_parts}개, price_history={count_price}개, stock_history={count_stock}개")
 
     except Exception as e:
         conn.rollback()
