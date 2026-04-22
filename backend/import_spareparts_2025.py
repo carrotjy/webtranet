@@ -85,7 +85,12 @@ def main():
             price_eur = float(str(row['구매원가']).replace(',', '.')) if pd.notna(row['구매원가']) else 0.0
             price_krw = float(str(row['Price']).replace(',', '.')) if pd.notna(row['Price']) else 0.0
             stock_quantity = int(row['재고수량']) if pd.notna(row['재고수량']) else 0
-            part_type = str(row['부품 타입']).strip() if pd.notna(row['부품 타입']) else ''
+            part_type_raw = str(row['부품 타입']).strip() if pd.notna(row['부품 타입']) else ''
+            part_type_map = {
+                '소모성 부품': 'consumable', '소모용 부품': 'consumable', '소모용': 'consumable',
+                '수리용 부품': 'repair', '수리용': 'repair',
+            }
+            part_type = part_type_map.get(part_type_raw, part_type_raw)
 
             old_part_nr = str(row['구 파트번호']).strip() if pd.notna(row['구 파트번호']) else None
             past_numbers = [old_part_nr] if old_part_nr and old_part_nr != 'nan' else []
