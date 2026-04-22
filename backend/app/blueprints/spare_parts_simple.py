@@ -717,8 +717,7 @@ def get_spare_parts_history():
                 sh.customer_name
             FROM stock_history sh
             LEFT JOIN spare_parts sp ON sh.part_number = sp.part_number
-            ORDER BY sh.created_at DESC
-            LIMIT 100
+            ORDER BY sh.transaction_date DESC, sh.created_at DESC
         ''').fetchall()
         
         conn.close()
