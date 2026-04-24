@@ -273,23 +273,18 @@ def update_spare_part(part_number):
         except Exception:
             past_numbers = []
 
+        # 프론트에서 수동으로 전달한 과거 번호 목록으로 완전 교체
+        if 'past_part_numbers' in data:
+            raw_past = data['past_part_numbers']
+            if isinstance(raw_past, list):
+                past_numbers = [n.strip() for n in raw_past if n and n.strip()]
+            else:
+                past_numbers = [n.strip() for n in str(raw_past).split(',') if n.strip()]
+
         # 파트번호가 변경되면 이전 번호를 과거 목록에 자동 추가
         if new_part_number and new_part_number != part_number:
             if part_number not in past_numbers:
                 past_numbers.append(part_number)
-
-        # 프론트에서 수동으로 전달한 과거 번호 목록 반영
-        if 'past_part_numbers' in data:
-            raw_past = data['past_part_numbers']
-            if isinstance(raw_past, list):
-                manual_past = [n.strip() for n in raw_past if n and n.strip()]
-            else:
-                manual_past = [n.strip() for n in str(raw_past).split(',') if n.strip()]
-            # 자동 추가된 항목 유지하면서 수동 목록으로 덮어쓰기
-            for n in past_numbers:
-                if n not in manual_past:
-                    manual_past.append(n)
-            past_numbers = manual_past
 
         past_numbers_json = _json.dumps(past_numbers, ensure_ascii=False) if past_numbers else None
 
