@@ -421,13 +421,19 @@ def generate_invoice_excel_v2(invoice_id):
                         color="FF0000"
                     )
 
-            if item['quantity']:
+            if item['quantity'] is not None:
                 # 수량은 Q에 쓰기
                 qty_cell = safe_write_to_cell(f'Q{current_row}', item['quantity'])
 
                 if qty_cell:
                     # 품목 타입에 따라 셀 서식 적용
-                    if item['item_type'] == 'work' or item['item_type'] == 'travel':
+                    # 작업/이동 타입이거나, 네고 행이면서 설명에 'H'가 포함된 경우 → H 단위
+                    desc = str(item['description'] or '')
+                    is_h_type = (
+                        item['item_type'] in ('work', 'travel') or
+                        (is_nego and 'H' in desc)
+                    )
+                    if is_h_type:
                         # 작업시간/이동시간: 소수점 1자리 + "H" 표시
                         qty_cell.number_format = '0.0"H"'
                     else:
@@ -449,7 +455,7 @@ def generate_invoice_excel_v2(invoice_id):
                             color="FF0000"
                         )
 
-            if item['unit_price']:
+            if item['unit_price'] is not None:
                 # 단가는 S에 쓰기
                 price_cell = safe_write_to_cell(f'S{current_row}', item['unit_price'])
                 if price_cell:
@@ -473,7 +479,7 @@ def generate_invoice_excel_v2(invoice_id):
                             color="FF0000"
                         )
 
-            if item['total_price']:
+            if item['total_price'] is not None:
                 # 공급가액은 X에 쓰기
                 total_cell = safe_write_to_cell(f'X{current_row}', item['total_price'])
                 if total_cell:
