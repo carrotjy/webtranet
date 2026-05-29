@@ -50,6 +50,24 @@ INVOICE_BASE_DIR = os.path.join(INSTANCE_DIR, '거래명세서')
 TEMPLATE_PATH = os.path.join(INSTANCE_DIR, '거래명세서_신규양식.xlsx')  # 신규 양식 사용
 NETWORK_BASE_DIR = '/mnt/windows/거래명세서'
 
+
+def _get_invoice_base_dir():
+    """시스템 설정에서 거래명세서 저장 경로를 읽어 반환. 없으면 기본 경로 사용."""
+    try:
+        import sqlite3
+        db_path = os.path.join('app', 'database', 'webtranet.db')
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        setting = conn.execute(
+            "SELECT value FROM system_settings WHERE key = 'invoice_save_path'"
+        ).fetchone()
+        conn.close()
+        if setting and setting['value']:
+            return setting['value']
+    except Exception:
+        pass
+    return INVOICE_BASE_DIR
+
 def get_supplier_info():
     """공급자 정보 조회 (supplier_info 테이블에서)"""
     from app.database.init_db import get_db_connection
@@ -1078,7 +1096,7 @@ def serve_invoice_excel(customer_name, filename):
         filename = unquote(filename)
 
         # instance/거래명세서/고객사명/filename 경로
-        excel_path = os.path.join(INVOICE_BASE_DIR, customer_name, filename)
+        excel_path = os.path.join(_get_invoice_base_dir(), customer_name, filename)
         print(f"Excel 다운로드 요청: {excel_path}")
         print(f"파일 존재 여부: {os.path.exists(excel_path)}")
 
@@ -1132,7 +1150,7 @@ def serve_invoice_pdf(customer_name, filename):
                     from datetime import datetime
                     issue_date = datetime.strptime(invoice_data['issue_date'], '%Y-%m-%d')
                     monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
-                    monthly_folder = os.path.join(INVOICE_BASE_DIR, monthly_folder_name)
+                    monthly_folder = os.path.join(_get_invoice_base_dir(), monthly_folder_name)
                     pdf_path = os.path.join(monthly_folder, filename)
 
                     print(f"PDF 다운로드 요청 (월별 폴더): {pdf_path}")
@@ -1144,7 +1162,7 @@ def serve_invoice_pdf(customer_name, filename):
                     print(f"월별 폴더에서 PDF 찾기 실패: {str(e)}")
 
         # 하위 호환성: 월별 폴더에서 못 찾으면 고객사 폴더에서 찾기
-        pdf_path = os.path.join(INVOICE_BASE_DIR, customer_name, filename)
+        pdf_path = os.path.join(_get_invoice_base_dir(), customer_name, filename)
         print(f"PDF 다운로드 요청 (고객 폴더): {pdf_path}")
         print(f"파일 존재 여부: {os.path.exists(pdf_path)}")
 

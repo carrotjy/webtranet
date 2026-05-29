@@ -12,6 +12,27 @@ import tempfile
 
 invoice_bp = Blueprint('invoice', __name__)
 
+_INSTANCE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'instance')
+_DEFAULT_INVOICE_BASE_DIR = os.path.join(_INSTANCE_DIR, '거래명세서')
+
+
+def _get_invoice_base_dir():
+    """시스템 설정에서 거래명세서 저장 경로를 읽어 반환. 없으면 기본 경로 사용."""
+    try:
+        import sqlite3
+        db_path = os.path.join('app', 'database', 'webtranet.db')
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        setting = conn.execute(
+            "SELECT value FROM system_settings WHERE key = 'invoice_save_path'"
+        ).fetchone()
+        conn.close()
+        if setting and setting['value']:
+            return setting['value']
+    except Exception:
+        pass
+    return _DEFAULT_INVOICE_BASE_DIR
+
 # CORS preflight 요청 처리
 @invoice_bp.route('/invoices', methods=['OPTIONS'])
 @invoice_bp.route('/invoices/<int:invoice_id>', methods=['OPTIONS'])
@@ -43,9 +64,7 @@ def get_invoices():
 
         invoices, total = Invoice.get_all(page, per_page, search)
 
-        # instance 폴더 경로
-        INSTANCE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'instance')
-        INVOICE_BASE_DIR = os.path.join(INSTANCE_DIR, '거래명세서')
+        INVOICE_BASE_DIR = _get_invoice_base_dir()
 
         # 고객 팩스번호 조회를 위한 user.db 연결
         import sqlite3
@@ -662,9 +681,7 @@ def bulk_download_invoices():
         if not excel_ids and not pdf_ids:
             return jsonify({'error': '다운로드할 파일이 선택되지 않았습니다.'}), 400
 
-        # instance 폴더 경로
-        INSTANCE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'instance')
-        INVOICE_BASE_DIR = os.path.join(INSTANCE_DIR, '거래명세서')
+        INVOICE_BASE_DIR = _get_invoice_base_dir()
 
         # 임시 ZIP 파일 생성
         temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')

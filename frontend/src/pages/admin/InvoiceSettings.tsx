@@ -33,6 +33,9 @@ const InvoiceSettings: React.FC = () => {
     fax: ''
   });
 
+  const [invoiceSavePath, setInvoiceSavePath] = useState('');
+  const [savingPath, setSavingPath] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingSupplier, setSavingSupplier] = useState(false);
@@ -63,6 +66,32 @@ const InvoiceSettings: React.FC = () => {
     } catch (error) {
       console.error('공급자 정보 조회 실패:', error);
       // 기본값 유지
+    }
+  };
+
+  // 거래명세서 저장 경로 조회
+  const fetchInvoiceSavePath = async () => {
+    try {
+      const response = await api.get('/api/system/invoice-save-path');
+      if (response.data.success) {
+        setInvoiceSavePath(response.data.invoice_save_path || '');
+      }
+    } catch (error) {
+      console.error('거래명세서 저장 경로 조회 실패:', error);
+    }
+  };
+
+  // 거래명세서 저장 경로 저장
+  const handleSaveInvoicePath = async () => {
+    try {
+      setSavingPath(true);
+      await api.post('/api/system/invoice-save-path', { invoice_save_path: invoiceSavePath });
+      alert('거래명세서 저장 경로가 설정되었습니다.');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || '저장 경로 설정에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setSavingPath(false);
     }
   };
 
@@ -111,6 +140,7 @@ const InvoiceSettings: React.FC = () => {
   useEffect(() => {
     fetchRates();
     fetchSupplierInfo();
+    fetchInvoiceSavePath();
   }, []);
 
   return (
@@ -127,6 +157,51 @@ const InvoiceSettings: React.FC = () => {
       <div className="page-body">
         <div className="container-xl">
           <div className="row row-deck row-cards">
+
+            {/* 거래명세서 저장 경로 설정 카드 */}
+            <div className="col-12">
+              <div className="card">
+                <div className="card-header">
+                  <h3 className="card-title">거래명세서 저장 경로</h3>
+                  <div className="card-actions">
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleSaveInvoicePath}
+                      disabled={savingPath}
+                    >
+                      {savingPath ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                          저장 중...
+                        </>
+                      ) : (
+                        '경로 저장'
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="card-body">
+                  <div className="row">
+                    <div className="col-12">
+                      <div className="mb-3">
+                        <label className="form-label">저장 경로</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={invoiceSavePath}
+                          onChange={(e) => setInvoiceSavePath(e.target.value)}
+                          placeholder="예: C:\거래명세서  또는  /home/user/거래명세서"
+                        />
+                        <div className="form-hint">
+                          거래명세서 생성 시 Excel 및 PDF 파일이 저장될 기본 폴더 경로를 입력하세요.
+                          비워두면 서버 기본 경로(instance/거래명세서)를 사용합니다.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* 공급자 정보 카드 */}
             <div className="col-12">

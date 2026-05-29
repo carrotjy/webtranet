@@ -41,6 +41,27 @@ def get_supplier_info():
         'fax': ''
     }
 
+def get_invoice_save_path_from_settings():
+    """시스템 설정에서 거래명세서 저장 경로 조회"""
+    try:
+        import sqlite3
+        db_path = os.path.join('app', 'database', 'webtranet.db')
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+
+        setting = conn.execute(
+            "SELECT value FROM system_settings WHERE key = 'invoice_save_path'"
+        ).fetchone()
+        conn.close()
+
+        if setting and setting['value']:
+            return setting['value']
+        return None
+    except Exception as e:
+        print(f"❌ 거래명세서 저장 경로 설정 조회 실패: {str(e)}")
+        return None
+
+
 def get_libreoffice_path_from_settings():
     """시스템 설정에서 LibreOffice 경로 조회"""
     try:
@@ -238,7 +259,8 @@ def generate_invoice_excel_v2(invoice_id):
         supplier = get_supplier_info()
 
         # 5. 템플릿 복사
-        customer_folder = os.path.join(INVOICE_BASE_DIR, invoice['customer_name'])
+        base_dir = get_invoice_save_path_from_settings() or INVOICE_BASE_DIR
+        customer_folder = os.path.join(base_dir, invoice['customer_name'])
         os.makedirs(customer_folder, exist_ok=True)
 
         # 거래명세표 번호 기준 파일명 생성 (yymmdd## 형식, 8자리)
@@ -555,7 +577,7 @@ def generate_invoice_excel_v2(invoice_id):
         monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
 
         # 월별 폴더 생성
-        monthly_folder = os.path.join(INVOICE_BASE_DIR, monthly_folder_name)
+        monthly_folder = os.path.join(base_dir, monthly_folder_name)
         os.makedirs(monthly_folder, exist_ok=True)
 
         # PDF 파일명 생성 (invoice_number가 없으면 고객명만 사용)
