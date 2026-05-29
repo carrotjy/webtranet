@@ -459,7 +459,7 @@ def set_safety_stock_range():
 @system_settings_bp.route('/system/invoice-save-path', methods=['GET'])
 @jwt_required()
 def get_invoice_save_path():
-    """거래명세서 저장 경로 조회"""
+    """거래명세서 저장 경로 및 접속 정보 조회 (비밀번호 제외)"""
     try:
         current_user_id = get_jwt_identity()
         user = User.get_by_id(current_user_id)
@@ -471,14 +471,18 @@ def get_invoice_save_path():
             }), 403
 
         conn = get_db_connection()
-        setting = conn.execute(
-            "SELECT value FROM system_settings WHERE key = 'invoice_save_path'"
-        ).fetchone()
+        rows = conn.execute(
+            "SELECT key, value FROM system_settings "
+            "WHERE key IN ('invoice_save_path','invoice_save_user','invoice_save_password')"
+        ).fetchall()
         conn.close()
 
+        settings = {r['key']: r['value'] for r in rows}
         return jsonify({
             'success': True,
-            'invoice_save_path': setting['value'] if setting else None
+            'invoice_save_path': settings.get('invoice_save_path') or '',
+            'invoice_save_user': settings.get('invoice_save_user') or '',
+            'has_password': bool(settings.get('invoice_save_password')),
         }), 200
 
     except Exception as e:
@@ -491,7 +495,7 @@ def get_invoice_save_path():
 @system_settings_bp.route('/system/invoice-save-path', methods=['POST'])
 @jwt_required()
 def set_invoice_save_path():
-    """거래명세서 저장 경로 설정 저장"""
+    """거래명세서 저장 경로 및 접속 정보 저장"""
     try:
         current_user_id = get_jwt_identity()
         user = User.get_by_id(current_user_id)
@@ -511,21 +515,32 @@ def set_invoice_save_path():
                 'message': '저장 경로를 입력해주세요.'
             }), 400
 
-        conn = get_db_connection()
-        existing = conn.execute(
-            "SELECT * FROM system_settings WHERE key = 'invoice_save_path'"
-        ).fetchone()
+        invoice_save_user     = data.get('invoice_save_user', '').strip()
+        invoice_save_password = data.get('invoice_save_password', '')  # 빈 문자열이면 기존 값 유지
 
-        if existing:
-            conn.execute(
-                "UPDATE system_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'invoice_save_path'",
-                (invoice_save_path,)
-            )
-        else:
-            conn.execute(
-                "INSERT INTO system_settings (key, value) VALUES ('invoice_save_path', ?)",
-                (invoice_save_path,)
-            )
+        conn = get_db_connection()
+
+        def upsert(key, value):
+            existing = conn.execute(
+                "SELECT 1 FROM system_settings WHERE key = ?", (key,)
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    "UPDATE system_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?",
+                    (value, key)
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO system_settings (key, value) VALUES (?, ?)",
+                    (key, value)
+                )
+
+        upsert('invoice_save_path', invoice_save_path)
+        upsert('invoice_save_user', invoice_save_user)
+
+        # 비밀번호: 새 값이 전달된 경우에만 덮어씀
+        if invoice_save_password:
+            upsert('invoice_save_password', invoice_save_password)
 
         conn.commit()
         conn.close()

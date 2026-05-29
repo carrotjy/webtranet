@@ -51,22 +51,31 @@ TEMPLATE_PATH = os.path.join(INSTANCE_DIR, '거래명세서_신규양식.xlsx') 
 NETWORK_BASE_DIR = '/mnt/windows/거래명세서'
 
 
-def _get_invoice_base_dir():
-    """시스템 설정에서 거래명세서 저장 경로를 읽어 반환. 없으면 기본 경로 사용."""
+def _get_invoice_save_info():
+    """시스템 설정에서 거래명세서 저장 경로 및 SMB 접속 정보 조회"""
     try:
         import sqlite3
         db_path = os.path.join('app', 'database', 'webtranet.db')
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        setting = conn.execute(
-            "SELECT value FROM system_settings WHERE key = 'invoice_save_path'"
-        ).fetchone()
+        rows = conn.execute(
+            "SELECT key, value FROM system_settings "
+            "WHERE key IN ('invoice_save_path','invoice_save_user','invoice_save_password')"
+        ).fetchall()
         conn.close()
-        if setting and setting['value']:
-            return setting['value']
+        s = {r['key']: r['value'] for r in rows}
+        return {
+            'path':     s.get('invoice_save_path') or INVOICE_BASE_DIR,
+            'username': s.get('invoice_save_user') or None,
+            'password': s.get('invoice_save_password') or None,
+        }
     except Exception:
         pass
-    return INVOICE_BASE_DIR
+    return {'path': INVOICE_BASE_DIR, 'username': None, 'password': None}
+
+
+def _get_invoice_base_dir():
+    return _get_invoice_save_info()['path']
 
 def get_supplier_info():
     """공급자 정보 조회 (supplier_info 테이블에서)"""
@@ -1087,96 +1096,118 @@ def generate_invoice():
 
 @invoice_generator_bp.route('/invoice-excel/<path:customer_name>/<path:filename>', methods=['GET'])
 def serve_invoice_excel(customer_name, filename):
-    """생성된 Excel 파일 제공"""
+    """생성된 Excel 파일 제공 (UNC 경로 지원)"""
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+    from app.utils.smb_utils import is_unc_path, unc_join, get_for_serve
+    from urllib.parse import unquote
     try:
-        from urllib.parse import unquote
-
-        # URL 디코딩
         customer_name = unquote(customer_name)
         filename = unquote(filename)
 
-        # instance/거래명세서/고객사명/filename 경로
-        excel_path = os.path.join(_get_invoice_base_dir(), customer_name, filename)
-        print(f"Excel 다운로드 요청: {excel_path}")
-        print(f"파일 존재 여부: {os.path.exists(excel_path)}")
-
-        if os.path.exists(excel_path):
-            return send_file(
-                excel_path,
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                as_attachment=True,
-                download_name=filename
-            )
+        info = _get_invoice_save_info()
+        base = info['path']
+        if is_unc_path(base):
+            file_path = unc_join(base, customer_name, filename)
         else:
-            return jsonify({
-                'success': False,
-                'error': f'Excel 파일을 찾을 수 없습니다: {excel_path}'
-            }), 404
+            file_path = os.path.join(base, customer_name, filename)
+
+        serve_path, is_tmp = get_for_serve(file_path, info['username'], info['password'])
+
+        if not os.path.exists(serve_path):
+            return jsonify({'success': False, 'error': f'Excel 파일을 찾을 수 없습니다: {filename}'}), 404
+
+        response = send_file(
+            serve_path,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+        if is_tmp:
+            @response.call_on_close
+            def _cleanup():
+                try:
+                    os.unlink(serve_path)
+                except OSError:
+                    pass
+        return response
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @invoice_generator_bp.route('/invoice-pdf/<path:customer_name>/<path:filename>', methods=['GET'])
 def serve_invoice_pdf(customer_name, filename):
-    """생성된 PDF 파일 제공 (월별 폴더 지원)"""
+    """생성된 PDF 파일 제공 (월별 폴더 지원, UNC 경로 지원)"""
+    from app.utils.smb_utils import is_unc_path, unc_join, get_for_serve, path_exists
+    from urllib.parse import unquote
+    import re
     try:
-        from urllib.parse import unquote
-        import re
-
-        # URL 디코딩
         customer_name = unquote(customer_name)
         filename = unquote(filename)
 
-        # 파일명에서 invoice_number 추출: 거래명세서(고객명)-241104.pdf -> 241104
+        info = _get_invoice_save_info()
+        base = info['path']
+        smb_user = info['username']
+        smb_pass = info['password']
+
+        def _serve(file_path):
+            serve_path, is_tmp = get_for_serve(file_path, smb_user, smb_pass)
+            if not os.path.exists(serve_path):
+                if is_tmp:
+                    try:
+                        os.unlink(serve_path)
+                    except OSError:
+                        pass
+                return None
+            resp = send_file(serve_path, mimetype='application/pdf')
+            if is_tmp:
+                @resp.call_on_close
+                def _cleanup():
+                    try:
+                        os.unlink(serve_path)
+                    except OSError:
+                        pass
+            return resp
+
+        # 1. 월별 폴더에서 찾기
         match = re.search(r'-([^-]+)\.pdf$', filename)
         if match:
             invoice_number = match.group(1)
-
-            # invoice_number로 DB에서 issue_date 조회
             from app.database.init_db import get_db_connection
             conn = get_db_connection()
-            invoice_data = conn.execute(
+            row = conn.execute(
                 'SELECT issue_date FROM invoices WHERE invoice_number = ?',
                 (invoice_number,)
             ).fetchone()
             conn.close()
 
-            if invoice_data and invoice_data['issue_date']:
+            if row and row['issue_date']:
                 try:
                     from datetime import datetime
-                    issue_date = datetime.strptime(invoice_data['issue_date'], '%Y-%m-%d')
-                    monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
-                    monthly_folder = os.path.join(_get_invoice_base_dir(), monthly_folder_name)
-                    pdf_path = os.path.join(monthly_folder, filename)
-
-                    print(f"PDF 다운로드 요청 (월별 폴더): {pdf_path}")
-                    print(f"파일 존재 여부: {os.path.exists(pdf_path)}")
-
-                    if os.path.exists(pdf_path):
-                        return send_file(pdf_path, mimetype='application/pdf')
+                    d = datetime.strptime(row['issue_date'], '%Y-%m-%d')
+                    monthly = f"{d.year}년{d.month:02d}월"
+                    if is_unc_path(base):
+                        pdf_path = unc_join(base, monthly, filename)
+                    else:
+                        pdf_path = os.path.join(base, monthly, filename)
+                    resp = _serve(pdf_path)
+                    if resp:
+                        return resp
                 except Exception as e:
-                    print(f"월별 폴더에서 PDF 찾기 실패: {str(e)}")
+                    print(f"월별 폴더에서 PDF 찾기 실패: {e}")
 
-        # 하위 호환성: 월별 폴더에서 못 찾으면 고객사 폴더에서 찾기
-        pdf_path = os.path.join(_get_invoice_base_dir(), customer_name, filename)
-        print(f"PDF 다운로드 요청 (고객 폴더): {pdf_path}")
-        print(f"파일 존재 여부: {os.path.exists(pdf_path)}")
-
-        if os.path.exists(pdf_path):
-            return send_file(pdf_path, mimetype='application/pdf')
+        # 2. 하위 호환성: 고객 폴더에서 찾기
+        if is_unc_path(base):
+            pdf_path = unc_join(base, customer_name, filename)
         else:
-            return jsonify({
-                'success': False,
-                'error': f'PDF 파일을 찾을 수 없습니다: {filename}'
-            }), 404
+            pdf_path = os.path.join(base, customer_name, filename)
+        resp = _serve(pdf_path)
+        if resp:
+            return resp
+
+        return jsonify({'success': False, 'error': f'PDF 파일을 찾을 수 없습니다: {filename}'}), 404
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500

@@ -34,6 +34,9 @@ const InvoiceSettings: React.FC = () => {
   });
 
   const [invoiceSavePath, setInvoiceSavePath] = useState('');
+  const [invoiceSaveUser, setInvoiceSaveUser] = useState('');
+  const [invoiceSavePassword, setInvoiceSavePassword] = useState('');
+  const [hasPassword, setHasPassword] = useState(false);
   const [savingPath, setSavingPath] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -75,6 +78,8 @@ const InvoiceSettings: React.FC = () => {
       const response = await api.get('/api/system/invoice-save-path');
       if (response.data.success) {
         setInvoiceSavePath(response.data.invoice_save_path || '');
+        setInvoiceSaveUser(response.data.invoice_save_user || '');
+        setHasPassword(response.data.has_password || false);
       }
     } catch (error) {
       console.error('거래명세서 저장 경로 조회 실패:', error);
@@ -85,8 +90,14 @@ const InvoiceSettings: React.FC = () => {
   const handleSaveInvoicePath = async () => {
     try {
       setSavingPath(true);
-      await api.post('/api/system/invoice-save-path', { invoice_save_path: invoiceSavePath });
+      await api.post('/api/system/invoice-save-path', {
+        invoice_save_path: invoiceSavePath,
+        invoice_save_user: invoiceSaveUser,
+        invoice_save_password: invoiceSavePassword,
+      });
       alert('거래명세서 저장 경로가 설정되었습니다.');
+      setInvoiceSavePassword('');
+      setHasPassword(invoiceSavePassword !== '' ? true : hasPassword);
     } catch (error: any) {
       const msg = error?.response?.data?.message || '저장 경로 설정에 실패했습니다.';
       alert(msg);
@@ -190,11 +201,50 @@ const InvoiceSettings: React.FC = () => {
                           className="form-control"
                           value={invoiceSavePath}
                           onChange={(e) => setInvoiceSavePath(e.target.value)}
-                          placeholder="예: C:\거래명세서  또는  /home/user/거래명세서"
+                          placeholder="예: \\messerver\invoice$  또는  /mnt/share/거래명세서"
                         />
                         <div className="form-hint">
-                          거래명세서 생성 시 Excel 및 PDF 파일이 저장될 기본 폴더 경로를 입력하세요.
+                          거래명세서 생성 시 Excel 및 PDF 파일이 저장될 폴더 경로.
                           비워두면 서버 기본 경로(instance/거래명세서)를 사용합니다.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">접속 계정 (ID)</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={invoiceSaveUser}
+                          onChange={(e) => setInvoiceSaveUser(e.target.value)}
+                          placeholder="네트워크 공유 접속 사용자명"
+                          autoComplete="username"
+                        />
+                        <div className="form-hint">
+                          네트워크 공유(\\server\share)에 인증이 필요한 경우 입력하세요.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">
+                          접속 비밀번호
+                          {hasPassword && (
+                            <span className="badge bg-success ms-2" style={{ fontSize: '0.7em' }}>설정됨</span>
+                          )}
+                        </label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          value={invoiceSavePassword}
+                          onChange={(e) => setInvoiceSavePassword(e.target.value)}
+                          placeholder={hasPassword ? '변경하려면 새 비밀번호 입력' : '비밀번호 입력'}
+                          autoComplete="new-password"
+                        />
+                        <div className="form-hint">
+                          비워두면 기존 비밀번호를 유지합니다.
                         </div>
                       </div>
                     </div>

@@ -5,6 +5,7 @@ from app.models.invoice_item import InvoiceItem
 from app.models.service_report import ServiceReport
 from app.models.invoice_code import InvoiceCode
 from app.utils.auth import admin_required
+from app.utils.smb_utils import is_unc_path, unc_join, path_exists, get_for_serve
 from datetime import date, datetime
 import os
 import zipfile
@@ -16,22 +17,32 @@ _INSTANCE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__f
 _DEFAULT_INVOICE_BASE_DIR = os.path.join(_INSTANCE_DIR, '거래명세서')
 
 
-def _get_invoice_base_dir():
-    """시스템 설정에서 거래명세서 저장 경로를 읽어 반환. 없으면 기본 경로 사용."""
+def _get_invoice_save_info():
+    """거래명세서 저장 경로 및 SMB 접속 정보 반환"""
     try:
         import sqlite3
         db_path = os.path.join('app', 'database', 'webtranet.db')
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        setting = conn.execute(
-            "SELECT value FROM system_settings WHERE key = 'invoice_save_path'"
-        ).fetchone()
+        rows = conn.execute(
+            "SELECT key, value FROM system_settings "
+            "WHERE key IN ('invoice_save_path','invoice_save_user','invoice_save_password')"
+        ).fetchall()
         conn.close()
-        if setting and setting['value']:
-            return setting['value']
+        s = {r['key']: r['value'] for r in rows}
+        return {
+            'path':     s.get('invoice_save_path') or _DEFAULT_INVOICE_BASE_DIR,
+            'username': s.get('invoice_save_user') or None,
+            'password': s.get('invoice_save_password') or None,
+        }
     except Exception:
         pass
-    return _DEFAULT_INVOICE_BASE_DIR
+    return {'path': _DEFAULT_INVOICE_BASE_DIR, 'username': None, 'password': None}
+
+
+def _get_invoice_base_dir():
+    """하위 호환용: 경로만 반환"""
+    return _get_invoice_save_info()['path']
 
 # CORS preflight 요청 처리
 @invoice_bp.route('/invoices', methods=['OPTIONS'])
@@ -64,7 +75,10 @@ def get_invoices():
 
         invoices, total = Invoice.get_all(page, per_page, search)
 
-        INVOICE_BASE_DIR = _get_invoice_base_dir()
+        save_info = _get_invoice_save_info()
+        INVOICE_BASE_DIR = save_info['path']
+        smb_user = save_info['username']
+        smb_pass = save_info['password']
 
         # 고객 팩스번호 조회를 위한 user.db 연결
         import sqlite3
@@ -90,34 +104,32 @@ def get_invoices():
             else:
                 invoice_dict['fax_number'] = None
 
-            # 파일 존재 여부 확인
-            customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
-            excel_filename = f'거래명세서({invoice.customer_name})-{invoice.invoice_number}.xlsx'
-            excel_path = os.path.join(customer_folder, excel_filename)
+            # 파일 존재 여부 확인 (UNC 경로 지원)
+            _unc = is_unc_path(INVOICE_BASE_DIR)
+            if _unc:
+                excel_path = unc_join(INVOICE_BASE_DIR, invoice.customer_name,
+                                      f'거래명세서({invoice.customer_name})-{invoice.invoice_number}.xlsx')
+            else:
+                customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
+                excel_path = os.path.join(customer_folder,
+                                          f'거래명세서({invoice.customer_name})-{invoice.invoice_number}.xlsx')
 
-            # Excel 파일 존재 여부
-            invoice_dict['has_excel'] = os.path.exists(excel_path)
+            invoice_dict['has_excel'] = path_exists(excel_path, smb_user, smb_pass)
 
-            # PDF 파일 존재 여부 - 월별 폴더에서 확인
-            # issue_date에서 년월 추출하여 월별 폴더 확인
             has_pdf = False
             if invoice.issue_date:
                 try:
                     from datetime import datetime
                     issue_date = datetime.strptime(invoice.issue_date, '%Y-%m-%d')
                     monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
-                    monthly_folder = os.path.join(INVOICE_BASE_DIR, monthly_folder_name)
-
                     pdf_filename = f"거래명세서({invoice.customer_name})-{invoice.invoice_number}.pdf"
-                    pdf_path = os.path.join(monthly_folder, pdf_filename)
-                    has_pdf = os.path.exists(pdf_path)
-                except:
-                    # 날짜 파싱 실패 시 고객 폴더에서 찾기 (하위 호환성)
-                    if os.path.exists(customer_folder):
-                        for filename in os.listdir(customer_folder):
-                            if filename.startswith(f'거래명세서({invoice.customer_name})') and filename.endswith('.pdf'):
-                                has_pdf = True
-                                break
+                    if _unc:
+                        pdf_path = unc_join(INVOICE_BASE_DIR, monthly_folder_name, pdf_filename)
+                    else:
+                        pdf_path = os.path.join(INVOICE_BASE_DIR, monthly_folder_name, pdf_filename)
+                    has_pdf = path_exists(pdf_path, smb_user, smb_pass)
+                except Exception:
+                    pass
             invoice_dict['has_pdf'] = has_pdf
 
             result.append(invoice_dict)
@@ -681,7 +693,30 @@ def bulk_download_invoices():
         if not excel_ids and not pdf_ids:
             return jsonify({'error': '다운로드할 파일이 선택되지 않았습니다.'}), 400
 
-        INVOICE_BASE_DIR = _get_invoice_base_dir()
+        save_info = _get_invoice_save_info()
+        INVOICE_BASE_DIR = save_info['path']
+        smb_user = save_info['username']
+        smb_pass = save_info['password']
+        _unc = is_unc_path(INVOICE_BASE_DIR)
+
+        def _add_to_zip(zipf, file_path, arcname):
+            """파일을 ZIP에 추가 (UNC이면 임시 다운로드 후 추가)"""
+            tmp_path = None
+            try:
+                serve_path, is_tmp = get_for_serve(file_path, smb_user, smb_pass)
+                tmp_path = serve_path if is_tmp else None
+                if os.path.exists(serve_path):
+                    zipf.write(serve_path, arcname)
+                    return True
+            except Exception as e:
+                print(f'ZIP 추가 실패({file_path}): {e}')
+            finally:
+                if tmp_path and os.path.exists(tmp_path):
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
+            return False
 
         # 임시 ZIP 파일 생성
         temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
@@ -697,13 +732,13 @@ def bulk_download_invoices():
                 if not invoice:
                     continue
 
-                customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
-                excel_path = os.path.join(customer_folder, f'거래명세서({invoice.customer_name}).xlsx')
+                excel_filename = f'거래명세서({invoice.customer_name})-{invoice.invoice_number}.xlsx'
+                if _unc:
+                    excel_path = unc_join(INVOICE_BASE_DIR, invoice.customer_name, excel_filename)
+                else:
+                    excel_path = os.path.join(INVOICE_BASE_DIR, invoice.customer_name, excel_filename)
 
-                if os.path.exists(excel_path):
-                    # ZIP 내부 경로: 거래명세서(고객명).xlsx
-                    arcname = f'거래명세서({invoice.customer_name}).xlsx'
-                    zipf.write(excel_path, arcname)
+                if _add_to_zip(zipf, excel_path, excel_filename):
                     files_added += 1
 
             # PDF 파일 추가
@@ -719,20 +754,20 @@ def bulk_download_invoices():
                         from datetime import datetime
                         issue_date = datetime.strptime(invoice.issue_date, '%Y-%m-%d')
                         monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
-                        monthly_folder = os.path.join(INVOICE_BASE_DIR, monthly_folder_name)
-
                         pdf_filename = f"거래명세서({invoice.customer_name})-{invoice.invoice_number}.pdf"
-                        pdf_path = os.path.join(monthly_folder, pdf_filename)
+                        if _unc:
+                            pdf_path = unc_join(INVOICE_BASE_DIR, monthly_folder_name, pdf_filename)
+                        else:
+                            pdf_path = os.path.join(INVOICE_BASE_DIR, monthly_folder_name, pdf_filename)
 
-                        if os.path.exists(pdf_path):
-                            zipf.write(pdf_path, pdf_filename)
+                        if _add_to_zip(zipf, pdf_path, pdf_filename):
                             files_added += 1
                             pdf_found = True
-                    except:
+                    except Exception:
                         pass
 
-                # 하위 호환성: 월별 폴더에서 못 찾으면 고객 폴더에서 찾기
-                if not pdf_found:
+                # 하위 호환성: 월별 폴더에서 못 찾으면 고객 폴더에서 찾기 (로컬 전용)
+                if not pdf_found and not _unc:
                     customer_folder = os.path.join(INVOICE_BASE_DIR, invoice.customer_name)
                     if os.path.exists(customer_folder):
                         for filename in os.listdir(customer_folder):

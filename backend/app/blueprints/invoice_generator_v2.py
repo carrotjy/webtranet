@@ -5,9 +5,11 @@ from flask import Blueprint, request, jsonify, send_file
 import os
 import shutil
 import subprocess
+import tempfile
 from datetime import datetime
 from openpyxl import load_workbook
 from app.database.init_db import get_db_connection
+from app.utils.smb_utils import is_unc_path, unc_join, copy_to_target
 
 # 상수
 INSTANCE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'instance')
@@ -41,25 +43,34 @@ def get_supplier_info():
         'fax': ''
     }
 
-def get_invoice_save_path_from_settings():
-    """시스템 설정에서 거래명세서 저장 경로 조회"""
+def get_invoice_save_info_from_settings():
+    """시스템 설정에서 거래명세서 저장 경로 및 접속 정보 조회"""
     try:
         import sqlite3
         db_path = os.path.join('app', 'database', 'webtranet.db')
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
 
-        setting = conn.execute(
-            "SELECT value FROM system_settings WHERE key = 'invoice_save_path'"
-        ).fetchone()
+        rows = conn.execute(
+            "SELECT key, value FROM system_settings "
+            "WHERE key IN ('invoice_save_path','invoice_save_user','invoice_save_password')"
+        ).fetchall()
         conn.close()
 
-        if setting and setting['value']:
-            return setting['value']
-        return None
+        settings = {r['key']: r['value'] for r in rows}
+        return {
+            'path':     settings.get('invoice_save_path') or None,
+            'username': settings.get('invoice_save_user') or None,
+            'password': settings.get('invoice_save_password') or None,
+        }
     except Exception as e:
         print(f"❌ 거래명세서 저장 경로 설정 조회 실패: {str(e)}")
-        return None
+        return {'path': None, 'username': None, 'password': None}
+
+
+def get_invoice_save_path_from_settings():
+    """하위 호환용: 경로만 반환"""
+    return get_invoice_save_info_from_settings()['path']
 
 
 def get_libreoffice_path_from_settings():
@@ -258,9 +269,16 @@ def generate_invoice_excel_v2(invoice_id):
         # 4. 공급자 정보 조회
         supplier = get_supplier_info()
 
-        # 5. 템플릿 복사
-        base_dir = get_invoice_save_path_from_settings() or INVOICE_BASE_DIR
-        customer_folder = os.path.join(base_dir, invoice['customer_name'])
+        # 5. 저장 경로 및 SMB 설정 확인
+        save_info  = get_invoice_save_info_from_settings()
+        base_dir   = save_info['path'] or INVOICE_BASE_DIR
+        smb_user   = save_info['username']
+        smb_pass   = save_info['password']
+        use_smb    = is_unc_path(base_dir)
+
+        # UNC 경로인 경우 Excel/PDF 생성은 로컬 임시 폴더에서 수행
+        local_base = tempfile.mkdtemp(prefix='inv_gen_') if use_smb else base_dir
+        customer_folder = os.path.join(local_base, invoice['customer_name'])
         os.makedirs(customer_folder, exist_ok=True)
 
         # 거래명세표 번호 기준 파일명 생성 (yymmdd## 형식, 8자리)
@@ -571,16 +589,14 @@ def generate_invoice_excel_v2(invoice_id):
         print(f"✅ Excel 파일 저장 완료: {output_path}")
         print(f"   시트 목록: {wb.sheetnames}")
 
-        # 14. PDF 생성 (특정 시트만 PDF로 변환) - 월별 폴더에 저장
-        # 발행일자에서 년월 추출 (YYYY-MM-DD 형식)
+        # 14. PDF 생성 - 월별 폴더에 저장 (로컬 임시 경로 사용)
         issue_date_str = invoice['issue_date']
         monthly_folder_name = f"{issue_date.year}년{issue_date.month:02d}월"
 
-        # 월별 폴더 생성
-        monthly_folder = os.path.join(base_dir, monthly_folder_name)
-        os.makedirs(monthly_folder, exist_ok=True)
+        local_monthly_folder = os.path.join(local_base, monthly_folder_name)
+        os.makedirs(local_monthly_folder, exist_ok=True)
 
-        # PDF 파일명 생성 (invoice_number가 없으면 고객명만 사용)
+        # PDF 파일명 생성
         invoice_number = invoice['invoice_number']
         if invoice_number:
             pdf_filename = f"거래명세서({invoice['customer_name']})-{invoice_number}.pdf"
@@ -590,17 +606,44 @@ def generate_invoice_excel_v2(invoice_id):
             pdf_filename = f"거래명세서({invoice['customer_name']}).pdf"
             print(f"   기본 PDF 파일명 사용: {pdf_filename}")
 
-        pdf_path = os.path.join(monthly_folder, pdf_filename)
-        print(f"📁 PDF 저장 경로: {pdf_path}")
+        local_pdf_path = os.path.join(local_monthly_folder, pdf_filename)
+        print(f"📁 PDF 저장 경로(로컬): {local_pdf_path}")
 
-        # Excel 파일을 직접 PDF로 변환
-        pdf_success = convert_excel_to_pdf(output_path, pdf_path)
+        pdf_success = convert_excel_to_pdf(output_path, local_pdf_path)
+
+        # 15. UNC 경로인 경우 SMB로 복사
+        if use_smb:
+            try:
+                final_excel = unc_join(base_dir, invoice['customer_name'], output_filename)
+                copy_to_target(output_path, final_excel, smb_user, smb_pass)
+                print(f"✅ Excel SMB 복사 완료: {final_excel}")
+
+                final_pdf = None
+                if pdf_success:
+                    final_pdf = unc_join(base_dir, monthly_folder_name, pdf_filename)
+                    copy_to_target(local_pdf_path, final_pdf, smb_user, smb_pass)
+                    print(f"✅ PDF SMB 복사 완료: {final_pdf}")
+            except Exception as smb_err:
+                print(f"❌ SMB 복사 실패: {smb_err}")
+                # 로컬 파일은 유지 (서빙용)
+                use_smb = False
+                final_excel = output_path
+                final_pdf   = local_pdf_path if pdf_success else None
+            else:
+                # SMB 복사 성공 시 로컬 임시 파일 정리 (서빙은 SMB에서)
+                try:
+                    shutil.rmtree(local_base, ignore_errors=True)
+                except Exception:
+                    pass
+        else:
+            final_excel = output_path
+            final_pdf   = local_pdf_path if pdf_success else None
 
         return {
             'success': True,
-            'file_path': output_path,
+            'file_path': final_excel,
             'filename': output_filename,
-            'pdf_path': pdf_path if pdf_success else None,
+            'pdf_path': final_pdf,
             'pdf_filename': pdf_filename if pdf_success else None,
             'message': f'거래명세서가 성공적으로 생성되었습니다.' + (' (PDF 포함)' if pdf_success else ' (Excel만)')
         }
@@ -608,6 +651,12 @@ def generate_invoice_excel_v2(invoice_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        # 임시 폴더 정리
+        if 'local_base' in locals() and 'use_smb' in locals() and use_smb:
+            try:
+                shutil.rmtree(local_base, ignore_errors=True)
+            except Exception:
+                pass
         return {
             'success': False,
             'message': f'거래명세서 생성 실패: {str(e)}'
