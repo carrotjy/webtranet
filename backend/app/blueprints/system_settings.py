@@ -557,6 +557,165 @@ def set_invoice_save_path():
         }), 500
 
 
+@system_settings_bp.route('/system/invoice-save-path/test', methods=['POST'])
+@jwt_required()
+def test_invoice_save_path():
+    """거래명세서 저장 경로 연결 테스트 — 결과 로그를 브라우저에 반환"""
+    import subprocess
+    import platform
+    import tempfile
+
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.get_by_id(current_user_id)
+        if not user or not user.is_admin:
+            return jsonify({'success': False, 'logs': ['❌ 관리자만 접근할 수 있습니다.']}), 403
+
+        conn = get_db_connection()
+        rows = conn.execute(
+            "SELECT key, value FROM system_settings "
+            "WHERE key IN ('invoice_save_path','invoice_save_user','invoice_save_password')"
+        ).fetchall()
+        conn.close()
+
+        s = {r['key']: r['value'] for r in rows}
+        path     = s.get('invoice_save_path') or ''
+        username = s.get('invoice_save_user') or ''
+        password = s.get('invoice_save_password') or ''
+
+        logs = []
+        logs.append(f'🔍 저장 경로  : {path or "(미설정)"}')
+        logs.append(f'🔍 사용자     : {username or "(없음)"}')
+        logs.append(f'🔍 비밀번호   : {"설정됨" if password else "(없음)"}')
+        logs.append(f'🔍 서버 OS    : {platform.system()} {platform.release()}')
+        logs.append('')
+
+        if not path:
+            logs.append('⚠️  저장 경로가 설정되지 않았습니다.')
+            return jsonify({'success': False, 'logs': logs})
+
+        is_unc = path.startswith('\\\\') or path.startswith('//')
+
+        if is_unc:
+            logs.append('📁 UNC 경로(네트워크 공유) 감지됨')
+
+            # ── 1. smbclient 설치 확인 ──────────────────────────────
+            logs.append('')
+            logs.append('[1단계] smbclient 설치 확인...')
+            if platform.system() == 'Windows':
+                logs.append('   Windows 환경 — net use 방식 사용 (smbclient 불필요)')
+                smb_ok = True
+            else:
+                chk = subprocess.run(['which', 'smbclient'], capture_output=True, text=True)
+                if chk.returncode == 0:
+                    logs.append(f'   ✅ smbclient 발견: {chk.stdout.strip()}')
+                    smb_ok = True
+                else:
+                    logs.append('   ❌ smbclient 미설치')
+                    logs.append('      → Ubuntu: sudo apt install smbclient')
+                    return jsonify({'success': False, 'logs': logs})
+
+            # ── 2. UNC 경로 파싱 ────────────────────────────────────
+            normalized = path.replace('\\', '/').lstrip('/')
+            parts = normalized.split('/', 2)
+            server = parts[0]
+            share  = parts[1] if len(parts) > 1 else ''
+            logs.append(f'   서버: {server}  /  공유: {share}')
+
+            # ── 3. 연결 테스트 ──────────────────────────────────────
+            logs.append('')
+            logs.append('[2단계] 공유 폴더 연결 테스트...')
+
+            creds_fd, creds_path = tempfile.mkstemp(prefix='smb_test_', suffix='.creds')
+            try:
+                with os.fdopen(creds_fd, 'w') as f:
+                    f.write(f'username={username}\n')
+                    f.write(f'password={password}\n')
+                os.chmod(creds_path, 0o600)
+
+                res = subprocess.run(
+                    ['smbclient', f'//{server}/{share}', '-A', creds_path, '-c', 'ls'],
+                    capture_output=True, text=True, timeout=15
+                )
+
+                if res.returncode == 0:
+                    logs.append('   ✅ 연결 성공! 공유 폴더 내용:')
+                    for line in res.stdout.strip().splitlines()[:8]:
+                        if line.strip():
+                            logs.append(f'      {line}')
+                else:
+                    logs.append(f'   ❌ 연결 실패')
+                    for line in (res.stderr or res.stdout).strip().splitlines()[:5]:
+                        logs.append(f'      {line}')
+                    if 'NT_STATUS_LOGON_FAILURE' in res.stderr:
+                        logs.append('   → ID 또는 비밀번호가 잘못되었습니다.')
+                    elif 'NT_STATUS_BAD_NETWORK_NAME' in res.stderr:
+                        logs.append('   → 공유 이름이 잘못되었거나 서버에 연결할 수 없습니다.')
+                    elif 'NT_STATUS_CONNECTION_REFUSED' in res.stderr:
+                        logs.append('   → 서버가 SMB 연결을 거부했습니다. (방화벽/포트 445 확인)')
+                    return jsonify({'success': False, 'logs': logs})
+
+                # ── 4. 폴더 생성 권한 테스트 ────────────────────────
+                logs.append('')
+                logs.append('[3단계] 폴더 생성 권한 테스트...')
+                test_dir = '_webtranet_test_'
+                res2 = subprocess.run(
+                    ['smbclient', f'//{server}/{share}', '-A', creds_path,
+                     '-c', f'mkdir "{test_dir}"'],
+                    capture_output=True, text=True, timeout=15
+                )
+                already_exists = 'NT_STATUS_OBJECT_NAME_COLLISION' in res2.stderr
+                if res2.returncode == 0 or already_exists:
+                    logs.append('   ✅ 폴더 생성 권한 확인됨')
+                    subprocess.run(
+                        ['smbclient', f'//{server}/{share}', '-A', creds_path,
+                         '-c', f'rmdir "{test_dir}"'],
+                        capture_output=True, timeout=10
+                    )
+                else:
+                    logs.append(f'   ❌ 폴더 생성 실패: {res2.stderr.strip()}')
+                    return jsonify({'success': False, 'logs': logs})
+
+            finally:
+                try:
+                    os.unlink(creds_path)
+                except OSError:
+                    pass
+
+        else:
+            logs.append('📁 로컬(또는 마운트) 경로')
+
+            logs.append('')
+            logs.append('[1단계] 경로 존재 확인...')
+            if os.path.exists(path):
+                logs.append(f'   ✅ 경로 존재: {path}')
+            else:
+                logs.append(f'   ⚠️  경로 없음 — 생성 시도...')
+                try:
+                    os.makedirs(path, exist_ok=True)
+                    logs.append('   ✅ 생성 성공')
+                except Exception as e:
+                    logs.append(f'   ❌ 생성 실패: {e}')
+                    return jsonify({'success': False, 'logs': logs})
+
+            logs.append('')
+            logs.append('[2단계] 쓰기 권한 확인...')
+            try:
+                tmp = tempfile.NamedTemporaryFile(dir=path, delete=True, prefix='_test_')
+                tmp.close()
+                logs.append('   ✅ 쓰기 권한 확인됨')
+            except Exception as e:
+                logs.append(f'   ❌ 쓰기 불가: {e}')
+                return jsonify({'success': False, 'logs': logs})
+
+        logs.append('')
+        logs.append('🎉 모든 테스트 통과 — 거래명세서가 정상 저장될 것입니다.')
+        return jsonify({'success': True, 'logs': logs})
+
+    except Exception as e:
+        return jsonify({'success': False, 'logs': [f'❌ 테스트 중 오류: {str(e)}']})
+
+
 @system_settings_bp.route('/system/logo', methods=['GET'])
 @jwt_required()
 def get_logo():

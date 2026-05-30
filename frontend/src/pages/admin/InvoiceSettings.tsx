@@ -38,6 +38,9 @@ const InvoiceSettings: React.FC = () => {
   const [invoiceSavePassword, setInvoiceSavePassword] = useState('');
   const [hasPassword, setHasPassword] = useState(false);
   const [savingPath, setSavingPath] = useState(false);
+  const [testingPath, setTestingPath] = useState(false);
+  const [testLogs, setTestLogs] = useState<string[]>([]);
+  const [testSuccess, setTestSuccess] = useState<boolean | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -83,6 +86,24 @@ const InvoiceSettings: React.FC = () => {
       }
     } catch (error) {
       console.error('거래명세서 저장 경로 조회 실패:', error);
+    }
+  };
+
+  // 거래명세서 저장 경로 연결 테스트
+  const handleTestInvoicePath = async () => {
+    try {
+      setTestingPath(true);
+      setTestLogs([]);
+      setTestSuccess(null);
+      const response = await api.post('/api/system/invoice-save-path/test', {});
+      setTestLogs(response.data.logs || []);
+      setTestSuccess(response.data.success);
+    } catch (error: any) {
+      const msg = error?.response?.data?.logs || ['❌ 테스트 요청 실패'];
+      setTestLogs(Array.isArray(msg) ? msg : [msg]);
+      setTestSuccess(false);
+    } finally {
+      setTestingPath(false);
     }
   };
 
@@ -248,6 +269,59 @@ const InvoiceSettings: React.FC = () => {
                         </div>
                       </div>
                     </div>
+
+                    {/* 연결 테스트 버튼 */}
+                    <div className="col-12">
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={handleTestInvoicePath}
+                        disabled={testingPath}
+                      >
+                        {testingPath ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                            테스트 중...
+                          </>
+                        ) : (
+                          '연결 테스트'
+                        )}
+                      </button>
+                      <span className="text-muted ms-2" style={{ fontSize: '0.85em' }}>
+                        저장 후 테스트하면 현재 DB에 저장된 설정으로 확인합니다.
+                      </span>
+                    </div>
+
+                    {/* 테스트 결과 로그 */}
+                    {testLogs.length > 0 && (
+                      <div className="col-12 mt-3">
+                        <div
+                          className={`card border-${testSuccess ? 'success' : 'danger'}`}
+                          style={{ background: '#1a1a2e' }}
+                        >
+                          <div className={`card-header py-2 bg-${testSuccess ? 'success' : 'danger'} bg-opacity-10`}>
+                            <span className={`fw-bold text-${testSuccess ? 'success' : 'danger'}`}>
+                              {testSuccess ? '✅ 테스트 성공' : '❌ 테스트 실패'}
+                            </span>
+                          </div>
+                          <div className="card-body py-2">
+                            <pre
+                              style={{
+                                margin: 0,
+                                fontSize: '0.82em',
+                                lineHeight: '1.6',
+                                color: '#c9d1d9',
+                                background: 'transparent',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-all',
+                              }}
+                            >
+                              {testLogs.join('\n')}
+                            </pre>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
