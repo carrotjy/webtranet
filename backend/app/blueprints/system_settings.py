@@ -608,6 +608,19 @@ def test_invoice_save_path():
             else:
                 import shutil as _shutil
                 smbclient_path = _shutil.which('smbclient')
+                # shutil.which 는 서비스 PATH 에서 못 찾을 수 있으므로 직접 실행도 시도
+                if not smbclient_path:
+                    for _p in ['/usr/bin/smbclient', '/usr/local/bin/smbclient', '/bin/smbclient']:
+                        if os.path.exists(_p):
+                            smbclient_path = _p
+                            break
+                if not smbclient_path:
+                    try:
+                        _r = subprocess.run(['smbclient', '--version'], capture_output=True, timeout=5)
+                        if _r.returncode == 0:
+                            smbclient_path = 'smbclient'
+                    except Exception:
+                        pass
                 if smbclient_path:
                     logs.append(f'   ✅ smbclient 발견: {smbclient_path}')
                     smb_ok = True
