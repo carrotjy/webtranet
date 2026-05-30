@@ -606,9 +606,10 @@ def test_invoice_save_path():
                 logs.append('   Windows 환경 — net use 방식 사용 (smbclient 불필요)')
                 smb_ok = True
             else:
-                chk = subprocess.run(['which', 'smbclient'], capture_output=True, text=True)
-                if chk.returncode == 0:
-                    logs.append(f'   ✅ smbclient 발견: {chk.stdout.strip()}')
+                import shutil as _shutil
+                smbclient_path = _shutil.which('smbclient')
+                if smbclient_path:
+                    logs.append(f'   ✅ smbclient 발견: {smbclient_path}')
                     smb_ok = True
                 else:
                     logs.append('   ❌ smbclient 미설치')
