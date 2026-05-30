@@ -9,6 +9,18 @@ import shutil
 import subprocess
 import tempfile
 
+# gunicorn 서비스는 PATH가 제한적이므로 절대 경로로 탐색
+def _find_smbclient() -> str:
+    found = shutil.which('smbclient')
+    if found:
+        return found
+    for p in ('/usr/bin/smbclient', '/usr/local/bin/smbclient', '/bin/smbclient'):
+        if os.path.exists(p):
+            return p
+    return 'smbclient'  # 마지막 폴백
+
+_SMBCLIENT = _find_smbclient()
+
 
 def is_unc_path(path: str) -> bool:
     """UNC 경로 여부 확인 (\\\\server\\share 또는 //server/share)"""
@@ -61,7 +73,7 @@ def _run_smbclient(server: str, share: str, commands: list,
     try:
         creds = _write_creds_file(username, password)
         result = subprocess.run(
-            ['smbclient', f'//{server}/{share}', '-A', creds,
+            [_SMBCLIENT, f'//{server}/{share}', '-A', creds,
              '-c', '; '.join(commands)],
             capture_output=True, text=True, timeout=30
         )

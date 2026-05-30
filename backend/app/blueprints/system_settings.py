@@ -647,8 +647,9 @@ def test_invoice_save_path():
                     f.write(f'password={password}\n')
                 os.chmod(creds_path, 0o600)
 
+                from app.utils.smb_utils import _SMBCLIENT
                 res = subprocess.run(
-                    ['smbclient', f'//{server}/{share}', '-A', creds_path, '-c', 'ls'],
+                    [_SMBCLIENT, f'//{server}/{share}', '-A', creds_path, '-c', 'ls'],
                     capture_output=True, text=True, timeout=15
                 )
 
@@ -674,7 +675,7 @@ def test_invoice_save_path():
                 logs.append('[3단계] 폴더 생성 권한 테스트...')
                 test_dir = '_webtranet_test_'
                 res2 = subprocess.run(
-                    ['smbclient', f'//{server}/{share}', '-A', creds_path,
+                    [_SMBCLIENT, f'//{server}/{share}', '-A', creds_path,
                      '-c', f'mkdir "{test_dir}"'],
                     capture_output=True, text=True, timeout=15
                 )
@@ -682,7 +683,7 @@ def test_invoice_save_path():
                 if res2.returncode == 0 or already_exists:
                     logs.append('   ✅ 폴더 생성 권한 확인됨')
                     subprocess.run(
-                        ['smbclient', f'//{server}/{share}', '-A', creds_path,
+                        [_SMBCLIENT, f'//{server}/{share}', '-A', creds_path,
                          '-c', f'rmdir "{test_dir}"'],
                         capture_output=True, timeout=10
                     )
