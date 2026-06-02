@@ -10,6 +10,7 @@ interface Invoice {
   service_report_id?: number;
   invoice_number: string;
   customer_name: string;
+  display_customer_name?: string;
   fax_number?: string;
   issue_date: string;
   total_amount: number;
@@ -785,7 +786,7 @@ const Invoices: React.FC = () => {
                                 <div className="d-flex py-1 align-items-center">
                                   <div className="flex-fill">
                                     <div className="font-weight-medium">
-                                      {invoice.customer_name}
+                                      {invoice.display_customer_name || invoice.customer_name}
                                     </div>
                                   </div>
                                 </div>

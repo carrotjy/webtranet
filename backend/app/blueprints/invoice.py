@@ -90,18 +90,22 @@ def get_invoices():
         for invoice in invoices:
             invoice_dict = invoice.to_dict()
 
-            # 명세서 수신 방법에 따라 팩스번호 또는 이메일 조회
-            customer = user_conn.execute(
-                "SELECT fax, email, statement_receive_method FROM customers WHERE company_name = ?",
-                (invoice.customer_name,)
-            ).fetchone()
+            # 명세서 수신 방법에 따라 팩스번호 또는 이메일 조회 (customer_id 기준으로 조회하여 상호 변경 시에도 정상 동작)
+            customer = None
+            if invoice.customer_id:
+                customer = user_conn.execute(
+                    "SELECT company_name, fax, email, statement_receive_method FROM customers WHERE id = ?",
+                    (invoice.customer_id,)
+                ).fetchone()
             if customer:
+                invoice_dict['display_customer_name'] = customer['company_name']
                 method = customer['statement_receive_method'] or '팩스'
                 if method == '이메일':
                     invoice_dict['fax_number'] = customer['email'] if customer['email'] else None
                 else:
                     invoice_dict['fax_number'] = customer['fax'] if customer['fax'] else None
             else:
+                invoice_dict['display_customer_name'] = invoice.customer_name
                 invoice_dict['fax_number'] = None
 
             # 파일 존재 여부 확인 (UNC 경로 지원)
