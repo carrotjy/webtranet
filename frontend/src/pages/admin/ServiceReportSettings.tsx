@@ -29,6 +29,16 @@ const ServiceReportSettings: React.FC = () => {
     category: ''
   });
 
+  // PDF 저장 경로 상태
+  const [pdfSavePath, setPdfSavePath] = useState('');
+  const [pdfSaveUser, setPdfSaveUser] = useState('');
+  const [pdfSavePassword, setPdfSavePassword] = useState('');
+  const [pdfHasPassword, setPdfHasPassword] = useState(false);
+  const [savingPath, setSavingPath] = useState(false);
+  const [testingPath, setTestingPath] = useState(false);
+  const [testLogs, setTestLogs] = useState<string[]>([]);
+  const [testSuccess, setTestSuccess] = useState<boolean | null>(null);
+
   const handleSettingChange = (key: string, value: any) => {
     setSettings(prev => ({
       ...prev,
@@ -40,6 +50,58 @@ const ServiceReportSettings: React.FC = () => {
     // TODO: API 호출하여 설정 저장
     console.log('서비스리포트 설정 저장:', settings);
     alert('설정이 저장되었습니다.');
+  };
+
+  // PDF 저장 경로 조회
+  const fetchPdfSavePath = async () => {
+    try {
+      const response = await api.get('/api/system/service-report-save-path');
+      if (response.data.success) {
+        setPdfSavePath(response.data.service_report_save_path || '');
+        setPdfSaveUser(response.data.service_report_save_user || '');
+        setPdfHasPassword(response.data.has_password || false);
+      }
+    } catch (error) {
+      console.error('서비스리포트 저장 경로 조회 실패:', error);
+    }
+  };
+
+  // PDF 저장 경로 연결 테스트
+  const handleTestPdfPath = async () => {
+    try {
+      setTestingPath(true);
+      setTestLogs([]);
+      setTestSuccess(null);
+      const response = await api.post('/api/system/service-report-save-path/test', {});
+      setTestLogs(response.data.logs || []);
+      setTestSuccess(response.data.success);
+    } catch (error: any) {
+      const msg = error?.response?.data?.logs || ['❌ 테스트 요청 실패'];
+      setTestLogs(Array.isArray(msg) ? msg : [msg]);
+      setTestSuccess(false);
+    } finally {
+      setTestingPath(false);
+    }
+  };
+
+  // PDF 저장 경로 저장
+  const handleSavePdfPath = async () => {
+    try {
+      setSavingPath(true);
+      await api.post('/api/system/service-report-save-path', {
+        service_report_save_path: pdfSavePath,
+        service_report_save_user: pdfSaveUser,
+        service_report_save_password: pdfSavePassword,
+      });
+      alert('서비스리포트 저장 경로가 설정되었습니다.');
+      setPdfSavePassword('');
+      setPdfHasPassword(pdfSavePassword !== '' ? true : pdfHasPassword);
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || '저장 경로 설정에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setSavingPath(false);
+    }
   };
 
   // Invoice 코드 목록 조회
@@ -131,6 +193,7 @@ const ServiceReportSettings: React.FC = () => {
 
   useEffect(() => {
     fetchInvoiceCodes();
+    fetchPdfSavePath();
   }, []);
 
   return (
@@ -147,6 +210,143 @@ const ServiceReportSettings: React.FC = () => {
       <div className="page-body">
         <div className="container-xl">
           <div className="row row-deck row-cards">
+            {/* PDF 저장 경로 설정 카드 */}
+            <div className="col-12">
+              <div className="card">
+                <div className="card-header">
+                  <h3 className="card-title">서비스리포트 PDF 저장 경로</h3>
+                  <div className="card-actions">
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleSavePdfPath}
+                      disabled={savingPath}
+                    >
+                      {savingPath ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                          저장 중...
+                        </>
+                      ) : (
+                        '경로 저장'
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="card-body">
+                  <div className="row">
+                    <div className="col-12">
+                      <div className="mb-3">
+                        <label className="form-label">저장 경로</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={pdfSavePath}
+                          onChange={(e) => setPdfSavePath(e.target.value)}
+                          placeholder="예: \\messerver\reports$  또는  /mnt/share/서비스리포트"
+                        />
+                        <div className="form-hint">
+                          PDF 저장 시 파일이 저장될 폴더 경로. 비워두면 저장하지 않고 다운로드만 됩니다.
+                          저장 경로를 설정하면 <code>{'{year}년{month}월'}</code> 하위 폴더에 자동 저장됩니다.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">접속 계정 (ID)</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={pdfSaveUser}
+                          onChange={(e) => setPdfSaveUser(e.target.value)}
+                          placeholder="네트워크 공유 접속 사용자명"
+                          autoComplete="username"
+                        />
+                        <div className="form-hint">
+                          네트워크 공유(\\server\share)에 인증이 필요한 경우 입력하세요.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">
+                          접속 비밀번호
+                          {pdfHasPassword && (
+                            <span className="badge bg-success ms-2" style={{ fontSize: '0.7em' }}>설정됨</span>
+                          )}
+                        </label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          value={pdfSavePassword}
+                          onChange={(e) => setPdfSavePassword(e.target.value)}
+                          placeholder={pdfHasPassword ? '변경하려면 새 비밀번호 입력' : '비밀번호 입력'}
+                          autoComplete="new-password"
+                        />
+                        <div className="form-hint">
+                          비워두면 기존 비밀번호를 유지합니다.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 연결 테스트 버튼 */}
+                    <div className="col-12">
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={handleTestPdfPath}
+                        disabled={testingPath}
+                      >
+                        {testingPath ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                            테스트 중...
+                          </>
+                        ) : (
+                          '연결 테스트'
+                        )}
+                      </button>
+                      <span className="text-muted ms-2" style={{ fontSize: '0.85em' }}>
+                        저장 후 테스트하면 현재 DB에 저장된 설정으로 확인합니다.
+                      </span>
+                    </div>
+
+                    {/* 테스트 결과 로그 */}
+                    {testLogs.length > 0 && (
+                      <div className="col-12 mt-3">
+                        <div
+                          className={`card border-${testSuccess ? 'success' : 'danger'}`}
+                          style={{ background: '#1a1a2e' }}
+                        >
+                          <div className={`card-header py-2 bg-${testSuccess ? 'success' : 'danger'} bg-opacity-10`}>
+                            <span className={`fw-bold text-${testSuccess ? 'success' : 'danger'}`}>
+                              {testSuccess ? '✅ 테스트 성공' : '❌ 테스트 실패'}
+                            </span>
+                          </div>
+                          <div className="card-body py-2">
+                            <pre
+                              style={{
+                                margin: 0,
+                                fontSize: '0.82em',
+                                lineHeight: '1.6',
+                                color: '#c9d1d9',
+                                background: 'transparent',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-all',
+                              }}
+                            >
+                              {testLogs.join('\n')}
+                            </pre>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Invoice 코드 관리 */}
             <div className="col-12">
               <div className="card">

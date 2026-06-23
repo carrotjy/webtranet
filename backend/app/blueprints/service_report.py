@@ -586,10 +586,33 @@ def _build_pdf_html(report_dict: dict) -> str:
     return html
 
 
+def _get_service_report_save_info():
+    """시스템 설정에서 서비스리포트 PDF 저장 경로 및 접속 정보 조회"""
+    try:
+        import sqlite3
+        db_path = os.path.join('app', 'database', 'webtranet.db')
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT key, value FROM system_settings "
+            "WHERE key IN ('service_report_save_path','service_report_save_user','service_report_save_password')"
+        ).fetchall()
+        conn.close()
+        s = {r['key']: r['value'] for r in rows}
+        return {
+            'path':     s.get('service_report_save_path') or None,
+            'username': s.get('service_report_save_user') or None,
+            'password': s.get('service_report_save_password') or None,
+        }
+    except Exception as e:
+        print(f"❌ 서비스리포트 저장 경로 설정 조회 실패: {str(e)}")
+        return {'path': None, 'username': None, 'password': None}
+
+
 @service_report_bp.route('/<int:report_id>/pdf', methods=['GET'])
 @permission_required('service_report')
 def generate_pdf(report_id):
-    """서비스 리포트 PDF 생성 (WeasyPrint 사용)"""
+    """서비스 리포트 PDF 생성 (WeasyPrint 사용) — 설정된 경로에 저장 후 다운로드"""
     try:
         from weasyprint import HTML as WeasyHTML
 
@@ -620,9 +643,59 @@ def generate_pdf(report_id):
         # 파일명 생성
         customer_name = report_dict.get('customer_name') or '고객'
         report_number = report_dict.get('report_number') or str(report_id)
-        filename = f"{customer_name}-{report_number}.pdf"
-        # 파일명에서 위험 문자 제거
+        filename = f"서비스리포트-{customer_name}-{report_number}.pdf"
         filename = ''.join(c for c in filename if c not in r'\/:*?"<>|')
+
+        # 설정된 경로에 저장 (설정이 있는 경우)
+        save_info = _get_service_report_save_info()
+        if save_info['path']:
+            try:
+                import tempfile
+                from app.utils.smb_utils import is_unc_path, copy_to_target
+
+                # 월별 하위 폴더 생성: {year}년{month:02d}월
+                service_date_str = report_dict.get('service_date') or datetime.now().strftime('%Y-%m-%d')
+                try:
+                    sdate = datetime.strptime(service_date_str[:10], '%Y-%m-%d')
+                except Exception:
+                    sdate = datetime.now()
+                month_folder = f"{sdate.year}년{sdate.month:02d}월"
+
+                base_path = save_info['path']
+                username  = save_info['username']
+                password  = save_info['password']
+
+                if is_unc_path(base_path):
+                    # UNC 경로: 임시 파일에 저장 후 smbclient로 복사
+                    tmp_fd, tmp_path = tempfile.mkstemp(suffix='.pdf', prefix='sr_')
+                    try:
+                        with os.fdopen(tmp_fd, 'wb') as f:
+                            f.write(pdf_bytes)
+
+                        # UNC 경로에서 월 폴더를 포함한 대상 경로 구성
+                        normalized = base_path.replace('\\', '/')
+                        target_path = f"{normalized.rstrip('/')}/{month_folder}/{filename}"
+                        # smb_utils.copy_to_target은 UNC 경로를 처리
+                        target_unc = base_path.rstrip('/\\') + '/' + month_folder + '/' + filename
+                        copy_to_target(tmp_path, target_unc, username=username, password=password)
+                        print(f"✅ 서비스리포트 PDF 저장 완료 (UNC): {target_unc}")
+                    finally:
+                        try:
+                            os.unlink(tmp_path)
+                        except OSError:
+                            pass
+                else:
+                    # 로컬/마운트 경로
+                    save_dir = os.path.join(base_path, month_folder)
+                    os.makedirs(save_dir, exist_ok=True)
+                    save_file_path = os.path.join(save_dir, filename)
+                    with open(save_file_path, 'wb') as f:
+                        f.write(pdf_bytes)
+                    print(f"✅ 서비스리포트 PDF 저장 완료: {save_file_path}")
+
+            except Exception as save_err:
+                # 저장 실패 시 다운로드는 계속 진행 (로그만 기록)
+                print(f"⚠️ 서비스리포트 PDF 파일 저장 실패: {str(save_err)}")
 
         return send_file(
             io.BytesIO(pdf_bytes),
