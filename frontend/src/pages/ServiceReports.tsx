@@ -2130,7 +2130,18 @@ const ServiceReports: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert('PDF 생성 중 오류가 발생했습니다: ' + (err?.response?.data?.error || err?.message || '알 수 없는 오류'));
+      let errorMsg = err?.message || '알 수 없는 오류';
+      // responseType:'blob' 일 때 에러 응답도 Blob으로 오므로 텍스트로 파싱
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          errorMsg = json.error || errorMsg;
+        } catch {}
+      } else if (err?.response?.data?.error) {
+        errorMsg = err.response.data.error;
+      }
+      alert('PDF 생성 중 오류가 발생했습니다: ' + errorMsg);
     }
   };
 
