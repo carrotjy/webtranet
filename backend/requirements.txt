@@ -13,4 +13,4 @@ pillow-heif==0.14.0
 easyocr==1.7.0
 Pillow==10.1.0
 gunicorn==21.2.0
-weasyprint==60.2
+weasyprint==69.0
