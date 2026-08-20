@@ -130,99 +130,6 @@ const SpareParts: React.FC = () => {
   // 각 부품의 청구가를 저장하는 state
   const [partBillingPrices, setPartBillingPrices] = useState<{[key: number]: number}>({});
 
-  // 청구가 계산 함수 (가격 이력 모달에서만 사용)
-  const calculateBillingPrice = async (costPrice: number, currency: string, partType: string) => {
-    try {
-      // 관리자 설정에서 팩터 정보 가져오기
-      const response = await api.get('/api/admin/spare-part-settings');
-      const factors = response.data.factors || {};
-      
-      // 환율 적용하여 KRW로 변환
-      const exchangeRates: any = { EUR: 1450, USD: 1300, KRW: 1 };
-      const krwCostPrice = costPrice * (exchangeRates[currency] || 1);
-      
-      // 부품 타입에 따른 팩터 선택
-      const factorData = factors[partType] || {};
-      const a = factorData.factor_a || (partType === 'repair' ? 0.0000001 : 0.0000001);
-      const b = factorData.factor_b || (partType === 'repair' ? -0.000615608 : -0.0003);
-      const c = factorData.factor_c || (partType === 'repair' ? 2.149275123 : 1.6);
-      const minPrice = factorData.min_price || (partType === 'repair' ? 100 : 5);
-      const maxPrice = factorData.max_price || (partType === 'repair' ? 3000 : 300);
-      const minFactor = factorData.min_factor || 1.20;
-      const maxFactor = factorData.max_factor || (partType === 'repair' ? 2.10 : 1.55);
-      
-      let finalPriceKrw;
-      // 통화별 팩터 계산 로직
-      if (currency === 'KRW') {
-        // KRW 원가는 최소/최대가격 상관없이 마진율만 적용
-        const marginRate = 1.20; // 기본 마진율 20%
-        finalPriceKrw = krwCostPrice * marginRate;
-      } else {
-        // EUR/USD 원가는 EUR/USD 기준으로 최소/최대가격 비교해서 팩터 계산
-        if (costPrice < minPrice) {
-          // 최소 가격 미만일 때 최대 팩터 적용
-          finalPriceKrw = krwCostPrice * maxFactor;
-        } else if (costPrice > maxPrice) {
-          // 최대 가격 초과일 때 최소 팩터 적용
-          finalPriceKrw = krwCostPrice * minFactor;
-        } else {
-          // 정상 범위일 때 2차 함수 적용 (EUR/USD 가격 기준)
-          const factor = a * (costPrice ** 2) + b * costPrice + c;
-          finalPriceKrw = krwCostPrice * factor;
-        }
-      }
-      
-      // 최종 가격이 음수가 되지 않도록 보정
-      finalPriceKrw = Math.max(krwCostPrice, finalPriceKrw);
-      
-      // 100원 단위에서 올림 처리
-      const roundedPriceKrw = Math.ceil(finalPriceKrw / 100) * 100;
-      
-      return roundedPriceKrw; // 항상 원화로 반환
-    } catch (error) {
-      // 오류 시 기본값 사용
-      const exchangeRates: any = { EUR: 1450, USD: 1300, KRW: 1 };
-      const krwCostPrice = costPrice * (exchangeRates[currency] || 1);
-      
-      let a, b, c, minPrice, maxPrice, minFactor, maxFactor;
-      if (partType === 'repair') {
-        a = 0.0000001; b = -0.000615608; c = 2.149275123;
-        minPrice = 100; maxPrice = 3000; minFactor = 1.20; maxFactor = 2.10;
-      } else {
-        a = 0.0000001; b = -0.0003; c = 1.6;
-        minPrice = 5; maxPrice = 300; minFactor = 1.20; maxFactor = 1.55;
-      }
-      
-      let finalPriceKrw;
-      // 통화별 팩터 계산 로직 (오류 시 기본값)
-      if (currency === 'KRW') {
-        // KRW 원가는 최소/최대가격 상관없이 마진율만 적용
-        const marginRate = 1.20; // 기본 마진율 20%
-        finalPriceKrw = krwCostPrice * marginRate;
-      } else {
-        // EUR/USD 원가는 EUR/USD 기준으로 최소/최대가격 비교해서 팩터 계산
-        if (costPrice < minPrice) {
-          // 최소 가격 미만일 때 최대 팩터 적용
-          finalPriceKrw = krwCostPrice * maxFactor;
-        } else if (costPrice > maxPrice) {
-          // 최대 가격 초과일 때 최소 팩터 적용
-          finalPriceKrw = krwCostPrice * minFactor;
-        } else {
-          // 정상 범위일 때 2차 함수 적용 (EUR/USD 가격 기준)
-          const factor = a * (costPrice ** 2) + b * costPrice + c;
-          finalPriceKrw = krwCostPrice * factor;
-        }
-      }
-      
-      finalPriceKrw = Math.max(krwCostPrice, finalPriceKrw);
-      
-      // 100원 단위에서 올림 처리
-      const roundedPriceKrw = Math.ceil(finalPriceKrw / 100) * 100;
-      
-      return roundedPriceKrw;
-    }
-  };
-
   // 모달 닫기 함수들
   const closeStockInModal = () => {
     setShowStockInModal(false);
@@ -431,43 +338,55 @@ const SpareParts: React.FC = () => {
 
     // 신규 등록 모달에서 호출된 경우 (selectedPart.id === 0)
     if (selectedPart.id === 0) {
-      // 청구가 계산
-      const calculatedBillingPrice = await calculateBillingPrice(
-        newPrice.price,
-        newPrice.currency,
-        newPrice.part_type
-      );
+      // 편집 모달과 동일하게 실제 환율/팩터 설정을 사용해 서버에서 청구가를 계산
+      try {
+        const previewResponse = await api.post('/api/spare-parts/price-preview', {
+          price: newPrice.price,
+          currency: newPrice.currency,
+          part_type: newPrice.part_type
+        });
 
-      // 가격을 로컬 priceHistory에 추가 (부품 등록 시 함께 저장됨)
-      const newPriceItem = {
-        id: Date.now(), // 임시 ID
-        part_number: selectedPart.part_number,
-        price: newPrice.price,
-        billing_price: calculatedBillingPrice,
-        effective_date: newPrice.effective_date,
-        created_at: new Date().toISOString(),
-        created_by: user?.name || 'unknown',
-        notes: newPrice.notes,
-        currency: newPrice.currency,
-        part_type: newPrice.part_type
-      };
+        if (!previewResponse.data || !previewResponse.data.success) {
+          alert(previewResponse.data?.error || '청구가 계산 중 오류가 발생했습니다.');
+          return;
+        }
 
-      setPriceHistory([...priceHistory, newPriceItem]);
+        const { final_billing_price, exchange_rate } = previewResponse.data.data;
 
-      // billingPrices state에도 추가
-      setBillingPrices({
-        ...billingPrices,
-        [newPriceItem.id]: calculatedBillingPrice
-      });
+        // 가격을 로컬 priceHistory에 추가 (부품 등록 시 함께 저장됨)
+        const newPriceItem = {
+          id: Date.now(), // 임시 ID
+          part_number: selectedPart.part_number,
+          price: newPrice.price,
+          billing_price: final_billing_price,
+          exchange_rate,
+          effective_date: newPrice.effective_date,
+          created_at: new Date().toISOString(),
+          created_by: user?.name || 'unknown',
+          notes: newPrice.notes,
+          currency: newPrice.currency,
+          part_type: newPrice.part_type
+        };
 
-      setShowAddPriceModal(false);
-      setNewPrice({
-        price: 0,
-        effective_date: new Date().toISOString().split('T')[0],
-        notes: '',
-        currency: 'KRW',
-        part_type: 'repair'
-      });
+        setPriceHistory([...priceHistory, newPriceItem]);
+
+        // billingPrices state에도 추가
+        setBillingPrices({
+          ...billingPrices,
+          [newPriceItem.id]: final_billing_price
+        });
+
+        setShowAddPriceModal(false);
+        setNewPrice({
+          price: 0,
+          effective_date: new Date().toISOString().split('T')[0],
+          notes: '',
+          currency: 'KRW',
+          part_type: 'repair'
+        });
+      } catch (err: any) {
+        alert(err.response?.data?.error || '청구가 계산 중 오류가 발생했습니다.');
+      }
       return;
     }
 

@@ -993,35 +993,135 @@ def delete_price_history(part_id, price_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@spare_parts_bp.route('/spare-parts/<int:part_id>/price-history', methods=['POST'])
+def calculate_billing_price(conn, price, currency, part_type):
+    """원가/통화/부품타입으로 환율 및 청구가 계산 (실 DB 환율/팩터 설정 사용)
+
+    반환: (exchange_rate, krw_cost_price, rounded_billing_price, factors)
+    실패 시 (None, None, None, error_message) 를 반환한다.
+    """
+    # 환율 정보 가져오기 (KRW가 아닌 경우)
+    krw_cost_price = price  # 원화 기준 원가
+    exchange_rate = 1.0
+
+    if currency != 'KRW':
+        exchange_rate_info = conn.execute(
+            '''SELECT rate FROM exchange_rates
+               WHERE currency_from = ? AND currency_to = "KRW" AND is_active = 1''',
+            (currency,)
+        ).fetchone()
+
+        if not exchange_rate_info:
+            return None, None, None, f'{currency} 통화의 환율 정보를 찾을 수 없습니다.'
+
+        exchange_rate = exchange_rate_info['rate']
+        krw_cost_price = price * exchange_rate
+
+    # 2차 함수 팩터 정보 가져오기 (관리자 설정에서)
+    factor_info = conn.execute(
+        '''SELECT factor_a, factor_b, factor_c, min_price, max_price, min_factor, max_factor
+           FROM pricing_factors
+           WHERE part_type = ? AND currency = "KRW"''',
+        (part_type,)
+    ).fetchone()
+
+    if not factor_info:
+        # 기본값 설정 (혹시 설정이 없는 경우)
+        if part_type == 'repair':
+            factor_info = {
+                'factor_a': 0.0000001,
+                'factor_b': -0.000615608,
+                'factor_c': 2.149275123,
+                'min_price': 100,
+                'max_price': 3000,
+                'min_factor': 1.20,
+                'max_factor': 2.10
+            }
+        else:  # consumable
+            factor_info = {
+                'factor_a': 0.0000001,
+                'factor_b': -0.0003,
+                'factor_c': 1.6,
+                'min_price': 5,
+                'max_price': 300,
+                'min_factor': 1.20,
+                'max_factor': 1.55
+            }
+
+    # 2차 함수 팩터 적용: final_price = a*x^2 + b*x + c
+    a = factor_info['factor_a']
+    b = factor_info['factor_b']
+    c = factor_info['factor_c']
+    min_price = factor_info['min_price']
+    max_price = factor_info['max_price']
+    min_factor = factor_info['min_factor'] if factor_info['min_factor'] else 1.20
+    max_factor = factor_info['max_factor'] if factor_info['max_factor'] else (2.10 if part_type == 'repair' else 1.55)
+
+    # 통화별 팩터 계산 로직
+    if currency == 'KRW':
+        # KRW 원가는 최소/최대가격 상관없이 마진율만 적용
+        # 저장된 마진율 가져오기
+        margin_setting = conn.execute(
+            '''SELECT setting_value FROM spare_part_settings
+               WHERE setting_key = "margin_rate"'''
+        ).fetchone()
+
+        if margin_setting and margin_setting['setting_value']:
+            margin_rate = 1 + (int(margin_setting['setting_value']) / 100)  # 25% -> 1.25
+        else:
+            margin_rate = 1.20  # 기본 마진율 20% (1 + 0.20)
+
+        final_price_krw = krw_cost_price * margin_rate
+    else:
+        # EUR/USD 원가는 EUR/USD 기준으로 최소/최대가격 비교해서 팩터 계산
+        original_currency_price = price  # EUR 또는 USD 원가
+
+        # EUR/USD 기준 최소/최대가격과 비교
+        if original_currency_price < min_price:
+            # 최소 가격 미만일 때 최대 팩터 적용
+            final_price_krw = krw_cost_price * max_factor
+        elif original_currency_price > max_price:
+            # 최대 가격 초과일 때 최소 팩터 적용
+            final_price_krw = krw_cost_price * min_factor
+        else:
+            # 정상 범위일 때 2차 함수 적용 (EUR/USD 가격 기준)
+            factor = a * (original_currency_price ** 2) + b * original_currency_price + c
+            final_price_krw = krw_cost_price * factor
+
+    # 최종 가격이 음수가 되지 않도록 보정
+    final_price_krw = max(krw_cost_price, final_price_krw)
+
+    # 100원 단위에서 올림 처리
+    import math
+    rounded_billing_price = math.ceil(final_price_krw / 100) * 100
+
+    return exchange_rate, krw_cost_price, rounded_billing_price, {'a': a, 'b': b, 'c': c}
+
+
+@spare_parts_bp.route('/spare-parts/price-preview', methods=['POST'])
 @jwt_required()
-def add_price_history(part_id):
-    """파트 가격 추가 (다중 통화 지원)"""
+def preview_price_calculation():
+    """파트 등록 전, 원가/통화/부품타입으로 환율 및 청구가를 미리 계산 (DB에 저장하지 않음)"""
     try:
         data = request.get_json()
-        
-        # 필수 필드 검증
-        required_fields = ['price', 'effective_date', 'currency', 'part_type']
+
+        required_fields = ['price', 'currency', 'part_type']
         for field in required_fields:
             if field not in data:
                 return jsonify({
                     'success': False,
                     'error': f'{field} 필드가 필요합니다.'
                 }), 400
-        
+
         price = data['price']
-        effective_date = data['effective_date']
         currency = data['currency']
         part_type = data['part_type']
-        notes = data.get('notes', '')
-        
-        # 유효성 검증
+
         if price <= 0:
             return jsonify({
                 'success': False,
                 'error': '가격은 0보다 커야 합니다.'
             }), 400
-        
+
         if currency not in ['KRW', 'EUR', 'USD']:
             return jsonify({
                 'success': False,
@@ -1033,15 +1133,87 @@ def add_price_history(part_id):
                 'success': False,
                 'error': '지원하지 않는 부품 타입입니다. (repair, consumable만 지원)'
             }), 400
-        
+
+        conn = get_db_connection()
+        exchange_rate, krw_cost_price, rounded_billing_price, factors_or_error = calculate_billing_price(
+            conn, price, currency, part_type
+        )
+        conn.close()
+
+        if exchange_rate is None:
+            return jsonify({
+                'success': False,
+                'error': factors_or_error
+            }), 400
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'input_cost_price': price,
+                'currency': currency,
+                'part_type': part_type,
+                'krw_cost_price': int(krw_cost_price),
+                'final_billing_price': int(rounded_billing_price),
+                'exchange_rate': exchange_rate
+            }
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@spare_parts_bp.route('/spare-parts/<int:part_id>/price-history', methods=['POST'])
+@jwt_required()
+def add_price_history(part_id):
+    """파트 가격 추가 (다중 통화 지원)"""
+    try:
+        data = request.get_json()
+
+        # 필수 필드 검증
+        required_fields = ['price', 'effective_date', 'currency', 'part_type']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'error': f'{field} 필드가 필요합니다.'
+                }), 400
+
+        price = data['price']
+        effective_date = data['effective_date']
+        currency = data['currency']
+        part_type = data['part_type']
+        notes = data.get('notes', '')
+
+        # 유효성 검증
+        if price <= 0:
+            return jsonify({
+                'success': False,
+                'error': '가격은 0보다 커야 합니다.'
+            }), 400
+
+        if currency not in ['KRW', 'EUR', 'USD']:
+            return jsonify({
+                'success': False,
+                'error': '지원하지 않는 통화입니다. (KRW, EUR, USD만 지원)'
+            }), 400
+
+        if part_type not in ['repair', 'consumable']:
+            return jsonify({
+                'success': False,
+                'error': '지원하지 않는 부품 타입입니다. (repair, consumable만 지원)'
+            }), 400
+
         # 현재 사용자 정보 가져오기
         current_user_id = get_jwt_identity()
         conn = get_db_connection()
-        
+
         # 사용자 이름 가져오기
         user = conn.execute('SELECT name FROM users WHERE id = ?', (current_user_id,)).fetchone()
         user_name = user['name'] if user else 'Unknown'
-        
+
         # 파트 존재 확인
         part = conn.execute('SELECT * FROM spare_parts WHERE id = ?', (part_id,)).fetchone()
         if not part:
@@ -1050,108 +1222,19 @@ def add_price_history(part_id):
                 'success': False,
                 'error': '해당 파트를 찾을 수 없습니다.'
             }), 404
-        
-        # 환율 정보 가져오기 (KRW가 아닌 경우)
-        krw_cost_price = price  # 원화 기준 원가
-        exchange_rate = 1.0
-        
-        if currency != 'KRW':
-            exchange_rate_info = conn.execute(
-                '''SELECT rate FROM exchange_rates 
-                   WHERE currency_from = ? AND currency_to = "KRW" AND is_active = 1''',
-                (currency,)
-            ).fetchone()
-            
-            if not exchange_rate_info:
-                conn.close()
-                return jsonify({
-                    'success': False,
-                    'error': f'{currency} 통화의 환율 정보를 찾을 수 없습니다.'
-                }), 400
-            
-            exchange_rate = exchange_rate_info['rate']
-            krw_cost_price = price * exchange_rate
-        
-        # 2차 함수 팩터 정보 가져오기 (관리자 설정에서)
-        factor_info = conn.execute(
-            '''SELECT factor_a, factor_b, factor_c, min_price, max_price, min_factor, max_factor 
-               FROM pricing_factors 
-               WHERE part_type = ? AND currency = "KRW"''',
-            (part_type,)
-        ).fetchone()
-        
-        if not factor_info:
-            # 기본값 설정 (혹시 설정이 없는 경우)
-            if part_type == 'repair':
-                factor_info = {
-                    'factor_a': 0.0000001,
-                    'factor_b': -0.000615608,
-                    'factor_c': 2.149275123,
-                    'min_price': 100,
-                    'max_price': 3000,
-                    'min_factor': 1.20,
-                    'max_factor': 2.10
-                }
-            else:  # consumable
-                factor_info = {
-                    'factor_a': 0.0000001,
-                    'factor_b': -0.0003,
-                    'factor_c': 1.6,
-                    'min_price': 5,
-                    'max_price': 300,
-                    'min_factor': 1.20,
-                    'max_factor': 1.55
-                }
-        
-        # 2차 함수 팩터 적용: final_price = a*x^2 + b*x + c
-        a = factor_info['factor_a']
-        b = factor_info['factor_b'] 
-        c = factor_info['factor_c']
-        min_price = factor_info['min_price']
-        max_price = factor_info['max_price']
-        min_factor = factor_info['min_factor'] if factor_info['min_factor'] else 1.20
-        max_factor = factor_info['max_factor'] if factor_info['max_factor'] else (2.10 if part_type == 'repair' else 1.55)
-        
-        # 통화별 팩터 계산 로직
-        if currency == 'KRW':
-            # KRW 원가는 최소/최대가격 상관없이 마진율만 적용
-            # 저장된 마진율 가져오기
-            margin_setting = conn.execute(
-                '''SELECT setting_value FROM spare_part_settings 
-                   WHERE setting_key = "margin_rate"'''
-            ).fetchone()
-            
-            if margin_setting and margin_setting['setting_value']:
-                margin_rate = 1 + (int(margin_setting['setting_value']) / 100)  # 25% -> 1.25
-                print(f"KRW 마진율 적용: {margin_setting['setting_value']}% -> {margin_rate}")
-            else:
-                margin_rate = 1.20  # 기본 마진율 20% (1 + 0.20)
-                print(f"기본 마진율 적용: 20% -> {margin_rate}")
-            
-            final_price_krw = krw_cost_price * margin_rate
-        else:
-            # EUR/USD 원가는 EUR/USD 기준으로 최소/최대가격 비교해서 팩터 계산
-            original_currency_price = price  # EUR 또는 USD 원가
-            
-            # EUR/USD 기준 최소/최대가격과 비교
-            if original_currency_price < min_price:
-                # 최소 가격 미만일 때 최대 팩터 적용
-                final_price_krw = krw_cost_price * max_factor
-            elif original_currency_price > max_price:
-                # 최대 가격 초과일 때 최소 팩터 적용
-                final_price_krw = krw_cost_price * min_factor
-            else:
-                # 정상 범위일 때 2차 함수 적용 (EUR/USD 가격 기준)
-                factor = a * (original_currency_price ** 2) + b * original_currency_price + c
-                final_price_krw = krw_cost_price * factor
-        
-        # 최종 가격이 음수가 되지 않도록 보정
-        final_price_krw = max(krw_cost_price, final_price_krw)
-        
-        # 100원 단위에서 올림 처리
-        import math
-        rounded_billing_price = math.ceil(final_price_krw / 100) * 100
-        
+
+        # 환율 및 청구가 계산 (실 DB 환율/팩터 설정 사용)
+        exchange_rate, krw_cost_price, rounded_billing_price, factors_or_error = calculate_billing_price(
+            conn, price, currency, part_type
+        )
+
+        if exchange_rate is None:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': factors_or_error
+            }), 400
+
         # 가격 히스토리 추가 (원가, 청구가, 환율 함께 저장)
         conn.execute(
             '''INSERT INTO price_history
@@ -1186,11 +1269,7 @@ def add_price_history(part_id):
                 'krw_cost_price': int(krw_cost_price),  # 원화 환산 원가
                 'final_billing_price': int(rounded_billing_price),  # 100원 단위 올림 처리된 최종 청구가격
                 'exchange_rate': exchange_rate,
-                'quadratic_factors': {
-                    'a': a,
-                    'b': b, 
-                    'c': c
-                },
+                'quadratic_factors': factors_or_error,
                 'effective_date': effective_date,
                 'notes': notes,
                 'created_by': user_name
