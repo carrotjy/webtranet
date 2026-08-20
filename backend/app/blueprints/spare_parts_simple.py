@@ -213,10 +213,11 @@ def create_spare_part():
         print(f"Inserted part data: {dict(inserted_part) if inserted_part else 'None'}")  # 디버깅용
         
         conn.close()
-        
+
         return jsonify({
             'success': True,
-            'message': '스페어파트가 생성되었습니다.'
+            'message': '스페어파트가 생성되었습니다.',
+            'id': inserted_part['id'] if inserted_part else None
         })
 
     except Exception as e:
