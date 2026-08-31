@@ -707,4 +707,7 @@ def generate_pdf(report_id):
     except ImportError:
         return jsonify({'error': 'WeasyPrint가 설치되어 있지 않습니다.'}), 500
     except Exception as e:
-        return jsonify({'error': f'PDF 생성 중 오류가 발생했습니다: {str(e)}'}), 500
+        import traceback
+        traceback.print_exc()
+        # 프런트엔드에서 "PDF 생성 중 오류가 발생했습니다: " 접두어를 붙이므로 여기서는 원인만 반환
+        return jsonify({'error': str(e)}), 500
