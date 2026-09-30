@@ -252,12 +252,12 @@ const Invoices: React.FC = () => {
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const customerName = report.customer_name || '고객명없음';
-      const serviceDate = report.service_date
-        ? new Date(report.service_date).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\. /g, '').replace('.', '')
-        : '날짜없음';
+      // 백엔드 PDF 자동저장 파일명 규칙과 동일하게 맞춤 (서비스리포트-고객명-리포트번호.pdf)
+      const customerName = report.customer_name || '고객';
+      const reportNumber = report.report_number || report.id;
+      const fileName = `서비스리포트-${customerName}-${reportNumber}`.replace(/[\\/:*?"<>|]/g, '');
       a.href = url;
-      a.download = `${customerName}-${serviceDate}-${report.report_number || report.id}.pdf`;
+      a.download = `${fileName}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

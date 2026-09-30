@@ -2114,6 +2114,13 @@ const ServiceReports: React.FC = () => {
     return `${customerName}-${serviceDate}-${reportIndex}`;
   };
 
+  // 백엔드 PDF 자동저장 파일명 규칙과 동일하게 맞춤 (서비스리포트-고객명-리포트번호.pdf)
+  const getPdfFileName = (report: ServiceReport) => {
+    const customerName = report.customer_name || '고객';
+    const reportNumber = report.report_number || String(report.id);
+    return `서비스리포트-${customerName}-${reportNumber}`.replace(/[\\/:*?"<>|]/g, '');
+  };
+
   const handleGeneratePDF = async (report: ServiceReport, _parts: any[]) => {
     try {
       const response = await api.get(`/api/service-reports/${report.id}/pdf`, {
@@ -2122,7 +2129,7 @@ const ServiceReports: React.FC = () => {
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const fileName = getReportFileName(report);
+      const fileName = getPdfFileName(report);
       a.href = url;
       a.download = `${fileName}.pdf`;
       document.body.appendChild(a);
