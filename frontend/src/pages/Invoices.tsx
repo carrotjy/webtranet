@@ -1391,8 +1391,6 @@ const Invoices: React.FC = () => {
                               <th>부품명</th>
                               <th>부품번호</th>
                               <th>수량</th>
-                              <th>단가</th>
-                              <th>총액</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1401,8 +1399,6 @@ const Invoices: React.FC = () => {
                                 <td className="bg-white">{part.part_name || '-'}</td>
                                 <td className="bg-white">{part.part_number || '-'}</td>
                                 <td className="bg-white text-center">{part.quantity || '-'}</td>
-                                <td className="bg-white text-end">{typeof part.unit_price === 'number' ? part.unit_price.toLocaleString() : '0'}</td>
-                                <td className="bg-white text-end fw-bold">{typeof part.total_price === 'number' ? part.total_price.toLocaleString() : '0'}</td>
                               </tr>
                             ))}
                           </tbody>

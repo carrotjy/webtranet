@@ -392,8 +392,6 @@ def _build_pdf_html(report_dict: dict) -> str:
               <td style="border:1px solid #aaa; padding:3px 6px;">{p.get("part_name") or "-"}</td>
               <td style="border:1px solid #aaa; padding:3px 6px;">{p.get("part_number") or "-"}</td>
               <td style="border:1px solid #aaa; padding:3px 6px; text-align:center;">{p.get("quantity") or "-"}</td>
-              <td style="border:1px solid #aaa; padding:3px 6px; text-align:right;">{f"{int(p.get('unit_price') or 0):,}" if isinstance(p.get("unit_price"), (int, float)) else "0"}</td>
-              <td style="border:1px solid #aaa; padding:3px 6px; text-align:right; font-weight:bold;">{f"{int(p.get('total_price') or 0):,}" if isinstance(p.get("total_price"), (int, float)) else "0"}</td>
             </tr>'''
             for p in parts
         )
@@ -405,8 +403,6 @@ def _build_pdf_html(report_dict: dict) -> str:
               <th style="border:1px solid #aaa; padding:3px 6px; text-align:left;">부품명</th>
               <th style="border:1px solid #aaa; padding:3px 6px; text-align:left;">부품번호</th>
               <th style="border:1px solid #aaa; padding:3px 6px; text-align:center; width:60px;">수량</th>
-              <th style="border:1px solid #aaa; padding:3px 6px; text-align:right; width:90px;">단가</th>
-              <th style="border:1px solid #aaa; padding:3px 6px; text-align:right; width:90px;">총액</th>
             </tr>
           </thead>
           <tbody>{rows}</tbody>
